@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "D4Lister - dien du lieu vao diablo.trade",
-  "version": "0.1",
-  "description": "Doc chu item tu clipboard roi sua lai cac o affix cho dung. Khong tu bam dang.",
+  "name": "D4Lister — điền item vào diablo.trade",
+  "version": "0.3",
+  "description": "Đọc chữ item từ clipboard rồi điền thẳng vào form, tự thêm affix thiếu, tự bật dấu sao. Tự đăng khi mọi thứ sạch.",
   "content_scripts": [
     {
-      "matches": ["https://diablo.trade/*"],
-      "js": ["d4lister.js"],
+      "matches": [
+        "https://diablo.trade/*"
+      ],
+      "js": [
+        "d4lister.js"
+      ],
       "run_at": "document_idle",
       "world": "MAIN"
     }
