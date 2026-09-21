@@ -11,6 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
+  const BAN = '0.4';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -585,5 +586,23 @@
     }
   }, true);
 
-  console.log('[D4Lister] userscript da nap');
+  // Bao co mat ngay khi nap, de khoi phai mo DevTools moi biet no co vao
+  // trang hay khong. Tu bien mat sau 2,5 giay.
+  // KHONG dung chrome.runtime o day: o che do world MAIN, bien `chrome`
+  // khong ton tai, ma `chrome?.x` van nem ReferenceError voi bien chua khai bao.
+  console.log('[D4Lister] da nap - ban ' + BAN);
+  try {
+    const bd = document.createElement('div');
+    bd.textContent = 'D4Lister ' + BAN + ' sẵn sàng';
+    bd.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:999999;' +
+      'background:#14341a;color:#9fe0a0;border:1px solid #3a7a44;border-radius:6px;' +
+      'padding:6px 12px;font:12px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.5);' +
+      'transition:opacity .4s';
+    const gan = () => {
+      document.body.appendChild(bd);
+      setTimeout(() => { bd.style.opacity = '0'; setTimeout(() => bd.remove(), 500); }, 2500);
+    };
+    if (document.body) gan();
+    else document.addEventListener('DOMContentLoaded', gan);
+  } catch (e) {}
 })();
