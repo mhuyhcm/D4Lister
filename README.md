@@ -86,10 +86,13 @@ món. Bấm xong là xong ngay, phần đọc chữ chạy ngầm.
 **Trên trình duyệt** — mở diablo.trade → Create Listing:
 
 ```
-F4  →  dán món 1  →  SCAN  →  liếc kiểm  →  gõ giá  →  SUBMIT
-F5  →  dán món 2  →  SCAN  →  liếc kiểm  →  gõ giá  →  SUBMIT
+F4  →  dán món 1  →  SCAN  →  tiện ích tự điền  →  tự đăng sau 5 giây
+F5  →  dán món 2  →  SCAN  →  tự điền           →  tự đăng
 F5  →  ...
 ```
+
+Muốn đặt giá thì cứ gõ vào ô giá — gõ là đếm ngược dừng lại, gõ xong bấm
+**Ctrl+Enter**.
 
 ---
 
@@ -164,6 +167,8 @@ CHAY.bat                   chạy
 TAT-HET.bat                tắt (không đụng script AHK khác của bạn)
 CAI-TIEN-ICH-CHROME.bat    hướng dẫn nạp tiện ích
 extension\                 tiện ích Chrome
+cai-dat\                   bộ cài AutoHotkey + Tesseract xách tay (nén)
+tesseract\                 Tesseract đã bung ra (CHAY.bat tự làm lần đầu)
 queue\                     ảnh + chữ đã gom
 TatThongBaoSnip.bat        tắt thông báo Snip & Sketch (+ file hoàn tác)
 
