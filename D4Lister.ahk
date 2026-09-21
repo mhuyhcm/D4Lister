@@ -464,50 +464,39 @@ return
 ;=====================================================================
 KiemTraCapNhat:
     SetTimer, KiemTraCapNhat, Off
-    if !FileExist(A_ScriptDir . "\.git")
+    psFile := A_ScriptDir . "\cap-nhat.ps1"
+    if !FileExist(psFile)
+        return
+    ; Thư mục có .git = đây là MÁY ĐANG SỬA CODE, dùng git để cập nhật.
+    ; Tự tải bản trên mạng về đè ở đây là mất sạch việc đang làm dở.
+    if FileExist(A_ScriptDir . "\.git")
         return
 
-    truoc := GitLenh("rev-parse HEAD")
-    if (truoc = "")
-        return
-    GitLenh("pull --quiet --ff-only")
-    sau := GitLenh("rev-parse HEAD")
-    if (sau = "" || sau = truoc)
-        return
+    ShowMsg("Đang xem có bản mới không…", "warn")
+    RunWait, % "powershell -NoProfile -ExecutionPolicy Bypass -File """ . psFile
+             . """ -ThuMuc """ . A_ScriptDir . """", , Hide UseErrorLevel
+    ma := ErrorLevel
 
-    doiFile := GitLenh("diff --name-only " . truoc . " " . sau)
-    if InStr(doiFile, "extension/")
+    if (ma = 0 || ma = 3)       ; đã mới nhất, hoặc không hỏi được (mất mạng)
+    {
+        HideMsgNow()
+        return
+    }
+    if (ma = 2)
     {
         ; Chrome KHÔNG tự nạp lại tiện ích cài kiểu Load unpacked. Không nhắc
         ; thì bạn vẫn đang dùng bản cũ mà tưởng đã cập nhật.
         MsgBox, 48, D4Lister — đã có bản mới
-            , % "Đã cập nhật xong.`n`nLẦN NÀY CÓ SỬA TIỆN ÍCH CHROME.`n`n"
+            , % "Đã tải bản mới xong.`n`nLẦN NÀY CÓ SỬA TIỆN ÍCH CHROME.`n`n"
               . "Vào chrome://extensions bấm nút xoay vòng trên ô D4Lister,`n"
               . "rồi F5 lại trang diablo.trade.`n`n"
               . "Không làm bước này thì trình duyệt vẫn chạy bản cũ."
     }
-    else
-    {
-        ShowMsg("Đã cập nhật bản mới — bấm " . HK_RELOAD . " để nạp lại", "warn")
-    }
+    ; Bản mới đã nằm trên đĩa nhưng script đang chạy vẫn là bản cũ -> nạp lại.
+    ShowMsg("Đã tải bản mới — đang nạp lại…", "warn")
+    Sleep, 1200
+    Reload
 return
-
-;   Gọi git, trả về chữ nó in ra. Hỏng thì trả về chuỗi rỗng.
-GitLenh(thamSo)
-{
-    tmp := A_Temp . "\d4l_git_" . A_TickCount . ".txt"
-    RunWait, % ComSpec . " /c cd /d """ . A_ScriptDir . """ && git " . thamSo
-            . " > """ . tmp . """ 2>&1", , Hide, pid
-    if !FileExist(tmp)
-        return ""
-    FileRead, kq, %tmp%
-    FileDelete, %tmp%
-    kq := Trim(kq, " `t`r`n")
-    ; git in lỗi ra cùng chỗ -> coi như hỏng
-    if RegExMatch(kq, "i)^(fatal|error|'git')")
-        return ""
-    return kq
-}
 
 ;=====================================================================
 ;   NẠP LẠI HÀNG ĐỢI CỦA PHIÊN TRƯỚC

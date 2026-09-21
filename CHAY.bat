@@ -1,31 +1,14 @@
 @echo off
-setlocal enabledelayedexpansion
 title D4Lister
 cd /d "%~dp0"
 
-rem ── Tu keo ban moi ve tu GitHub ────────────────────────────────────
-rem    Khong co git / khong co mang thi bo qua, tool van chay binh thuong.
-set EXT_DOI=
-if exist ".git" (
-  where git >nul 2>&1
-  if not errorlevel 1 (
-    echo  Dang kiem tra ban moi...
-    for /f "delims=" %%i in ('git rev-parse HEAD 2^>nul') do set TRUOC=%%i
-    git pull --quiet --ff-only >nul 2>&1
-    for /f "delims=" %%i in ('git rev-parse HEAD 2^>nul') do set SAU=%%i
-    if not "!TRUOC!"=="!SAU!" (
-      echo  Da cap nhat ban moi.
-      git diff --name-only !TRUOC! !SAU! 2>nul | findstr /b "extension/" >nul && set EXT_DOI=1
-    )
-  )
-)
+rem Ban moi: chinh D4Lister.ahk tu kiem khi khoi dong. Khong can cai Git.
 
 rem ── Lan dau chay: bung Tesseract xach tay ──────────────────────────
 if not exist "tesseract\tesseract.exe" (
   if exist "cai-dat\tesseract-portable.zip" (
     echo.
     echo  Lan dau chay tren may nay - dang bung Tesseract ^(~160 MB^)...
-    echo  Doi mot chut, lan sau khong phai lam lai.
     powershell -NoProfile -Command "Expand-Archive -Path 'cai-dat\tesseract-portable.zip' -DestinationPath '.' -Force" >nul 2>&1
     if exist "tesseract\tesseract.exe" ( echo  Xong. ) else ( echo  [ ! ] Bung khong duoc - se chay khong co phan doc chu. )
     echo.
@@ -58,7 +41,7 @@ powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='Au
 start "" "%AHK%" "%~dp0D4Lister.ahk"
 
 echo.
-echo  D4Lister da chay nen.
+echo  D4Lister da chay nen. No tu kiem tra ban moi ngay bay gio.
 echo.
 echo    Trong game     F3  chup item  ^(keo chon vung tooltip^)
 echo    Tren trinh duyet
@@ -68,30 +51,12 @@ echo                   F6  lui ve mon truoc
 echo    Bat cu luc nao
 echo                   F7  doi che do xu ly anh
 echo                   F9  xoa sach hang doi
-echo                   Ctrl+Shift+F11  nap lai script
+echo                   Ctrl+Shift+F11  nap lai ^(kiem tra luon ban moi^)
 echo                   Ctrl+Shift+F12  thoat han
 echo.
-
-if defined EXT_DOI (
-  echo  ================================================================
-  echo    LAN CAP NHAT NAY CO SUA TIEN ICH CHROME
-  echo.
-  echo    Chrome KHONG tu nap lai tien ich khi file tren dia doi.
-  echo    Vao  chrome://extensions  bam nut xoay vong tren o D4Lister,
-  echo    roi F5 lai trang diablo.trade.
-  echo.
-  echo    Khong lam buoc nay thi ban van dang dung BAN CU.
-  echo  ================================================================
-  echo.
-  pause
-  exit /b 0
-)
-
 echo  Dong cua so nay khong sao, tool van chay.
 echo.
-rem Doi 8 giay. Dung ping chu khong dung timeout: timeout treo khi chay
-rem tu cho khong co ban phim.
-ping -n 9 127.0.0.1 >nul
+ping -n 7 127.0.0.1 >nul
 exit /b 0
 
 :TimAHK

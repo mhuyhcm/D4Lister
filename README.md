@@ -9,42 +9,42 @@ alt-tab lần nào), rồi sang trình duyệt đăng một mạch.
 
 ## Cài trên một máy mới
 
-Cần **Git** (https://git-scm.com/download/win) rồi mở Git Bash hoặc CMD:
+Tải đúng **một file** rồi bấm đúp:
 
-```
-git clone https://github.com/mhuyhcm/D4Lister.git
-```
+https://raw.githubusercontent.com/mhuyhcm/D4Lister/main/CAI-DAT.bat
 
-Rồi trong thư mục vừa tải về:
+*(Chuột phải vào link → Save link as…)*
 
-1. Chạy **`CHAY.bat`**
+Nó tự làm hết: tải mã nguồn, bung Tesseract, cài AutoHotkey nếu máy chưa có,
+rồi chạy luôn. **Không cần cài Git.**
 
-Thế thôi. Lần đầu nó tự làm hết:
+Xong nó sẽ nhắc bạn làm **việc duy nhất phải làm tay** — nạp tiện ích vào
+Chrome. Đường dẫn đã chép sẵn vào clipboard, chỉ cần dán:
 
-- Bung **Tesseract xách tay** ra từ `cai-dat\` (~4 giây, không cần cài đặt)
-- Chưa có AutoHotkey thì mở bộ cài kèm sẵn — bấm *Express Installation*
+1. Gõ vào thanh địa chỉ: `chrome://extensions`
+2. Bật **Developer mode** (góc trên bên phải)
+3. Bấm **Load unpacked**
+4. Trong ô File name bấm **Ctrl+V** rồi **Select Folder**
 
-2. Chạy **`CAI-TIEN-ICH-CHROME.bat`** → làm 4 bước nó hướng dẫn để nạp tiện ích
-   vào Chrome. Đây là việc duy nhất phải làm tay, vì Chrome bắt buộc chính người
-   dùng bấm.
+Chrome bắt buộc chính người dùng bấm — không chương trình nào lách được.
 
-Lần sau chỉ cần `CHAY.bat`.
+Kiểm tra: mở https://diablo.trade, thấy dòng **D4Lister sẵn sàng** hiện ở góc
+dưới bên phải là xong.
 
 ## Tự cập nhật
 
-Hai chỗ cùng kiểm tra bản mới:
+**Chạy D4Lister là nó tự kiểm tra.** Mỗi lần khởi động, và mỗi lần nạp lại
+bằng **Ctrl+Shift+F11**.
 
-- **`CHAY.bat`** tự `git pull` trước khi khởi động
-- **Chính script AHK** kiểm tra lúc khởi động, và mỗi lần nạp lại
-  (**Ctrl+Shift+F11**)
+Có bản mới thì nó tải về rồi tự nạp lại. Mất mạng thì bỏ qua im lặng, tool vẫn
+chạy. Không cần Git.
 
-Có bản mới thì nó báo; không có mạng hoặc máy không cài git thì bỏ qua im lặng,
-tool vẫn chạy.
+Thư mục `queue\` và các file riêng của bạn không bao giờ bị đè.
 
-**Một ngoại lệ:** Chrome KHÔNG tự nạp lại tiện ích đã cài kiểu *Load unpacked*.
-Nên khi bản cập nhật có đụng vào thư mục `extension\`, `CHAY.bat` sẽ dừng lại và
-nhắc to — lúc đó vào `chrome://extensions` bấm nút xoay vòng rồi F5 trang
-diablo.trade. Không làm thì vẫn đang chạy bản cũ mà không biết.
+**Một ngoại lệ:** Chrome KHÔNG tự nạp lại tiện ích cài kiểu *Load unpacked*.
+Nên khi bản mới có sửa tiện ích, D4Lister hiện hộp thoại nhắc — lúc đó vào
+`chrome://extensions` bấm nút xoay vòng rồi F5 trang diablo.trade. Không làm
+thì trình duyệt vẫn chạy bản cũ.
 
 ## Sửa code ở máy chính rồi đẩy lên
 

@@ -19,3 +19,6 @@ desktop.ini
 # Tesseract xach tay - do cai-dat	esseract-portable.zip bung ra,
 # khong day ban da bung len (day ban nen la du).
 tesseract/
+
+# Ma phien ban dang cai tren may nay - moi may mot khac
+phien-ban.txt
