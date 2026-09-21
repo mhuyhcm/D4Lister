@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '0.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '0.6';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -588,21 +588,37 @@
 
   // Bao co mat ngay khi nap, de khoi phai mo DevTools moi biet no co vao
   // trang hay khong. Tu bien mat sau 2,5 giay.
-  // KHONG dung chrome.runtime o day: o che do world MAIN, bien `chrome`
-  // khong ton tai, ma `chrome?.x` van nem ReferenceError voi bien chua khai bao.
+  // ------------------------------------------------------------------
+  //  DAU HIEU SONG - o lai vinh vien o goc duoi ben TRAI.
+  //
+  //  diablo.trade la ung dung mot trang: bam sang muc khac la React dung
+  //  lai toan bo noi dung va XOA LUON the nay. Bo bat su kien thi van song
+  //  (no gan vao document), nhung thu nhin thay duoc thi mat -> trong nhu
+  //  la tien ich chet. Nen phai tu gan lai khi bi xoa.
+  // ------------------------------------------------------------------
   console.log('[D4Lister] da nap - ban ' + BAN);
-  try {
-    const bd = document.createElement('div');
-    bd.textContent = 'D4Lister ' + BAN + ' sẵn sàng';
-    bd.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:999999;' +
-      'background:#14341a;color:#9fe0a0;border:1px solid #3a7a44;border-radius:6px;' +
-      'padding:6px 12px;font:12px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.5);' +
-      'transition:opacity .4s';
-    const gan = () => {
-      document.body.appendChild(bd);
-      setTimeout(() => { bd.style.opacity = '0'; setTimeout(() => bd.remove(), 500); }, 2500);
-    };
-    if (document.body) gan();
-    else document.addEventListener('DOMContentLoaded', gan);
-  } catch (e) {}
+
+  let chip = null;
+  function dungChip() {
+    const c = document.createElement('div');
+    c.id = 'd4l-chip';
+    c.textContent = 'D4Lister ' + BAN;
+    c.title = 'D4Lister đang chạy. F4 dán món, F5 sang món kế.';
+    c.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:999998;' +
+      'background:rgba(20,52,26,.85);color:#9fe0a0;border:1px solid #3a7a44;' +
+      'border-radius:999px;padding:3px 10px;font:11px system-ui,sans-serif;' +
+      'pointer-events:none;user-select:none;opacity:.55;transition:opacity .3s';
+    return c;
+  }
+  function giuChip() {
+    if (!document.body) return;
+    if (chip && document.body.contains(chip)) return;
+    chip = dungChip();
+    document.body.appendChild(chip);
+  }
+  giuChip();
+  document.addEventListener('DOMContentLoaded', giuChip);
+  // React dung lai trang thi gan lai. 2 giay mot lan, nhe khong dang ke.
+  setInterval(giuChip, 2000);
+
 })();
