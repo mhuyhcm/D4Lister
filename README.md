@@ -7,13 +7,43 @@ alt-tab lần nào), rồi sang trình duyệt đăng một mạch.
 
 ---
 
-## Cài — làm một lần
+## Cài trên một máy mới
+
+Cần **Git** (https://git-scm.com/download/win) rồi mở Git Bash hoặc CMD:
+
+```
+git clone https://github.com/mhuyhcm/D4Lister.git
+```
+
+Rồi trong thư mục vừa tải về:
 
 1. Cài **AutoHotkey v1.1** nếu máy chưa có → https://www.autohotkey.com/download/ahk-v1.zip
-2. Chạy **`CAI-TIEN-ICH-CHROME.bat`** → làm 4 bước nó hướng dẫn để nạp tiện ích vào Chrome
-3. Chạy **`CHAY.bat`**
+2. Cài **Tesseract OCR** → https://github.com/UB-Mannheim/tesseract/wiki
+   *(không cài cũng chạy được, nhưng mất phần đọc chữ — quay về cách cũ: dán ảnh rồi bấm SCAN)*
+3. Chạy **`CAI-TIEN-ICH-CHROME.bat`** → làm 4 bước nó hướng dẫn để nạp tiện ích vào Chrome
+4. Chạy **`CHAY.bat`**
 
-Lần sau chỉ cần bước 3.
+Lần sau chỉ cần bước 4.
+
+## Tự cập nhật
+
+`CHAY.bat` tự `git pull` trước khi khởi động. Mở máy là có bản mới nhất, không
+phải nhớ thao tác gì. Không có mạng thì nó bỏ qua, tool vẫn chạy.
+
+**Một ngoại lệ:** Chrome KHÔNG tự nạp lại tiện ích đã cài kiểu *Load unpacked*.
+Nên khi bản cập nhật có đụng vào thư mục `extension\`, `CHAY.bat` sẽ dừng lại và
+nhắc to — lúc đó vào `chrome://extensions` bấm nút xoay vòng rồi F5 trang
+diablo.trade. Không làm thì vẫn đang chạy bản cũ mà không biết.
+
+## Sửa code ở máy chính rồi đẩy lên
+
+```
+git add -A
+git commit -m "mo ta ngan"
+git push
+```
+
+Các máy khác lần sau chạy `CHAY.bat` là tự có.
 
 Không có Tesseract thì tool vẫn chạy, chỉ là không có chữ — quay về cách cũ
 (dán ảnh rồi bấm SCAN, tự sửa chỉ số bằng tay).
