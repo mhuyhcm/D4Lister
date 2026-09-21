@@ -116,10 +116,25 @@ diablo.trade**. Đó là chỗ tránh được hết lỗi đọc sai số.
 Tiện ích còn tự **thêm dòng affix** mà trang không dựng ra, và đối chiếu từng
 số với khoảng hợp lệ mà trang giấu sẵn trong trang.
 
+## Thiết lập
+
+Bấm vào chip **D4Lister** ở góc dưới bên trái là mở bảng thiết lập. Đổi xong
+dùng ngay, không phải sửa file, không phải nạp lại.
+
+| Mục | Mặc định | Nghĩa |
+|---|---|---|
+| Tự đăng | bật | Điền xong, mọi thứ sạch thì tự bấm SUBMIT |
+| Đăng cả khi có cảnh báo | **tắt** | Bật lên là số sai vẫn lên sàn mà bạn không biết |
+| Tự thêm affix thiếu | bật | Trang không dựng ra dòng nào thì tự mở danh sách thêm |
+| Tự bật dấu sao | bật | Greater Affix — đo bằng pixel từ ảnh chụp |
+| Đếm ngược | 5 giây | Thời gian chờ trước khi bấm đăng |
+
+Thiết lập lưu trong trình duyệt, mỗi máy một bản riêng.
+
 ## Tự đăng
 
-Điền xong, nếu **mọi thứ sạch** thì tiện ích đếm ngược 5 giây rồi tự bấm SUBMIT.
-Bạn không phải bấm gì.
+Điền xong, nếu **mọi thứ sạch** thì đếm ngược rồi tự bấm SUBMIT. Bạn không phải
+bấm gì.
 
 Sạch nghĩa là: không dòng nào vượt khoảng của trang, không thiếu affix nào,
 không lỗi. Có bất kỳ cảnh báo nào thì **nó dừng lại và hỏi** — vì đã đo được là
@@ -128,14 +143,6 @@ trang có thể âm thầm đổi số (12.5 thành 10 mà không báo), và OCR
 
 Đang đếm ngược mà bấm **Esc**, hoặc gõ vào ô giá, là nó dừng.
 Gõ giá xong thì bấm **Ctrl+Enter** để đăng — khỏi phải rê chuột.
-
-Hai công tắc ở đầu file `extension\d4lister.js`:
-
-```js
-const TU_DANG              = true;   // false = không bao giờ tự đăng
-const DANG_CA_KHI_CANH_BAO = false;  // true  = đăng cả khi có cảnh báo
-const DEM_NGUOC            = 5;      // giây đếm ngược
-```
 
 ---
 

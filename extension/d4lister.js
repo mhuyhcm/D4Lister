@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '0.6';          // doi cung luc voi version trong manifest.json
+  const BAN = '0.7';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -154,7 +154,7 @@
       datGiaTri(dong.inp, v);
 
       // Dau sao: bat/tat cho khop voi cai do duoc tren anh.
-      if (coDoSao && dong.nutSao && saoDangBat(dong.nutSao) !== !!m.sao) {
+      if (CD.tuDauSao && coDoSao && dong.nutSao && saoDangBat(dong.nutSao) !== !!m.sao) {
         bamThat(dong.nutSao);
         doiSao.push({ ten: dong.ten, bat: !!m.sao });
       }
@@ -170,6 +170,7 @@
   // Cai nay do duong, vi cau truc cai dropdown chua ai nhin thay.
   // Neu that bai thi bao ro, KHONG bam bua len trang.
   let loiThem = [];
+  let daTuThem = false;   // moi lan dan chi tu them MOT lan
   const doi = ms => new Promise(r => setTimeout(r, ms));
 
   async function cho(ham, hanMs) {
@@ -395,6 +396,66 @@
     return d;
   }
 
+  // --- BẢNG THIẾT LẬP ---------------------------------------------------
+  //  Bấm vào chip góc dưới bên trái là mở ra. Lưu trong trình duyệt nên
+  //  đổi xong là dùng ngay, không phải sửa file, không phải nạp lại.
+  function moThietLap() {
+    document.getElementById('d4l-tl')?.remove();
+    const d = document.createElement('div');
+    d.id = 'd4l-tl';
+    d.style.cssText = 'position:fixed;left:12px;bottom:46px;z-index:999999;width:320px;' +
+      'background:#14141a;color:#eee;border:1px solid #444;border-radius:8px;padding:12px 14px;' +
+      'font:13px/1.5 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.6)';
+
+    const o = (khoa, nhan, ghiChu) =>
+      '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:9px;cursor:pointer">' +
+      '<input type="checkbox" data-k="' + khoa + '"' + (CD[khoa] ? ' checked' : '') +
+      ' style="margin-top:3px">' +
+      '<span><b>' + nhan + '</b>' +
+      (ghiChu ? '<br><span style="color:#888;font-size:11px">' + ghiChu + '</span>' : '') +
+      '</span></label>';
+
+    d.innerHTML =
+      '<b style="color:#d8b978">Thiết lập D4Lister</b>' +
+      '<span id="d4l-tl-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span>' +
+      o('tuDang', 'Tự đăng', 'Điền xong, mọi thứ sạch thì tự bấm SUBMIT.') +
+      o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo',
+        'Nguy hiểm: số sai vẫn lên sàn mà bạn không biết.') +
+      o('tuThemAffix', 'Tự thêm affix thiếu',
+        'Trang không dựng ra dòng nào thì tự mở danh sách thêm vào.') +
+      o('tuDauSao', 'Tự bật dấu sao', 'Greater Affix — đo bằng pixel từ ảnh chụp.') +
+      '<div style="margin-top:12px;display:flex;align-items:center;gap:8px">' +
+      '<span>Đếm ngược</span>' +
+      '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
+      ' style="width:56px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
+      'padding:3px 6px;font:13px system-ui">' +
+      '<span>giây trước khi đăng</span></div>' +
+      '<div style="margin-top:12px;display:flex;gap:8px">' +
+      '<button id="d4l-tl-luu" style="flex:1;background:#23402a;color:#cfe8cf;border:1px solid #4a7a52;' +
+      'border-radius:5px;padding:6px 10px;cursor:pointer;font:12px system-ui">Lưu</button>' +
+      '<button id="d4l-tl-goc" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
+      'border-radius:5px;padding:6px 10px;cursor:pointer;font:12px system-ui">Về mặc định</button>' +
+      '</div>';
+    document.body.appendChild(d);
+
+    d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
+    d.querySelector('#d4l-tl-luu').onclick = () => {
+      d.querySelectorAll('input[type=checkbox]').forEach(i => { CD[i.dataset.k] = i.checked; });
+      const g = parseInt(d.querySelector('#d4l-tl-giay').value, 10);
+      if (g >= 1 && g <= 60) CD.demNguoc = g;
+      luuCaiDat();
+      d.remove();
+      nhac('Đã lưu thiết lập.');
+      setTimeout(() => document.getElementById('d4l-bao')?.remove(), 1800);
+    };
+    d.querySelector('#d4l-tl-goc').onclick = () => {
+      CD = Object.assign({}, MAC_DINH);
+      luuCaiDat();
+      d.remove();
+      moThietLap();
+    };
+  }
+
   // --- TỰ ĐĂNG ----------------------------------------------------------
   //  Mặc định chỉ tự đăng khi MỌI THỨ SẠCH: không dòng nào vượt khoảng, không
   //  thiếu affix, không lỗi. Có cảnh báo thì dừng lại và hỏi.
@@ -405,9 +466,27 @@
   //
   //  Muốn đăng tất bằng mọi giá: đổi DANG_CA_KHI_CANH_BAO thành true.
   //  Muốn tắt hẳn tự đăng:       đổi TU_DANG thành false.
-  const TU_DANG              = true;
-  const DANG_CA_KHI_CANH_BAO = false;
-  const DEM_NGUOC            = 5;      // giây đếm ngược trước khi bấm đăng
+  const MAC_DINH = {
+    tuDang:           true,   // tự bấm SUBMIT khi mọi thứ sạch
+    dangCaKhiCanhBao: false,  // đăng cả khi có cảnh báo
+    demNguoc:         5,      // giây đếm ngược trước khi bấm đăng
+    tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
+    tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
+  };
+  const KHOA_LUU = 'd4lister-cai-dat';
+
+  // Lưu trong trình duyệt, theo từng máy. Chặn lỗi vì chế độ ẩn danh hoặc
+  // trình duyệt khoá bộ nhớ trang thì đọc/ghi đều ném lỗi.
+  function docCaiDat() {
+    try {
+      const t = localStorage.getItem(KHOA_LUU);
+      return t ? Object.assign({}, MAC_DINH, JSON.parse(t)) : Object.assign({}, MAC_DINH);
+    } catch (e) { return Object.assign({}, MAC_DINH); }
+  }
+  function luuCaiDat() {
+    try { localStorage.setItem(KHOA_LUU, JSON.stringify(CD)); } catch (e) {}
+  }
+  let CD = docCaiDat();
 
   let dongHoDang = null;
 
@@ -424,7 +503,7 @@
     if (!el) return;
     if (dongHoDang) { clearInterval(dongHoDang); dongHoDang = null; }
 
-    if (!TU_DANG) {
+    if (!CD.tuDang) {
       el.innerHTML = '<span style="color:#888;font-size:12px">Tự đăng đang tắt.</span>';
       return;
     }
@@ -433,7 +512,7 @@
       el.innerHTML = '<span style="color:#888;font-size:12px">Không thấy nút Submit.</span>';
       return;
     }
-    if (!sach && !DANG_CA_KHI_CANH_BAO) {
+    if (!sach && !CD.dangCaKhiCanhBao) {
       el.innerHTML =
         '<div style="color:#e8c05a;font-size:12px">Không tự đăng — xem mấy dòng cảnh báo ở trên.</div>' +
         '<button id="d4l-dangluon" style="margin-top:6px;background:#3a3a22;color:#e8e0c0;' +
@@ -443,7 +522,7 @@
       return;
     }
 
-    let con = DEM_NGUOC;
+    let con = Math.max(1, CD.demNguoc | 0);
     const ve = () => {
       el.innerHTML =
         '<div style="color:#7ec97e;font-size:13px">Tự đăng sau <b>' + con + '</b> giây…</div>' +
@@ -535,6 +614,15 @@
 
     // Sạch = không có dòng nào vượt khoảng, không thiếu affix, không lỗi.
     const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi && daGhi.length > 0;
+
+    // Thiếu affix mà bật tự thêm -> thêm luôn, khỏi bấm nút.
+    // CHỈ MỘT LẦN cho mỗi lần dán: thêm không được thì `thieu` vẫn còn,
+    // không chặn thì nó gọi lại chính nó mãi mãi.
+    if (CD.tuThemAffix && thieu.length && !daTuThem) {
+      daTuThem = true;
+      themCacAffixThieu(thieu);   // xong sẽ tự gọi lại apDung -> vẽ lại bảng
+      return;
+    }
     xetTuDang(d.querySelector('#d4l-dang'), sach);
   }
 
@@ -544,6 +632,7 @@
     if (!t.trim()) return;
     chuDaDan = t;
     loiThem = [];          // lan dan moi -> xoa loi cu
+    daTuThem = false;
     choFormDungXong(t);
   }, true);
 
@@ -603,11 +692,14 @@
     const c = document.createElement('div');
     c.id = 'd4l-chip';
     c.textContent = 'D4Lister ' + BAN;
-    c.title = 'D4Lister đang chạy. F4 dán món, F5 sang món kế.';
+    c.title = 'D4Lister đang chạy. Bấm để mở thiết lập.';
+    c.onmouseenter = () => c.style.opacity = '1';
+    c.onmouseleave = () => c.style.opacity = '.55';
+    c.onclick = moThietLap;
     c.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:999998;' +
       'background:rgba(20,52,26,.85);color:#9fe0a0;border:1px solid #3a7a44;' +
       'border-radius:999px;padding:3px 10px;font:11px system-ui,sans-serif;' +
-      'pointer-events:none;user-select:none;opacity:.55;transition:opacity .3s';
+      'cursor:pointer;user-select:none;opacity:.55;transition:opacity .3s';
     return c;
   }
   function giuChip() {
