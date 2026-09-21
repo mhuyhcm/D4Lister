@@ -1,0 +1,17 @@
+# --- RIENG TU: khoa bi mat, tuyet doi khong day len ---
+_cu/
+*.pem
+
+# --- Anh item va ket qua chup cua rieng may nay ---
+queue/
+_anh-cu/
+thu-nghiem/
+*.log
+
+# --- Ban luu trang diablo.trade de tra cau truc DOM ---
+# 30 MB, va la noi dung cua website nguoi khac -> khong day len
+create-listing/
+
+# --- Rac ---
+Thumbs.db
+desktop.ini

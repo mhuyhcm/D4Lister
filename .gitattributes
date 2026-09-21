@@ -1,0 +1,4 @@
+# Giu nguyen xuong dong kieu Windows. File .ahk la UTF-8 CO BOM —
+# thieu BOM thi AutoHotkey v1 doc sai tieng Viet.
+* text=auto eol=crlf
+*.png binary
