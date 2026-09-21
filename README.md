@@ -124,6 +124,7 @@ trang có thể âm thầm đổi số (12.5 thành 10 mà không báo), và OCR
 đọc sai.
 
 Đang đếm ngược mà bấm **Esc**, hoặc gõ vào ô giá, là nó dừng.
+Gõ giá xong thì bấm **Ctrl+Enter** để đăng — khỏi phải rê chuột.
 
 Hai công tắc ở đầu file `extension\d4lister.js`:
 

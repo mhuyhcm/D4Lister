@@ -463,13 +463,23 @@
     }, 1000);
   }
 
-  // Esc hoặc gõ phím bất kỳ (kể cả gõ giá) thì dừng đếm ngược.
   document.addEventListener('keydown', e => {
+    // Ctrl+Enter = đăng ngay. Dùng khi bạn vừa gõ giá xong: gõ phím làm dừng
+    // đếm ngược, nên cần một phím để nói "tôi xong rồi, đăng đi".
+    if (e.ctrlKey && e.key === 'Enter') {
+      const nut = nutDang();
+      if (!nut) return;
+      e.preventDefault();
+      huyDang(document.getElementById('d4l-dang'), 'Đã bấm đăng.');
+      bamThat(nut);
+      return;
+    }
+    // Esc hoặc gõ phím bất kỳ (kể cả gõ giá) thì dừng đếm ngược.
     if (!dongHoDang) return;
     const el = document.getElementById('d4l-dang');
     huyDang(el, e.key === 'Escape'
-      ? 'Đã dừng. Bạn tự bấm Submit.'
-      : 'Đã dừng vì bạn đang gõ. Bạn tự bấm Submit.');
+      ? 'Đã dừng. Bấm Ctrl+Enter khi muốn đăng.'
+      : 'Đã dừng vì bạn đang gõ. Gõ xong bấm Ctrl+Enter để đăng.');
   }, true);
 
   // --- bang bao ket qua ------------------------------------------------
