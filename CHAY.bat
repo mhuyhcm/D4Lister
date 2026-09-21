@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 title D4Lister
 cd /d "%~dp0"
 
-rem ── Tu keo ban moi nhat ve tu GitHub ───────────────────────────────
+rem ── Tu keo ban moi ve tu GitHub ────────────────────────────────────
 rem    Khong co git / khong co mang thi bo qua, tool van chay binh thuong.
 set EXT_DOI=
 if exist ".git" (
@@ -20,16 +20,34 @@ if exist ".git" (
   )
 )
 
-rem ── Tim AutoHotkey ─────────────────────────────────────────────────
-set AHK=
-if exist "C:\Program Files\AutoHotkey\AutoHotkey.exe" set AHK=C:\Program Files\AutoHotkey\AutoHotkey.exe
-if exist "C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe" set AHK=C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe
-if exist "C:\Program Files (x86)\AutoHotkey\AutoHotkey.exe" set AHK=C:\Program Files (x86)\AutoHotkey\AutoHotkey.exe
+rem ── Lan dau chay: bung Tesseract xach tay ──────────────────────────
+if not exist "tesseract\tesseract.exe" (
+  if exist "cai-dat\tesseract-portable.zip" (
+    echo.
+    echo  Lan dau chay tren may nay - dang bung Tesseract ^(~160 MB^)...
+    echo  Doi mot chut, lan sau khong phai lam lai.
+    powershell -NoProfile -Command "Expand-Archive -Path 'cai-dat\tesseract-portable.zip' -DestinationPath '.' -Force" >nul 2>&1
+    if exist "tesseract\tesseract.exe" ( echo  Xong. ) else ( echo  [ ! ] Bung khong duoc - se chay khong co phan doc chu. )
+    echo.
+  )
+)
 
+rem ── Tim AutoHotkey, chua co thi mo bo cai kem theo ─────────────────
+call :TimAHK
+if "%AHK%"=="" (
+  if exist "cai-dat\AutoHotkey_1.1.37.02_setup.exe" (
+    echo.
+    echo  May nay chua cai AutoHotkey. Dang mo bo cai kem san...
+    echo  Bam Express Installation la xong.
+    echo.
+    start /wait "" "cai-dat\AutoHotkey_1.1.37.02_setup.exe"
+    call :TimAHK
+  )
+)
 if "%AHK%"=="" (
   echo.
-  echo  [ LOI ] May nay chua cai AutoHotkey v1.1
-  echo          Tai tai: https://www.autohotkey.com/download/ahk-v1.zip
+  echo  [ LOI ] Chua cai duoc AutoHotkey v1.1
+  echo          Tai tay tai: https://www.autohotkey.com/download/ahk-v1.zip
   echo.
   pause
   exit /b 1
@@ -42,7 +60,7 @@ start "" "%AHK%" "%~dp0D4Lister.ahk"
 echo.
 echo  D4Lister da chay nen.
 echo.
-echo    Trong game     F3  chup item  (keo chon vung tooltip)
+echo    Trong game     F3  chup item  ^(keo chon vung tooltip^)
 echo    Tren trinh duyet
 echo                   F4  dan mon dang chon
 echo                   F5  sang mon ke + dan luon
@@ -50,6 +68,7 @@ echo                   F6  lui ve mon truoc
 echo    Bat cu luc nao
 echo                   F7  doi che do xu ly anh
 echo                   F9  xoa sach hang doi
+echo                   Ctrl+Shift+F11  nap lai script
 echo                   Ctrl+Shift+F12  thoat han
 echo.
 
@@ -70,6 +89,14 @@ if defined EXT_DOI (
 
 echo  Dong cua so nay khong sao, tool van chay.
 echo.
-rem doi 8 giay. Dung ping chu khong dung timeout: timeout treo khi
-rem chay tu cho khong co ban phim (script goi tu dong chang han).
+rem Doi 8 giay. Dung ping chu khong dung timeout: timeout treo khi chay
+rem tu cho khong co ban phim.
 ping -n 9 127.0.0.1 >nul
+exit /b 0
+
+:TimAHK
+set AHK=
+if exist "C:\Program Files\AutoHotkey\AutoHotkey.exe" set AHK=C:\Program Files\AutoHotkey\AutoHotkey.exe
+if exist "C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe" set AHK=C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe
+if exist "C:\Program Files (x86)\AutoHotkey\AutoHotkey.exe" set AHK=C:\Program Files (x86)\AutoHotkey\AutoHotkey.exe
+goto :eof

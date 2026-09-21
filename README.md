@@ -17,18 +17,29 @@ git clone https://github.com/mhuyhcm/D4Lister.git
 
 Rồi trong thư mục vừa tải về:
 
-1. Cài **AutoHotkey v1.1** nếu máy chưa có → https://www.autohotkey.com/download/ahk-v1.zip
-2. Cài **Tesseract OCR** → https://github.com/UB-Mannheim/tesseract/wiki
-   *(không cài cũng chạy được, nhưng mất phần đọc chữ — quay về cách cũ: dán ảnh rồi bấm SCAN)*
-3. Chạy **`CAI-TIEN-ICH-CHROME.bat`** → làm 4 bước nó hướng dẫn để nạp tiện ích vào Chrome
-4. Chạy **`CHAY.bat`**
+1. Chạy **`CHAY.bat`**
 
-Lần sau chỉ cần bước 4.
+Thế thôi. Lần đầu nó tự làm hết:
+
+- Bung **Tesseract xách tay** ra từ `cai-dat\` (~4 giây, không cần cài đặt)
+- Chưa có AutoHotkey thì mở bộ cài kèm sẵn — bấm *Express Installation*
+
+2. Chạy **`CAI-TIEN-ICH-CHROME.bat`** → làm 4 bước nó hướng dẫn để nạp tiện ích
+   vào Chrome. Đây là việc duy nhất phải làm tay, vì Chrome bắt buộc chính người
+   dùng bấm.
+
+Lần sau chỉ cần `CHAY.bat`.
 
 ## Tự cập nhật
 
-`CHAY.bat` tự `git pull` trước khi khởi động. Mở máy là có bản mới nhất, không
-phải nhớ thao tác gì. Không có mạng thì nó bỏ qua, tool vẫn chạy.
+Hai chỗ cùng kiểm tra bản mới:
+
+- **`CHAY.bat`** tự `git pull` trước khi khởi động
+- **Chính script AHK** kiểm tra lúc khởi động, và mỗi lần nạp lại
+  (**Ctrl+Shift+F11**)
+
+Có bản mới thì nó báo; không có mạng hoặc máy không cài git thì bỏ qua im lặng,
+tool vẫn chạy.
 
 **Một ngoại lệ:** Chrome KHÔNG tự nạp lại tiện ích đã cài kiểu *Load unpacked*.
 Nên khi bản cập nhật có đụng vào thư mục `extension\`, `CHAY.bat` sẽ dừng lại và
@@ -60,6 +71,7 @@ Không có Tesseract thì tool vẫn chạy, chỉ là không có chữ — quay
 | **F6** | lùi về món trước |
 | **F7** | đổi chế độ xử lý ảnh (0 / 2) |
 | **F9** | xóa sạch hàng đợi |
+| **Ctrl+Shift+F11** | nạp lại script (kiểm tra luôn bản mới) |
 | **Ctrl+Shift+F12** | thoát hẳn |
 
 Tất cả đều là phím **toàn cục** — đang ở game hay trình duyệt đều ăn.
@@ -101,7 +113,25 @@ diablo.trade**. Đó là chỗ tránh được hết lỗi đọc sai số.
 Tiện ích còn tự **thêm dòng affix** mà trang không dựng ra, và đối chiếu từng
 số với khoảng hợp lệ mà trang giấu sẵn trong trang.
 
-**Nút SUBMIT vẫn bạn tự bấm.** Cố ý để vậy.
+## Tự đăng
+
+Điền xong, nếu **mọi thứ sạch** thì tiện ích đếm ngược 5 giây rồi tự bấm SUBMIT.
+Bạn không phải bấm gì.
+
+Sạch nghĩa là: không dòng nào vượt khoảng của trang, không thiếu affix nào,
+không lỗi. Có bất kỳ cảnh báo nào thì **nó dừng lại và hỏi** — vì đã đo được là
+trang có thể âm thầm đổi số (12.5 thành 10 mà không báo), và OCR cũng có lúc
+đọc sai.
+
+Đang đếm ngược mà bấm **Esc**, hoặc gõ vào ô giá, là nó dừng.
+
+Hai công tắc ở đầu file `extension\d4lister.js`:
+
+```js
+const TU_DANG              = true;   // false = không bao giờ tự đăng
+const DANG_CA_KHI_CANH_BAO = false;  // true  = đăng cả khi có cảnh báo
+const DEM_NGUOC            = 5;      // giây đếm ngược
+```
 
 ---
 

@@ -1,4 +1,11 @@
-# Giu nguyen xuong dong kieu Windows. File .ahk la UTF-8 CO BOM —
-# thieu BOM thi AutoHotkey v1 doc sai tieng Viet.
+# Giu nguyen xuong dong kieu Windows cho file van ban.
+# File .ahk la UTF-8 CO BOM - thieu BOM thi AutoHotkey v1 doc sai tieng Viet.
 * text=auto eol=crlf
+
+# File nhi phan: TUYET DOI khong dung vao. Git tu doan duoc, nhung doan sai
+# mot lan la hong ca bo cai - ghi ro ra cho chac.
+*.exe binary
+*.zip binary
 *.png binary
+*.webp binary
+*.traineddata binary

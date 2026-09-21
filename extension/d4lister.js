@@ -123,7 +123,7 @@
     const muon = docChuItem(text);
     const dang = timCacDong();
     if (!dang.length) {
-      bao([], [], [], 'Form chua co mon do nao. Hay bam nut SCAN truoc.');
+      bao([], [], [], 'Form chưa có món đồ nào. Bấm nút SCAN trước đã.');
       return;
     }
 
@@ -271,10 +271,10 @@
       .map(e => (e.textContent || '').trim())
       .filter(t => t && t.length < 80);
     const soTich = khung.querySelectorAll('input[type="checkbox"],[role="checkbox"]').length;
-    return 'go "' + tk + '" | o loc ghi "' + (o.getAttribute('placeholder') || '?') +
-      '", sau khi go o co gia tri "' + o.value + '" | trong khung thay ' + soTich +
-      ' o tich, ' + dong.length + ' dong' +
-      (dong.length ? ': ' + dong.slice(0, 4).join(' / ') : ' nao ca');
+    return 'gõ "' + tk + '" | ô tìm ghi "' + (o.getAttribute('placeholder') || '?') +
+      '", gõ xong ô chứa "' + o.value + '" | trong khung thấy ' + soTich +
+      ' ô tích, ' + dong.length + ' dòng' +
+      (dong.length ? ': ' + dong.slice(0, 4).join(' / ') : ' nào cả');
   }
 
   // Bam nhu chuot THAT. el.click() chi phat mot su kien "click"; cac component
@@ -312,16 +312,16 @@
 
   async function themCacAffixThieu(thieu) {
     loiThem = [];
-    nhac('Dang thu them ' + thieu.length + ' dong...');
+    nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
     for (const m of thieu) {
       const nut = nutThemAffix();
-      if (!nut) { loiThem.push([m.ten, 'khong thay nut ADD STANDARD AFFIXES']); break; }
+      if (!nut) { loiThem.push([m.ten, 'không thấy nút ADD STANDARD AFFIXES']); break; }
 
       const khung = await moDropdown(nut);
-      if (!khung) { loiThem.push([m.ten, 'bam nut ADD roi ma dropdown khong mo ra']); continue; }
+      if (!khung) { loiThem.push([m.ten, 'bấm nút ADD rồi mà danh sách không mở ra']); continue; }
 
       const o = oTimTrongKhung(khung);
-      if (!o) { loiThem.push([m.ten, 'dropdown mo roi nhung khong co o loc nao ben trong']); continue; }
+      if (!o) { loiThem.push([m.ten, 'danh sách mở rồi nhưng không thấy ô tìm kiếm']); continue; }
 
       const tk = tuKhoa(m.ten);
       goChu(o, tk);
@@ -335,9 +335,9 @@
       // chu khong tin la da xong.
       const cach = [];
       const tick = g.querySelector('input[type="checkbox"],[role="checkbox"]');
-      if (tick) cach.push(['bam thang vao o tich', () => bamThat(tick)]);
-      cach.push(['bam vao ca dong', () => bamThat(g)]);
-      cach.push(['go phim Enter o o loc', () => {
+      if (tick) cach.push(['bấm thẳng vào ô tích', () => bamThat(tick)]);
+      cach.push(['bấm vào cả dòng', () => bamThat(g)]);
+      cach.push(['gõ Enter ở ô tìm', () => {
         o.focus();
         for (const loai of ['keydown', 'keypress', 'keyup'])
           o.dispatchEvent(new KeyboardEvent(loai, {
@@ -354,7 +354,7 @@
         daThu.push(ten);
       }
       if (!xong)
-        loiThem.push([m.ten, 'thay dong roi nhung khong chon duoc. Da thu: ' + daThu.join(', ')]);
+        loiThem.push([m.ten, 'thấy dòng rồi nhưng không chọn được. Đã thử: ' + daThu.join(', ')]);
 
       if (dangMo(nut)) bamThat(nut);   // dong dropdown lai cho gon
       await doi(400);
@@ -368,14 +368,14 @@
     d.innerHTML =
       '<b style="color:#d8b978">D4Lister</b>' +
       '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>' +
-      '<div style="margin-top:6px;color:#e06a5a"><b>KHONG DIEN - sai mon do</b></div>' +
-      '<div style="margin-top:6px">Form dang mo: <b>' + thoat(tenForm) + '</b></div>' +
-      '<div>Chu vua dan : <b>' + thoat(tenChu) + '</b></div>' +
-      '<div style="margin-top:8px;color:#aaa">Hai cai khac nhau nen khong ghi gi ca.</div>' +
+      '<div style="margin-top:6px;color:#e06a5a"><b>Dừng lại — không đúng món đồ</b></div>' +
+      '<div style="margin-top:6px">Form đang mở: <b>' + thoat(tenForm) + '</b></div>' +
+      '<div>Chữ vừa dán: <b>' + thoat(tenChu) + '</b></div>' +
+      '<div style="margin-top:8px;color:#aaa">Hai tên khác nhau nên chưa ghi gì cả.</div>' +
       '<div style="margin-top:10px">' +
       '<button id="d4l-ep" style="background:#5a2020;color:#f0d0d0;border:1px solid #844;' +
-      'border-radius:5px;padding:5px 10px;cursor:pointer;font:12px system-ui">Van cu dien</button>' +
-      '<span style="color:#777;font-size:11px;margin-left:8px">chi bam neu ban chac</span></div>';
+      'border-radius:5px;padding:5px 10px;cursor:pointer;font:12px system-ui">Vẫn cứ điền</button>' +
+      '<span style="color:#777;font-size:11px;margin-left:8px">chỉ bấm nếu bạn chắc</span></div>';
     d.querySelector('#d4l-dong').onclick = () => d.remove();
     d.querySelector('#d4l-ep').onclick = () => { d.remove(); apDung(text, true); };
   }
@@ -394,6 +394,84 @@
     return d;
   }
 
+  // --- TỰ ĐĂNG ----------------------------------------------------------
+  //  Mặc định chỉ tự đăng khi MỌI THỨ SẠCH: không dòng nào vượt khoảng, không
+  //  thiếu affix, không lỗi. Có cảnh báo thì dừng lại và hỏi.
+  //
+  //  Lý do có cái chốt này: đã đo được là trang có thể âm thầm đổi số (12.5
+  //  thành 10 mà không báo gì), và OCR cũng có lúc đọc sai. Đăng bừa thì món
+  //  hàng lên sàn với chỉ số sai mà không ai biết.
+  //
+  //  Muốn đăng tất bằng mọi giá: đổi DANG_CA_KHI_CANH_BAO thành true.
+  //  Muốn tắt hẳn tự đăng:       đổi TU_DANG thành false.
+  const TU_DANG              = true;
+  const DANG_CA_KHI_CANH_BAO = false;
+  const DEM_NGUOC            = 5;      // giây đếm ngược trước khi bấm đăng
+
+  let dongHoDang = null;
+
+  const nutDang = () =>
+    [...document.querySelectorAll('button')]
+      .find(b => /^\+?\s*submit\s*$/i.test((b.textContent || '').trim()));
+
+  function huyDang(el, viSao) {
+    if (dongHoDang) { clearInterval(dongHoDang); dongHoDang = null; }
+    if (el) el.innerHTML = '<span style="color:#888;font-size:12px">' + thoat(viSao) + '</span>';
+  }
+
+  function xetTuDang(el, sach) {
+    if (!el) return;
+    if (dongHoDang) { clearInterval(dongHoDang); dongHoDang = null; }
+
+    if (!TU_DANG) {
+      el.innerHTML = '<span style="color:#888;font-size:12px">Tự đăng đang tắt.</span>';
+      return;
+    }
+    const nut = nutDang();
+    if (!nut) {
+      el.innerHTML = '<span style="color:#888;font-size:12px">Không thấy nút Submit.</span>';
+      return;
+    }
+    if (!sach && !DANG_CA_KHI_CANH_BAO) {
+      el.innerHTML =
+        '<div style="color:#e8c05a;font-size:12px">Không tự đăng — xem mấy dòng cảnh báo ở trên.</div>' +
+        '<button id="d4l-dangluon" style="margin-top:6px;background:#3a3a22;color:#e8e0c0;' +
+        'border:1px solid #7a6a30;border-radius:5px;padding:5px 10px;cursor:pointer;' +
+        'font:12px system-ui">Cứ đăng</button>';
+      el.querySelector('#d4l-dangluon').onclick = () => { bamThat(nut); huyDang(el, 'Đã bấm đăng.'); };
+      return;
+    }
+
+    let con = DEM_NGUOC;
+    const ve = () => {
+      el.innerHTML =
+        '<div style="color:#7ec97e;font-size:13px">Tự đăng sau <b>' + con + '</b> giây…</div>' +
+        '<div style="color:#888;font-size:11px;margin-top:2px">Bấm Esc, hoặc gõ vào ô giá, để dừng.</div>' +
+        '<button id="d4l-dung" style="margin-top:6px;background:#3a2020;color:#f0d0d0;' +
+        'border:1px solid #844;border-radius:5px;padding:4px 10px;cursor:pointer;' +
+        'font:12px system-ui">Dừng</button>';
+      const b = el.querySelector('#d4l-dung');
+      if (b) b.onclick = () => huyDang(el, 'Đã dừng. Bạn tự bấm Submit.');
+    };
+    ve();
+    dongHoDang = setInterval(() => {
+      con--;
+      if (con > 0) { ve(); return; }
+      clearInterval(dongHoDang); dongHoDang = null;
+      bamThat(nut);
+      el.innerHTML = '<span style="color:#7ec97e;font-size:13px">Đã đăng. Bấm F5 để sang món kế.</span>';
+    }, 1000);
+  }
+
+  // Esc hoặc gõ phím bất kỳ (kể cả gõ giá) thì dừng đếm ngược.
+  document.addEventListener('keydown', e => {
+    if (!dongHoDang) return;
+    const el = document.getElementById('d4l-dang');
+    huyDang(el, e.key === 'Escape'
+      ? 'Đã dừng. Bạn tự bấm Submit.'
+      : 'Đã dừng vì bạn đang gõ. Bạn tự bấm Submit.');
+  }, true);
+
   // --- bang bao ket qua ------------------------------------------------
   function bao(ok, ngoai, thieu, loi, doiSao) {
     const d = khungBao();
@@ -405,41 +483,48 @@
     // ok + ngoai DEU da duoc ghi vao o. Khac nhau o cho ngoai khung co ban.
     const daGhi = ok.concat(ngoai);
     if (daGhi.length) {
-      h += '<div style="margin-top:6px;color:#7ec97e">Da dien ' + daGhi.length + ' dong:</div>';
+      h += '<div style="margin-top:6px;color:#7ec97e">Đã điền ' + daGhi.length + ' dòng</div>';
       h += daGhi.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b>' +
         (x.cu && String(x.cu) !== String(x.v)
-          ? ' <span style="color:#777">(truoc: ' + thoat(x.cu) + ')</span>' : '')).join('<br>');
+          ? ' <span style="color:#777">(trước đó: ' + thoat(x.cu) + ')</span>' : '')).join('<br>');
     }
     if (ngoai.length) {
-      h += '<div style="margin-top:8px;color:#e8c05a">Vuot khung co ban cua trang:</div>';
-      h += ngoai.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b> (khung ' +
-        x.dong.min + '-' + x.dong.max + ')').join('<br>');
-      h += '<div style="color:#888;font-size:11px;margin-top:3px">Do masterwork thi binh thuong. ' +
-        'Trang van nhan, chi to vien vang.</div>';
+      h += '<div style="margin-top:8px;color:#e8c05a">Cao hơn khoảng thường của trang</div>';
+      h += ngoai.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b> ' +
+        '<span style="color:#888">(trang ghi ' + x.dong.min + '–' + x.dong.max + ')</span>').join('<br>');
+      h += '<div style="color:#888;font-size:11px;margin-top:3px">Đồ masterwork thì bình thường. ' +
+        'Trang vẫn nhận, chỉ tô viền vàng.</div>';
     }
     if (thieu.length) {
-      h += '<div style="margin-top:8px;color:#e08a5a">Trang khong co dong nay:</div>';
+      h += '<div style="margin-top:8px;color:#e08a5a">Trang chưa có dòng này</div>';
       h += thieu.map(x => '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so +
         (x.phanTram ? '%' : '') + '</b>').join('<br>');
       h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
         'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
-        'font:12px system-ui">Thu tu them</button>' +
-        '<span style="color:#777;font-size:11px;margin-left:8px">hoac tu bam ADD STANDARD AFFIXES</span></div>';
+        'font:12px system-ui">Thêm giúp tôi</button>' +
+        '<span style="color:#777;font-size:11px;margin-left:8px">hoặc tự bấm ADD STANDARD AFFIXES</span></div>';
     }
     if (doiSao && doiSao.length) {
-      h += '<div style="margin-top:8px;color:#c9a227">Dau sao (Greater Affix):</div>';
-      h += doiSao.map(x => '&nbsp;&nbsp;' + (x.bat ? 'BAT' : 'tat') + ' &mdash; ' +
+      h += '<div style="margin-top:8px;color:#c9a227">Dấu sao (Greater Affix)</div>';
+      h += doiSao.map(x => '&nbsp;&nbsp;' + (x.bat ? 'bật' : 'tắt') + ' — ' +
         thoat(x.ten)).join('<br>');
     }
     if (loiThem.length) {
-      h += '<div style="margin-top:8px;color:#e06a5a">Tu them khong duoc:</div>';
+      h += '<div style="margin-top:8px;color:#e06a5a">Thêm không được</div>';
       h += loiThem.map(x => '&nbsp;&nbsp;' + thoat(x[0]) + ': ' + thoat(x[1])).join('<br>');
     }
-    h += '<div style="margin-top:8px;color:#888;font-size:11px">Ctrl+Shift+D de chay lai</div>';
+
+    // chỗ dành cho phần đếm ngược tự đăng
+    h += '<div id="d4l-dang" style="margin-top:10px"></div>';
+    h += '<div style="margin-top:8px;color:#888;font-size:11px">Ctrl+Shift+D để chạy lại</div>';
     d.innerHTML = h;
     d.querySelector('#d4l-dong').onclick = () => d.remove();
     const nt = d.querySelector('#d4l-them');
     if (nt) nt.onclick = () => themCacAffixThieu(thieu);
+
+    // Sạch = không có dòng nào vượt khoảng, không thiếu affix, không lỗi.
+    const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi && daGhi.length > 0;
+    xetTuDang(d.querySelector('#d4l-dang'), sach);
   }
 
   // --- bat su kien dan --------------------------------------------------
@@ -458,7 +543,7 @@
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
     let truoc = -1, yen = 0;
-    nhac('Da nhan chu. Dang doi form... (bam SCAN neu chua bam)');
+    nhac('Đã nhận chữ. Đang đợi form… (chưa bấm SCAN thì bấm đi)');
     dongHo = setInterval(() => {
       const n = document.querySelectorAll('input[aria-label="Affix value"]').length;
       if (n > 0 && n === truoc) {
@@ -469,7 +554,7 @@
       truoc = n;
       if (Date.now() - batDau > CHO_TOI_DA) {
         clearInterval(dongHo); dongHo = null;
-        bao([], [], [], 'Doi lau qua van chua thay dong affix nao. Bam SCAN roi bam Ctrl+Shift+D.');
+        bao([], [], [], 'Đợi lâu quá vẫn chưa thấy dòng affix nào. Bấm SCAN rồi bấm Ctrl+Shift+D.');
       }
     }, NHIP_DO);
   }
@@ -486,7 +571,7 @@
     if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
       e.preventDefault();
       if (chuDaDan) apDung(chuDaDan);
-      else bao([], [], [], 'Chua co chu nao trong bo nho. Hay Ctrl+V truoc.');
+      else bao([], [], [], 'Chưa có dữ liệu món đồ. Bấm Ctrl+V trước đã.');
     }
   }, true);
 

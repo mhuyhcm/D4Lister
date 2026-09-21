@@ -15,3 +15,7 @@ create-listing/
 # --- Rac ---
 Thumbs.db
 desktop.ini
+
+# Tesseract xach tay - do cai-dat	esseract-portable.zip bung ra,
+# khong day ban da bung len (day ban nen la du).
+tesseract/

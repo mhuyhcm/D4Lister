@@ -53,6 +53,7 @@ global HK_NEXT    := "F5"           ; sang item kế + DÁN LUÔN
 global HK_PREV    := "F6"           ; lùi về item trước
 global HK_MODE    := "F7"           ; đổi chế độ xử lý ảnh (0 hoặc 2)
 global HK_CLEAR   := "F9"           ; xóa sạch hàng đợi
+global HK_RELOAD  := "^+F11"        ; nạp lại script (và kiểm tra bản mới)
 global HK_EXIT    := "^+F12"        ; thoát script
 
 ;---------------------------------------------------------------------
@@ -194,6 +195,7 @@ Hotkey, %HK_PASTE%,   DoPaste
 Hotkey, %HK_NEXT%,    DoNext
 Hotkey, %HK_PREV%,    DoPrev
 Hotkey, %HK_CLEAR%,   DoClear
+Hotkey, %HK_RELOAD%,  DoReload
 Hotkey, %HK_EXIT%,    DoExit
 
 SysGet, scrW, 78
@@ -207,6 +209,9 @@ if (g_Items.Length() > 0)
     ShowMsg("D4Lister sẵn sàng — đã nạp lại " . g_Items.Length() . " item`n" . g_StartInfo, "warn")
 else
     ShowMsg("D4Lister sẵn sàng — bấm F3 để chụp item`n" . g_StartInfo, "ok")
+
+; Kiểm tra bản mới, nhưng để script chạy được ngay đã rồi mới đi hỏi mạng.
+SetTimer, KiemTraCapNhat, -800
 return
 
 ;=====================================================================
@@ -437,6 +442,72 @@ return
 DoExit:
     ExitApp
 return
+
+;=====================================================================
+;   HOTKEY: Ctrl+Shift+F11 - NẠP LẠI SCRIPT
+;   Nạp lại cũng chạy luôn phần kiểm tra bản mới ở dưới.
+;=====================================================================
+DoReload:
+    ShowMsg("Đang nạp lại…", "warn")
+    Sleep, 400
+    Reload
+return
+
+;=====================================================================
+;   KIỂM TRA BẢN MỚI TRÊN GITHUB
+;
+;   Chạy 0,8 giây SAU khi script đã sẵn sàng, để bạn bấm phím được ngay
+;   chứ không phải ngồi đợi mạng.
+;
+;   Máy không cài git, hoặc thư mục không phải bản tải bằng git, hoặc mất
+;   mạng — đều bỏ qua im lặng, tool vẫn chạy bình thường.
+;=====================================================================
+KiemTraCapNhat:
+    SetTimer, KiemTraCapNhat, Off
+    if !FileExist(A_ScriptDir . "\.git")
+        return
+
+    truoc := GitLenh("rev-parse HEAD")
+    if (truoc = "")
+        return
+    GitLenh("pull --quiet --ff-only")
+    sau := GitLenh("rev-parse HEAD")
+    if (sau = "" || sau = truoc)
+        return
+
+    doiFile := GitLenh("diff --name-only " . truoc . " " . sau)
+    if InStr(doiFile, "extension/")
+    {
+        ; Chrome KHÔNG tự nạp lại tiện ích cài kiểu Load unpacked. Không nhắc
+        ; thì bạn vẫn đang dùng bản cũ mà tưởng đã cập nhật.
+        MsgBox, 48, D4Lister — đã có bản mới
+            , % "Đã cập nhật xong.`n`nLẦN NÀY CÓ SỬA TIỆN ÍCH CHROME.`n`n"
+              . "Vào chrome://extensions bấm nút xoay vòng trên ô D4Lister,`n"
+              . "rồi F5 lại trang diablo.trade.`n`n"
+              . "Không làm bước này thì trình duyệt vẫn chạy bản cũ."
+    }
+    else
+    {
+        ShowMsg("Đã cập nhật bản mới — bấm " . HK_RELOAD . " để nạp lại", "warn")
+    }
+return
+
+;   Gọi git, trả về chữ nó in ra. Hỏng thì trả về chuỗi rỗng.
+GitLenh(thamSo)
+{
+    tmp := A_Temp . "\d4l_git_" . A_TickCount . ".txt"
+    RunWait, % ComSpec . " /c cd /d """ . A_ScriptDir . """ && git " . thamSo
+            . " > """ . tmp . """ 2>&1", , Hide, pid
+    if !FileExist(tmp)
+        return ""
+    FileRead, kq, %tmp%
+    FileDelete, %tmp%
+    kq := Trim(kq, " `t`r`n")
+    ; git in lỗi ra cùng chỗ -> coi như hỏng
+    if RegExMatch(kq, "i)^(fatal|error|'git')")
+        return ""
+    return kq
+}
 
 ;=====================================================================
 ;   NẠP LẠI HÀNG ĐỢI CỦA PHIÊN TRƯỚC
