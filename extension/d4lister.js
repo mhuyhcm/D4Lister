@@ -11,8 +11,13 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.8';          // doi cung luc voi version trong manifest.json
-  const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
+  const BAN = '2.9';          // doi cung luc voi version trong manifest.json
+  // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
+  // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
+  // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
+  // luc trang dang dung form do dang.
+  const NHIP_DO   = 150;     // ms giua hai lan ngo
+  const YEN_TOI_DA = 400;    // form khong doi suot ngan nay = dung xong
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
   let dongHo = null;
@@ -508,7 +513,7 @@
           }
         }
         chot();
-      }, 900);
+      }, 350);
       return;
     }
     bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
@@ -1365,7 +1370,7 @@
   function choFormDungXong(text) {
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
-    let truoc = -1, yen = 0;
+    let truoc = -1, mocYen = 0;
     const tenChu = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
     dangChonBase = false;
     soLanChonBase = 0;
@@ -1384,9 +1389,11 @@
       if (CD.tuQuet && thuBamQuet()) return;
       const n = timCacDong().length;
       if (n > 0 && n === truoc) {
-        if (++yen >= 2) { clearInterval(dongHo); dongHo = null; apDung(text); return; }
+        if (Date.now() - mocYen >= YEN_TOI_DA) {
+          clearInterval(dongHo); dongHo = null; apDung(text); return;
+        }
       } else {
-        yen = 0;
+        mocYen = Date.now();
       }
       truoc = n;
       if (Date.now() - batDau > CHO_TOI_DA) {
@@ -1434,6 +1441,42 @@
     return null;
   }
 
+  // Mot muc trong danh muc affix trong the nao: co ma, co cau mo ta kieu
+  // "+# Willpower", va co khoang hop le.
+  const laMucAffix = o => !!o && typeof o === 'object' && !Array.isArray(o) &&
+    typeof o.id === 'string' && typeof o.description === 'string' &&
+    o.description.indexOf('#') >= 0;
+
+  const laKhoAffix = a => Array.isArray(a) && a.length >= 40 &&
+    laMucAffix(a[0]) && laMucAffix(a[a.length - 1]);
+
+  // Lung ca cay React tim MANG chua toan bo affix. Co no thi them affix
+  // chi con la day them mot muc vao mang affixes — khong bam chuot phat nao.
+  function timKhoAffix() {
+    const moc = ['[cmdk-item]', '[role="option"]', 'input[cmdk-input]',
+                 'input[aria-label="Affix value"]', 'input[inputmode="decimal"]', 'form'];
+    const daXet = new Set();
+    for (const m of moc)
+      for (const neo of document.querySelectorAll(m)) {
+        const k = Object.keys(neo).find(x => x.indexOf('__reactFiber$') === 0);
+        if (!k) continue;
+        for (let f = neo[k], i = 0; f && i < 120; f = f.return, i++) {
+          for (const nguon of [f.memoizedProps, f.memoizedState]) {
+            if (!nguon || typeof nguon !== 'object' || daXet.has(nguon)) continue;
+            daXet.add(nguon);
+            for (const ten of Object.keys(nguon)) {
+              const x = nguon[ten];
+              if (laKhoAffix(x)) return { ds: x, tu: m + ' → .' + ten };
+              if (x && typeof x === 'object' && !Array.isArray(x))
+                for (const ten2 of Object.keys(x))
+                  if (laKhoAffix(x[ten2])) return { ds: x[ten2], tu: m + ' → .' + ten + '.' + ten2 };
+            }
+          }
+        }
+      }
+    return null;
+  }
+
   // BAY: querySelector voi nhieu mau ngan cach bang dau phay tra ve the
   // DUNG DAU TRONG TAI LIEU, khong phai mau dau tien. De chung mot cau thi
   // no vo phai the <form> bao ngoai — the do khong mang moc React nen tim
@@ -1464,8 +1507,20 @@
       const v = fm.getValues();
       console.log('[D4Lister] VỚI TỚI ĐƯỢC form. Các ô trong form:', Object.keys(v));
       console.log('[D4Lister] Toàn bộ giá trị:', v);
-      console.log('[D4Lister] Dán nguyên khối này cho Claude:',
-        JSON.stringify(v, (k2, x) => (x instanceof Node ? '[DOM]' : x), 1).slice(0, 12000));
+
+      // San DANH MUC AFFIX. Co no thi them affix cung khoi bam chuot: chi
+      // viec day mot muc moi vao mang affixes la xong.
+      const kho = timKhoAffix();
+      if (kho) {
+        console.log('[D4Lister] THẤY danh mục affix: ' + kho.ds.length +
+          ' mục, lấy từ ' + kho.tu);
+        console.log('[D4Lister] Ba mục đầu:', kho.ds.slice(0, 3));
+        console.log('[D4Lister] Dán khối này cho Claude:',
+          JSON.stringify(kho.ds.slice(0, 3), null, 1).slice(0, 4000));
+      } else {
+        console.log('[D4Lister] KHÔNG thấy danh mục affix. ' +
+          'Thử mở danh sách + ADD AFFIX ra rồi bấm lại Ctrl+Shift+K.');
+      }
       nhac('Với tới được form — mở Console (F12) xem.');
       return;
     }
