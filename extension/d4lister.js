@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.0';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.1';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -891,9 +891,31 @@
     return Array.isArray(sau) && sau.length > cu.length;
   }
 
+  // Danh muc chi duoc dung ra khi danh sach ADD AFFIX mo. Quet ca cay ma
+  // van khong thay thi mo no MOT LAN cho moi trang, hot lay danh muc roi
+  // dong lai — tu do ve sau moi affix deu day thang, khong bam gi nua.
+  let daThuMoKho = false;
+
+  async function layKhoAffixCoMo() {
+    if (layKhoAffix()) return khoAffix;
+    if (daThuMoKho) return null;
+    daThuMoKho = true;
+    const nut = nutMoDs();
+    if (!nut) return null;
+    const khung = await moDropdown(nut);
+    if (!khung) return null;
+    await doi(250);
+    const co = layKhoAffix();
+    dongDs(nut);
+    await doi(150);
+    return co;
+  }
+
   async function themCacAffixThieu(thieu) {
     loiThem = [];
     nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
+
+    await layKhoAffixCoMo();
 
     // Thu duong THANG truoc cho ca loat. Duoc het thi khong bam gi ca.
     const conLai = [];
@@ -1554,6 +1576,12 @@
     }
     if (layKhoAffix()) return;      // du ca hai thu roi, khong can ghi gi
 
+    // Chua thay thi thu mo danh sach mot lan da, roi moi ket luan.
+    if (!daThuMoKho) {
+      layKhoAffixCoMo().then(co => { if (!co) tuDo(); });
+      return;
+    }
+
     // Co form ma khong co danh muc -> ghi lai de con sua cach lung
     let v = null;
     try { v = fm.getValues(); } catch (e) {}
@@ -1565,6 +1593,8 @@
       soAffixTrenForm: v && Array.isArray(v.affixes) ? v.affixes.length : null,
       mauMotAffix: v && Array.isArray(v.affixes) && v.affixes[0] ? v.affixes[0] : null,
       danhSachDangMo: document.querySelectorAll('[cmdk-item]').length,
+      soFiberDaQuet: soFiberDaQuet,
+      mangGanGiongNhat: khoGanNhat,
     });
   }
 
@@ -1577,32 +1607,86 @@
   const laKhoAffix = a => Array.isArray(a) && a.length >= 40 &&
     laMucAffix(a[0]) && laMucAffix(a[a.length - 1]);
 
-  // Lung ca cay React tim MANG chua toan bo affix. Co no thi them affix
-  // chi con la day them mot muc vao mang affixes — khong bam chuot phat nao.
-  function timKhoAffix() {
-    const moc = ['[cmdk-item]', '[role="option"]', 'input[cmdk-input]',
-                 'input[aria-label="Affix value"]', 'input[inputmode="decimal"]', 'form'];
-    const daXet = new Set();
-    for (const m of moc)
-      for (const neo of document.querySelectorAll(m)) {
-        const k = Object.keys(neo).find(x => x.indexOf('__reactFiber$') === 0);
-        if (!k) continue;
-        for (let f = neo[k], i = 0; f && i < 120; f = f.return, i++) {
-          for (const nguon of [f.memoizedProps, f.memoizedState]) {
-            if (!nguon || typeof nguon !== 'object' || daXet.has(nguon)) continue;
-            daXet.add(nguon);
-            for (const ten of Object.keys(nguon)) {
-              const x = nguon[ten];
-              if (laKhoAffix(x)) return { ds: x, tu: m + ' → .' + ten };
-              if (x && typeof x === 'object' && !Array.isArray(x))
-                for (const ten2 of Object.keys(x))
-                  if (laKhoAffix(x[ten2])) return { ds: x[ten2], tu: m + ' → .' + ten + '.' + ten2 };
-            }
-          }
+  // Lung tim MANG chua toan bo affix. Co no thi them affix chi con la day
+  // them mot muc vao mang affixes — khong bam chuot phat nao.
+  //
+  // BAI HOC LAN TRUOC: chi lung NGUOC LEN tu o nhap thi khong ra, vi cai
+  // giu danh muc co the la mot nhanh KHAC han, khong phai to tien cua o
+  // nhap. Lan nay quet CA CAY tu goc xuong, va soi ca chuoi hook chu khong
+  // chi props — gia tri cua useState/useQuery nam trong hook.
+  function fiberGoc() {
+    const ds = [document.body].concat([...document.body.children]);
+    for (const el of ds) {
+      const k = Object.keys(el).find(x => x.indexOf('__reactContainer$') === 0);
+      if (k) return el[k];
+    }
+    const b = document.querySelector('input, button');
+    if (!b) return null;
+    const k2 = Object.keys(b).find(x => x.indexOf('__reactFiber$') === 0);
+    if (!k2) return null;
+    let f = b[k2];
+    while (f.return) f = f.return;
+    return f;
+  }
+
+  // Xet mot doi tuong: chinh no la kho? hay mot khoa trong no la kho?
+  // Tien the ghi lai cai GAN GIONG NHAT de con biet duong ma sua.
+  function xetNguon(o, hop) {
+    if (!o || typeof o !== 'object') return;
+    if (laKhoAffix(o)) { hop.thay = o; hop.tu = 'chính nó'; return; }
+    if (Array.isArray(o)) {
+      if (o.length > hop.gan.soMuc && o.length >= 5 && laMucAffix(o[0]))
+        hop.gan = { soMuc: o.length, mau: o[0] };
+      return;
+    }
+    let dem = 0;
+    for (const ten of Object.keys(o)) {
+      if (++dem > 60) break;
+      const x = o[ten];
+      if (laKhoAffix(x)) { hop.thay = x; hop.tu = '.' + ten; return; }
+      if (Array.isArray(x) && x.length > hop.gan.soMuc && x.length >= 5 && laMucAffix(x[0]))
+        hop.gan = { soMuc: x.length, mau: x[0] };
+      if (x && typeof x === 'object' && !Array.isArray(x)) {
+        let dem2 = 0;
+        for (const ten2 of Object.keys(x)) {
+          if (++dem2 > 60) break;
+          const y = x[ten2];
+          if (laKhoAffix(y)) { hop.thay = y; hop.tu = '.' + ten + '.' + ten2; return; }
+          if (Array.isArray(y) && y.length > hop.gan.soMuc && y.length >= 5 && laMucAffix(y[0]))
+            hop.gan = { soMuc: y.length, mau: y[0] };
         }
       }
-    return null;
+    }
   }
+
+  function timKhoAffix() {
+    const goc = fiberGoc();
+    if (!goc) return null;
+    const hop = { thay: null, tu: '', gan: { soMuc: 0, mau: null }, soFiber: 0 };
+    const ngan = [goc];
+    while (ngan.length && hop.soFiber < 30000) {
+      const f = ngan.pop();
+      if (!f) continue;
+      hop.soFiber++;
+      xetNguon(f.memoizedProps, hop);
+      if (hop.thay) break;
+      let h = f.memoizedState, i = 0;
+      while (h && typeof h === 'object' && i < 80) {
+        xetNguon(h.memoizedState, hop);
+        if (hop.thay) break;
+        h = h.next; i++;
+      }
+      if (hop.thay) break;
+      if (f.child) ngan.push(f.child);
+      if (f.sibling) ngan.push(f.sibling);
+    }
+    khoGanNhat = hop.gan;
+    soFiberDaQuet = hop.soFiber;
+    return hop.thay ? { ds: hop.thay, tu: hop.tu } : null;
+  }
+
+  let khoGanNhat = { soMuc: 0, mau: null }, soFiberDaQuet = 0;
+
 
   // BAY: querySelector voi nhieu mau ngan cach bang dau phay tra ve the
   // DUNG DAU TRONG TAI LIEU, khong phai mau dau tien. De chung mot cau thi
