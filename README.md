@@ -15,11 +15,11 @@ https://raw.githubusercontent.com/mhuyhcm/D4Lister/main/CAI-DAT.bat
 
 *(Chuột phải vào link → Save link as…)*
 
-Nó tự làm hết: tải mã nguồn, bung Tesseract, cài AutoHotkey nếu máy chưa có,
-rồi chạy luôn. **Không cần cài Git.**
+Nó tự tải mã nguồn, bung Tesseract, cài AutoHotkey nếu máy chưa có, rồi chạy.
+**Không cần cài Git.**
 
-Xong nó sẽ nhắc bạn làm **việc duy nhất phải làm tay** — nạp tiện ích vào
-Chrome. Đường dẫn đã chép sẵn vào clipboard, chỉ cần dán:
+Xong nó nhắc bạn làm **việc duy nhất phải làm tay** — nạp tiện ích vào Chrome.
+Đường dẫn đã chép sẵn vào clipboard:
 
 1. Gõ vào thanh địa chỉ: `chrome://extensions`
 2. Bật **Developer mode** (góc trên bên phải)
@@ -28,23 +28,35 @@ Chrome. Đường dẫn đã chép sẵn vào clipboard, chỉ cần dán:
 
 Chrome bắt buộc chính người dùng bấm — không chương trình nào lách được.
 
-Kiểm tra: mở https://diablo.trade, thấy dòng **D4Lister sẵn sàng** hiện ở góc
-dưới bên phải là xong.
+## Từ đó về sau: bấm đúp `D4Lister.ahk`
 
-## Tự cập nhật
+Chỉ một file. Mỗi lần chạy nó tự làm ba việc:
 
-**Chạy D4Lister là nó tự kiểm tra.** Mỗi lần khởi động, và mỗi lần nạp lại
-bằng **Ctrl+Shift+F11**.
+```
+1. Chưa có Tesseract  →  bung ra (chỉ lần đầu, ~4 giây)
+2. Hỏi GitHub có bản mới không
+       có   →  tải về, ghi đè, tự nạp lại  ↺
+       không →  đi tiếp
+3. Sẵn sàng
+```
 
-Có bản mới thì nó tải về rồi tự nạp lại. Mất mạng thì bỏ qua im lặng, tool vẫn
-chạy. Không cần Git.
+Bấm **Ctrl+Shift+F11** lúc nào cũng được để nạp lại và kiểm tra bản mới.
 
-Thư mục `queue\` và các file riêng của bạn không bao giờ bị đè.
+Mất mạng thì bỏ qua im lặng. Thư mục `queue\` và file riêng của bạn không bao
+giờ bị đè.
 
-**Một ngoại lệ:** Chrome KHÔNG tự nạp lại tiện ích cài kiểu *Load unpacked*.
-Nên khi bản mới có sửa tiện ích, D4Lister hiện hộp thoại nhắc — lúc đó vào
-`chrome://extensions` bấm nút xoay vòng rồi F5 trang diablo.trade. Không làm
-thì trình duyệt vẫn chạy bản cũ.
+## Cập nhật tiện ích Chrome
+
+Chrome **không bao giờ** tự nạp lại tiện ích cài kiểu *Load unpacked*. File trên
+đĩa đã mới mà trình duyệt vẫn chạy bản cũ — không ai biết.
+
+Nên D4Lister gửi kèm số hiệu bản trên đĩa mỗi lần bạn dán. Tiện ích so với bản
+nó đang chạy, lệch thì **hiện băng đỏ ngay trên trang**:
+
+> **Tiện ích đang chạy bản cũ** — đang chạy 0.7, trên đĩa đã là 0.8.
+> Vào chrome://extensions bấm nút xoay vòng, rồi F5 trang này.
+
+Không thể bỏ sót được.
 
 ## Sửa code ở máy chính rồi đẩy lên
 
@@ -169,17 +181,16 @@ file `.txt` ra so.
 ## Thư mục
 
 ```
-D4Lister.ahk               tool chính
-CHAY.bat                   chạy
-TAT-HET.bat                tắt (không đụng script AHK khác của bạn)
-CAI-TIEN-ICH-CHROME.bat    hướng dẫn nạp tiện ích
-extension\                 tiện ích Chrome
-cai-dat\                   bộ cài AutoHotkey + Tesseract xách tay (nén)
-tesseract\                 Tesseract đã bung ra (CHAY.bat tự làm lần đầu)
-queue\                     ảnh + chữ đã gom
-TatThongBaoSnip.bat        tắt thông báo Snip & Sketch (+ file hoàn tác)
-
-_cu\                       bản 2 máy dùng Syncthing — không dùng nữa, giữ phòng khi
-create-listing\            bản lưu DOM của diablo.trade, dùng để tra cấu trúc
-_anh-cu\  thu-nghiem\      ảnh mẫu để đo
+D4Lister.ahk      ← bấm đúp cái này, hết
+CAI-DAT.bat       ← chỉ dùng một lần trên máy mới
+extension\        ← Chrome trỏ vào đây
+queue\            ← ảnh + chữ đã gom
+tesseract\        ← tự bung ra lần đầu
+_he-thong\        ← không cần đụng vào
+     d4lister-nen.ps1          cài / cập nhật
+     CHAY.bat                  dự phòng nếu không bấm đúp .ahk được
+     TAT-HET.bat
+     CAI-TIEN-ICH-CHROME.bat
+     TatThongBaoSnip.bat  (+ file hoàn tác)
+     bo-cai\                   bộ cài AutoHotkey + Tesseract nén
 ```

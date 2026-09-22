@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '0.7';          // doi cung luc voi version trong manifest.json
+  const BAN = '0.8';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -131,7 +131,14 @@
     // D4Lister chi gui dau hieu nay khi phan do dau sao THUC SU chay xong.
     // Khong co no (thieu Tesseract chang han) thi khong dung vao cong tac sao,
     // de khoi xoa nham dau sao ma trang da nhan dung.
-    const coDoSao = /(^|\n)#D4L-SAO-OK\s*$/.test(text);
+    // Co co "m": dong #D4L-EXT nam SAU dong nay, nen khong the neo vao cuoi
+    // ca chuoi duoc nua - thieu co "m" la phan do dau sao tat ngam.
+    const coDoSao = /^#D4L-SAO-OK\s*$/m.test(text);
+
+    // D4Lister gui kem so hieu ban tien ich DANG NAM TREN DIA. Lech voi ban
+    // dang chay = Chrome van dung ban cu (no khong tu nap lai bao gio).
+    const mExt = text.match(/#D4L-EXT:([0-9.]+)/);
+    const banTrenDia = mExt ? mExt[1] : '';
 
     const daDung = new Set();
     const ok = [], ngoaiKhoang = [], khongThay = [], doiSao = [];
@@ -163,7 +170,7 @@
       if (reRange) ngoaiKhoang.push({ ...m, dong, v, cu });
       else ok.push({ ...m, dong, v, cu });
     }
-    bao(ok, ngoaiKhoang, khongThay, '', doiSao);
+    bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia);
   }
 
   // --- tu them dong affix ma trang khong dung ra ------------------------
@@ -563,7 +570,7 @@
   }, true);
 
   // --- bang bao ket qua ------------------------------------------------
-  function bao(ok, ngoai, thieu, loi, doiSao) {
+  function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia) {
     const d = khungBao();
     let h = '<b style="color:#d8b978">D4Lister</b> ';
     h += '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>';
@@ -602,6 +609,17 @@
     if (loiThem.length) {
       h += '<div style="margin-top:8px;color:#e06a5a">Thêm không được</div>';
       h += loiThem.map(x => '&nbsp;&nbsp;' + thoat(x[0]) + ': ' + thoat(x[1])).join('<br>');
+    }
+
+    // Ban tren dia moi hon ban dang chay -> Chrome chua nap lai.
+    if (banTrenDia && banTrenDia !== BAN) {
+      h = '<div style="background:#4a1f1f;border:1px solid #a04040;border-radius:6px;' +
+          'padding:8px 10px;margin-bottom:10px">' +
+          '<b style="color:#ffb0b0">Tiện ích đang chạy bản cũ</b><br>' +
+          '<span style="font-size:12px;color:#e8c0c0">Đang chạy <b>' + thoat(BAN) +
+          '</b>, trên đĩa đã là <b>' + thoat(banTrenDia) + '</b>.<br>' +
+          'Vào <b>chrome://extensions</b> bấm nút xoay vòng trên ô D4Lister, rồi F5 trang này.' +
+          '</span></div>' + h;
     }
 
     // chỗ dành cho phần đếm ngược tự đăng

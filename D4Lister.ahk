@@ -187,6 +187,10 @@ if !FileExist(QUEUE_DIR)
 
 LoadQueue()
 
+; Lần đầu chạy trên máy mới: bung Tesseract xách tay ra. Làm ở đây chứ không
+; ở file .bat, để bấm đúp thẳng D4Lister.ahk là xong, khỏi nhớ file nào.
+BungTesseractNeuCan()
+
 TESS_EXE := TimTesseract()
 
 Hotkey, %HK_CAPTURE%, DoCapture
@@ -464,7 +468,7 @@ return
 ;=====================================================================
 KiemTraCapNhat:
     SetTimer, KiemTraCapNhat, Off
-    psFile := A_ScriptDir . "\cap-nhat.ps1"
+    psFile := A_ScriptDir . "\_he-thong\d4lister-nen.ps1"
     if !FileExist(psFile)
         return
     ; Thư mục có .git = đây là MÁY ĐANG SỬA CODE, dùng git để cập nhật.
@@ -474,7 +478,7 @@ KiemTraCapNhat:
 
     ShowMsg("Đang xem có bản mới không…", "warn")
     RunWait, % "powershell -NoProfile -ExecutionPolicy Bypass -File """ . psFile
-             . """ -ThuMuc """ . A_ScriptDir . """", , Hide UseErrorLevel
+             . """ -Viec CapNhat -ThuMuc """ . A_ScriptDir . """", , Hide UseErrorLevel
     ma := ErrorLevel
 
     if (ma = 0 || ma = 3)       ; đã mới nhất, hoặc không hỏi được (mất mạng)
@@ -860,6 +864,20 @@ SetClipImage(file)
 
 ;   Dò tesseract.exe. Thư mục con "tesseract" cạnh script được ưu tiên —
 ;   đó là chỗ để bản xách tay khi mang tool sang máy khác.
+;   Bung bản xách tay ra nếu chưa có. Mất khoảng 4 giây, chỉ lần đầu.
+BungTesseractNeuCan()
+{
+    if FileExist(A_ScriptDir . "\tesseract\tesseract.exe")
+        return
+    zip := A_ScriptDir . "\_he-thong\bo-cai\tesseract-portable.zip"
+    if !FileExist(zip)
+        return
+    ShowMsg("Lần đầu chạy — đang bung Tesseract, đợi vài giây…", "warn")
+    RunWait, % "powershell -NoProfile -Command ""Expand-Archive -Path '" . zip
+             . "' -DestinationPath '" . A_ScriptDir . "' -Force""", , Hide
+    HideMsgNow()
+}
+
 TimTesseract()
 {
     ds := [ A_ScriptDir . "\tesseract\tesseract.exe"
@@ -895,7 +913,31 @@ DocChuCuaAnh(pngFile)
     if !FileExist(f)
         return ""
     FileRead, raw, *P65001 %f%
-    return DanhDauSao(LocChu(raw), pngFile)
+    chu := DanhDauSao(LocChu(raw), pngFile)
+    if (chu = "")
+        return ""
+    ; Gửi kèm số hiệu bản tiện ích ĐANG NẰM TRÊN ĐĨA.
+    ;
+    ; Chrome không tự nạp lại tiện ích cài kiểu Load unpacked. Nên sau khi
+    ; cập nhật, file trên đĩa là bản mới mà trình duyệt vẫn chạy bản cũ —
+    ; không ai biết. Tiện ích so số này với số của chính nó; lệch thì nó tự
+    ; hiện cảnh báo to ngay trên trang, đúng chỗ bạn đang làm việc.
+    ban := BanExtTrenDia()
+    if (ban != "")
+        chu .= "`n#D4L-EXT:" . ban
+    return chu
+}
+
+;   Đọc số hiệu bản tiện ích từ extension\manifest.json
+BanExtTrenDia()
+{
+    f := A_ScriptDir . "\extension\manifest.json"
+    if !FileExist(f)
+        return ""
+    FileRead, j, *P65001 %f%
+    if RegExMatch(j, """version""\s*:\s*""([^""]+)""", m)
+        return m1
+    return ""
 }
 
 ;=====================================================================
