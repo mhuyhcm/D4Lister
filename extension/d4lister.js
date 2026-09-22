@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.1';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.2';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1721,6 +1721,31 @@
   const laBoForm = o => !!o && typeof o === 'object' &&
     typeof o.getValues === 'function' && typeof o.setValue === 'function';
 
+  // BAY DA SUP MOT LAN, va la cai bay nang nhat: trang la mot ung dung mot
+  // trang, trong cay React co THE CON NHIEU BO DIEU KHIEN FORM cua nhung
+  // man hinh truoc do chua bi don. Vo phai cai cu thi:
+  //   - ghi vao khong thay gi doi tren man hinh
+  //   - them dong lai them vao form cua mon KHAC
+  //   - doc lai van ra dung so vua ghi -> bang bao thanh cong, khong ai biet
+  // Da gap that: man hinh la thanh kiem 3 dong, ma form lai la mon nhan cu
+  // (Willpower 112, Cooldown Reduction 10).
+  // => Khong nhan bua bat cu bo dieu khien nao. Phai DOI CHIEU: so dong va
+  //    ten tung dong phai khop voi cai dang hien tren man hinh.
+  function dungFormNay(bo) {
+    if (!laBoForm(bo)) return false;
+    let v;
+    try { v = bo.getValues('affixes'); } catch (e) { return false; }
+    if (!Array.isArray(v)) return false;
+    const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
+    if (!dsDom.length) return true;        // chua co dong nao, khong doi chieu duoc
+    if (v.length !== dsDom.length) return false;
+    for (let i = 0; i < v.length; i++) {
+      const ten = tenThuan((v[i] && (v[i].description || v[i].name)) || '');
+      if (!ten || diemKhop(ten, dsDom[i].ten) < DIEM_CHAC) return false;
+    }
+    return true;
+  }
+
   // Di nguoc len tu MOT the cu the, tim doi tuong co getValues/setValue.
   function boFormTu(neo) {
     const k = Object.keys(neo).find(x => x.indexOf('__reactFiber$') === 0 ||
@@ -1728,9 +1753,9 @@
     if (!k) return null;
     for (let f = neo[k], i = 0; f && i < 100; f = f.return, i++) {
       const p = f.memoizedProps;
-      if (p && laBoForm(p.value)) return p.value;
-      if (laBoForm(p)) return p;
-      if (laBoForm(f.stateNode)) return f.stateNode;
+      if (p && dungFormNay(p.value)) return p.value;
+      if (dungFormNay(p)) return p;
+      if (dungFormNay(f.stateNode)) return f.stateNode;
     }
     return null;
   }
