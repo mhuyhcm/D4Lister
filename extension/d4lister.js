@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '0.9';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.0';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -25,6 +25,93 @@
   // bo chu "s" cuoi moi tu -> chiu duoc lech so it/so nhieu.
   // Can that: trang viet "Imbuements Skills", game viet "Imbuement Skills".
   const chuanManh = s => chuan(s).split(' ').map(t => t.replace(/s$/, '')).join(' ');
+
+  // ====================================================================
+  //  KHOP TEN AFFIX
+  //
+  //  diablo.trade la CHUAN, khong phai chu trong game. Hai ben viet khac nhau,
+  //  cong them loi OCR, nen phai khop mem. Nhung mem kieu gi moi dung?
+  //
+  //  DO THAT tren 118 affix cua trang: cac affix KHAC HAN nhau lai giong nhau
+  //  toi 0.92 neu so theo KY TU —
+  //      core skills            vs  corpse skills          0.92
+  //      cold damage multiplier vs  holy damage multiplier  0.91
+  //  => khop o nguong 80% la bien Core thanh Corpse. Cai phan biet chung la
+  //     MOT TU, ma phep so ky tu mu truoc chuyen do.
+  //
+  //  CACH DUNG: so THEO TU, moi tu cho sai vai ky tu tuy do dai.
+  //  Do lai: loi OCR trong mot tu (Wilpower, Maximum Lite, Movement Speeb)
+  //  deu ra 1.00; con core/corpse, cold/holy chi 0.50-0.67. Cap giong nhau
+  //  nhat giua hai affix khac nhau la 0.80 -> nguong 0.95 rat an toan.
+  // ====================================================================
+  const DIEM_CHAC = 0.95;   // tu day tro len: chac chan, dung ngay
+  const DIEM_NGO  = 0.80;   // 0.80-0.94: nghi ngo, dung lai hoi
+
+  // Nhan cua trang co dang "+[1 - 180] Willpower" -> ten thuan la "Willpower"
+  function tenThuan(nhan) {
+    let t = String(nhan || '').replace(/\[[^\]]*\]/g, ' ');
+    t = t.replace(/^[\s+x#%\d.,\-]+/, '');
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  const tachTu = t =>
+    tenThuan(t).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(Boolean);
+
+  // Tu cang dai cang cho sai nhieu. Tu ngan sai 1 ky tu la thanh tu khac han
+  // ("core" -> "corpse"), nen tu <= 3 khong cho sai.
+  const choPhep = w => (w.length <= 3 ? 0 : w.length <= 7 ? 1 : 2);
+
+  // Khoang cach sua loi, bo cuoc som cho nhanh
+  function khoangCach(a, b, toiDa) {
+    if (Math.abs(a.length - b.length) > toiDa) return toiDa + 1;
+    let truoc = [];
+    for (let j = 0; j <= b.length; j++) truoc[j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      const nay = [i];
+      let nhoNhat = i;
+      for (let j = 1; j <= b.length; j++) {
+        nay[j] = Math.min(truoc[j] + 1, nay[j - 1] + 1,
+                          truoc[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        if (nay[j] < nhoNhat) nhoNhat = nay[j];
+      }
+      if (nhoNhat > toiDa) return toiDa + 1;
+      truoc = nay;
+    }
+    return truoc[b.length];
+  }
+
+  function hopTu(x, y) {
+    if (x === y) return true;
+    const n = Math.max(choPhep(x), choPhep(y));
+    return n > 0 && khoangCach(x, y, n) <= n;
+  }
+
+  // Diem 0..1 = bao nhieu phan tu khop duoc
+  function diemKhop(a, b) {
+    const A = tachTu(a), B = tachTu(b);
+    if (!A.length || !B.length) return 0;
+    const con = B.slice();
+    let khop = 0;
+    for (const x of A) {
+      for (let i = 0; i < con.length; i++) {
+        if (hopTu(x, con[i])) { khop++; con.splice(i, 1); break; }
+      }
+    }
+    return khop / Math.max(A.length, B.length);
+  }
+
+  // Tim muc khop nhat trong mot danh sach. Tra ve ca diem NHI de biet co
+  // nhap nhang khong - hai ung vien diem xap xi nhau la khong duoc doan bua.
+  function timKhopNhat(tenCan, ds, layTen, boQua) {
+    let tot = null, dTot = 0, dNhi = 0;
+    for (const m of ds) {
+      if (boQua && boQua.has(m)) continue;
+      const r = diemKhop(tenCan, layTen ? layTen(m) : m);
+      if (r > dTot) { dNhi = dTot; dTot = r; tot = m; }
+      else if (r > dNhi) dNhi = r;
+    }
+    return { muc: tot, diem: dTot, nhi: dNhi };
+  }
 
   // Dong KHONG phai affix: ten do, loai do, chi so goc. Nhom thu hai la phan
   // cuoi tooltip D4 - chung lot qua duoc vi cung co dang "<so> <chu>",
@@ -141,16 +228,22 @@
     const banTrenDia = mExt ? mExt[1] : '';
 
     const daDung = new Set();
-    const ok = [], ngoaiKhoang = [], khongThay = [], doiSao = [];
+    const ok = [], ngoaiKhoang = [], khongThay = [], doiSao = [], nghiNgo = [];
 
     for (const m of muon) {
-      const c = chuan(m.ten);
-      const cm = chuanManh(m.ten);
-      let dong = dang.find(d => !daDung.has(d) && chuan(d.ten) === c);
-      if (!dong) dong = dang.find(d => !daDung.has(d) && chuanManh(d.ten) === cm);
-      if (!dong) dong = dang.find(d => !daDung.has(d) &&
-        (chuanManh(d.ten).includes(cm) || cm.includes(chuanManh(d.ten))));
-      if (!dong) { khongThay.push(m); continue; }
+      // Khop theo TU. Ten cua DONG TREN FORM chinh la ten cua trang (doc tu
+      // nut xoa "Remove ..."), nen day da la doi chieu voi chuan roi.
+      const kq = timKhopNhat(m.ten, dang, d => d.ten, daDung);
+
+      if (kq.diem < DIEM_NGO) { khongThay.push(m); continue; }
+
+      // Diem giua hai muc: co ve dung nhung khong chac. Doan bua o day la
+      // tao listing sai ma khong ai biet -> dung lai, hoi.
+      if (kq.diem < DIEM_CHAC || kq.nhi >= DIEM_CHAC) {
+        nghiNgo.push({ ...m, dong: kq.muc, diem: kq.diem, nhi: kq.nhi });
+        continue;
+      }
+      const dong = kq.muc;
       daDung.add(dong);
 
       // o nhap chi cho so nguyen thi lam tron
@@ -170,7 +263,7 @@
       if (reRange) ngoaiKhoang.push({ ...m, dong, v, cu });
       else ok.push({ ...m, dong, v, cu });
     }
-    bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia);
+    bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo);
   }
 
   // --- tu them dong affix ma trang khong dung ra ------------------------
@@ -228,23 +321,32 @@
   // Uu tien the NAO CO O TICH ben trong; khong co thi lay the nho nhat
   // con chua du chu -> tranh bam trung vao khoi cha.
   function dongGoiY(khung, ten) {
-    const c = chuanManh(ten);
     // Uu tien the NAO THUONG LA NUT BAM THAT truoc, roi moi den div/span boc ngoai.
     const hang = el =>
       (el.getAttribute('role') === 'option' || el.tagName === 'LI') ? 0
       : (el.tagName === 'LABEL' || el.tagName === 'BUTTON') ? 1
       : el.querySelector('input[type="checkbox"],[role="checkbox"]') ? 2 : 3;
 
-    let tot = null, hangTot = 99, daiTot = 1e9;
+    const uv = [];
     for (const el of khung.querySelectorAll('li,[role="option"],label,button,div,span')) {
       const t = (el.textContent || '').trim();
-      if (!t || t.length > 80 || !chuanManh(t).includes(c)) continue;
-      const h = hang(el);
-      if (h < hangTot || (h === hangTot && t.length < daiTot)) {
-        tot = el; hangTot = h; daiTot = t.length;
-      }
+      if (!t || t.length > 90) continue;
+      const d = diemKhop(ten, t);
+      if (d >= DIEM_NGO) uv.push({ el, t, d, h: hang(el) });
     }
-    return tot;
+    if (!uv.length) return null;
+
+    // diem cao nhat truoc; cung diem thi lay the bam duoc that, roi the ngan nhat
+    uv.sort((a, b) => b.d - a.d || a.h - b.h || a.t.length - b.t.length);
+    const tot = uv[0];
+    if (tot.d < DIEM_CHAC) return null;   // khong chac thi KHONG bam bua
+
+    // Hai DONG KHAC NHAU cung dat diem cao -> nhap nhang, khong duoc doan.
+    // (Nhieu the DOM boc cung mot dong thi chu giong nhau, khong tinh.)
+    const khac = uv.find(x => x.d >= DIEM_CHAC && tenThuan(x.t) !== tenThuan(tot.t));
+    if (khac) return null;
+
+    return tot.el;
   }
 
   // Go chu vao o loc. Ngoai su kien input cua React con ban them su kien
@@ -338,6 +440,15 @@
 
       let g = dongGoiY(khung, m.ten);
       if (!g) g = await doCuonTim(khung, m.ten);
+
+      // Duong lui: co the chinh TU DEM DI LOC bi OCR doc sai ("Maxlmum"),
+      // nen bo loc ra rong, khong co gi de cham diem. Xoa bo loc roi cuon
+      // het danh sach ma tim. Cham hon vai giay, nhung hiem khi phai dung.
+      if (!g) {
+        goChu(o, '');
+        await doi(600);
+        g = dongGoiY(khung, m.ten) || await doCuonTim(khung, m.ten);
+      }
       if (!g) { loiThem.push([m.ten, moTaThatBai(o, khung, tk)]); continue; }
 
       // Thu 3 duong, duong nao an thi dung. Sau moi duong deu KIEM LAI form
@@ -471,10 +582,16 @@
 
   // Loại đồ đang mở: "Helm", "Amulet"... Lấy từ dòng loại dưới tên món.
   function layLoaiDo() {
-    const a = document.querySelector('[class*="font-tooltip-title"]');
-    const khoi = a && a.parentElement && a.parentElement.parentElement;
-    const t = khoi ? (khoi.textContent || '') : '';
-    const m = t.match(/(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z ]{3,24})/i);
+    // Di nguoc len tu tieu de mon do cho toi khoi CO CA "Item Power" - do moi
+    // la ca cai tooltip. Ban truoc chi len 2 tang nen cat mat dong loai do.
+    let khoi = document.querySelector('[class*="font-tooltip-title"]');
+    for (let i = 0; i < 8 && khoi; i++) {
+      if (/item power/i.test(khoi.textContent || '')) break;
+      khoi = khoi.parentElement;
+    }
+    const t = (khoi ? khoi.textContent : document.body.textContent) || '';
+    const m = t.match(
+      /(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z][A-Za-z ]{2,22}?)\s*\d*\s*Item Power/i);
     return m ? m[1].trim() : 'khong-ro';
   }
 
@@ -652,7 +769,7 @@
   }, true);
 
   // --- bang bao ket qua ------------------------------------------------
-  function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia) {
+  function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia, nghiNgo) {
     const d = khungBao();
     let h = '<b style="color:#d8b978">D4Lister</b> ';
     h += '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>';
@@ -673,6 +790,16 @@
         '<span style="color:#888">(trang ghi ' + x.dong.min + '–' + x.dong.max + ')</span>').join('<br>');
       h += '<div style="color:#888;font-size:11px;margin-top:3px">Đồ masterwork thì bình thường. ' +
         'Trang vẫn nhận, chỉ tô viền vàng.</div>';
+    }
+    if (nghiNgo && nghiNgo.length) {
+      h += '<div style="margin-top:8px;color:#e8c05a">Không chắc — bạn xem giúp</div>';
+      h += nghiNgo.map(x =>
+        '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so + (x.phanTram ? '%' : '') + '</b>' +
+        '<br>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#888">giống nhất: ' +
+        thoat(x.dong ? x.dong.ten : '?') + ' (' + Math.round(x.diem * 100) + '%)</span>'
+      ).join('<br>');
+      h += '<div style="color:#888;font-size:11px;margin-top:3px">Chưa điền mấy dòng này. ' +
+        'Đoán bừa ở đây là đăng nhầm chỉ số.</div>';
     }
     if (thieu.length) {
       h += '<div style="margin-top:8px;color:#e08a5a">Trang chưa có dòng này</div>';
@@ -713,7 +840,8 @@
     if (nt) nt.onclick = () => themCacAffixThieu(thieu);
 
     // Sạch = không có dòng nào vượt khoảng, không thiếu affix, không lỗi.
-    const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi && daGhi.length > 0;
+    const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi
+               && !(nghiNgo && nghiNgo.length) && daGhi.length > 0;
 
     // Thiếu affix mà bật tự thêm -> thêm luôn, khỏi bấm nút.
     // CHỈ MỘT LẦN cho mỗi lần dán: thêm không được thì `thieu` vẫn còn,
