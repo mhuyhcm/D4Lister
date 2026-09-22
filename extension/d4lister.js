@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.8';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.9';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1177,6 +1177,7 @@
       o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo') +
       o('tuQuet', 'Tự bấm Scan') +
       o('ghiThangForm', 'Ghi thẳng vào form') +
+      o('nhayVaoGia', 'Nhảy vào ô giá') +
       o('tuChonBase', 'Tự chọn base') +
       o('tuThemAffix', 'Tự thêm affix thiếu') +
       o('tuDauSao', 'Tự bật dấu sao') +
@@ -1225,6 +1226,7 @@
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
     tuQuet:           true,   // ảnh nạp xong thì tự bấm Scan
     ghiThangForm:     true,   // ghi thẳng vào form của trang, khỏi gõ vào ô
+    nhayVaoGia:       true,   // điền xong thì đặt con trỏ vào ô giá
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
   };
   const KHOA_LUU = 'd4lister-cai-dat';
@@ -1243,6 +1245,22 @@
   let CD = docCaiDat();
 
   let dongHoDang = null;
+
+  // O nhap gia. Cung mot moc o ca hai che do.
+  const oGia = () =>
+    [...document.querySelectorAll('input[placeholder="Price"]')]
+      .find(i => i.offsetParent !== null && !i.disabled) || null;
+
+  // Dien xong thi dat con tro vao o gia luon — user chi con go so roi Enter.
+  function nhayVaoOGia() {
+    const o = oGia();
+    if (!o) return false;
+    try {
+      o.focus({ preventScroll: false });
+      o.select();
+    } catch (e) { try { o.focus(); } catch (e2) {} }
+    return document.activeElement === o;
+  }
 
   const nutDang = () =>
     [...document.querySelectorAll('button')]
@@ -1298,6 +1316,21 @@
   }
 
   document.addEventListener('keydown', e => {
+    // Enter KHI DANG O O GIA = bam Submit. Chi trong o gia thoi — Enter o
+    // cho khac van la Enter binh thuong (o tim affix chang han).
+    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      const og = oGia();
+      if (og && document.activeElement === og) {
+        const nut = nutDang();
+        if (nut) {
+          e.preventDefault();
+          e.stopPropagation();
+          huyDang(document.getElementById('d4l-dang'), 'Đã bấm đăng.');
+          bamThat(nut);
+          return;
+        }
+      }
+    }
     // Ctrl+Enter = đăng ngay. Dùng khi bạn vừa gõ giá xong: gõ phím làm dừng
     // đếm ngược, nên cần một phím để nói "tôi xong rồi, đăng đi".
     if (e.ctrlKey && e.key === 'Enter') {
@@ -1437,6 +1470,11 @@
       return;
     }
     xetTuDang(d.querySelector('#d4l-dang'), sach);
+
+    // Dat con tro vao o gia. Lam SAU CUNG, vi luc ve bang co the cuop mat
+    // con tro. Doi mot nhip cho trang ve xong roi hang.
+    if (CD.nhayVaoGia && daGhi.length)
+      setTimeout(() => { if (!dongHoDang || CD.demNguoc > 1) nhayVaoOGia(); }, 60);
   }
 
   // --- bat su kien dan --------------------------------------------------
