@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.4';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.5';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -208,15 +208,24 @@
       // roi danh dau, vi dau sao la HINH VE nen OCR khong doc duoc.
       const sao = d.startsWith('**');
       const d2 = sao ? d.slice(2).trim() : d;
-      // "+1,813 Maximum Life" | "+12.5% Attack Speed" | "+3 Imbuements Skills"
-      const m = d2.match(/^\+?\s*([\d.,]+)\s*(%?)\s+(.+)$/);
+      // "+1,813 Maximum Life" | "x25% Critical Strike Damage Multiplier"
+      // | "+282LifeonKill" | "173 All Resist"
+      //
+      // Hai cho tung de LOT DONG, deu im lang:
+      //   - Dau "x": MOI affix Damage Multiplier trong D4 deu viet "x25%",
+      //     ma regex cu chi nhan dau "+".
+      //   - Giua so va chu CO KHI KHONG CO DAU CACH ("+282LifeonKill"),
+      //     nen phai la \s* chu khong phai \s+. Doi lai bat buoc ten phai
+      //     bat dau bang CHU CAI, de khong vo nham vao so.
+      const m = d2.match(/^([+x])?\s*([\d.,]+)\s*(%?)\s*([A-Za-z].*)$/i);
       if (!m) continue;
-      const so = parseFloat(m[1].replace(/,/g, ''));
+      const dauSo = (m[1] || '').toLowerCase();   // '+' | 'x' | ''
+      const so = parseFloat(m[2].replace(/,/g, ''));
       if (!isFinite(so)) continue;
-      let ten = m[3].replace(/^to\s+/i, '').trim();
+      let ten = m[4].replace(/^to\s+/i, '').trim();
       if (!ten || ten.length < 3) continue;
       if (BO_QUA.some(r => r.test(d2))) continue;
-      ra.push({ ten, so, phanTram: m[2] === '%', sao });
+      ra.push({ ten, so, phanTram: m[3] === '%', nhan: dauSo, sao });
     }
     return ra;
   }
