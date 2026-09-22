@@ -1,6 +1,8 @@
-# D4Lister
+# D4Lister v1
 
 Đăng item Diablo 4 lên **diablo.trade** nhanh hơn. Chạy trên **một máy**.
+
+> **v1** — bản đầu tiên chạy ổn định. Tiện ích Chrome bản **2.5**.
 
 Ý tưởng cốt lõi: **tách hai giai đoạn**. Gom hết item trong game trước (không
 alt-tab lần nào), rồi sang trình duyệt đăng một mạch.
@@ -98,10 +100,14 @@ món. Bấm xong là xong ngay, phần đọc chữ chạy ngầm.
 **Trên trình duyệt** — mở diablo.trade → Create Listing:
 
 ```
-F4  →  dán món 1  →  SCAN  →  tiện ích tự điền  →  tự đăng sau 5 giây
-F5  →  dán món 2  →  SCAN  →  tự điền           →  tự đăng
+F4  →  dán món 1  →  tự bấm SCAN  →  tự điền  →  tự đăng sau 5 giây
+F5  →  dán món 2  →  tự bấm SCAN  →  tự điền  →  tự đăng
 F5  →  ...
 ```
+
+Từ bản 2.3 tiện ích **tự bấm SCAN** — nhưng chỉ khi ảnh đã nạp xong thật
+(trình duyệt báo tải xong, kích thước ảnh khác 0, và đứng yên hai nhịp liền).
+Món nào phải chọn base trước thì nó cũng tự chọn base trơn rồi bấm Next.
 
 Muốn đặt giá thì cứ gõ vào ô giá — gõ là đếm ngược dừng lại, gõ xong bấm
 **Ctrl+Enter**.
@@ -137,8 +143,10 @@ dùng ngay, không phải sửa file, không phải nạp lại.
 |---|---|---|
 | Tự đăng | bật | Điền xong, mọi thứ sạch thì tự bấm SUBMIT |
 | Đăng cả khi có cảnh báo | **tắt** | Bật lên là số sai vẫn lên sàn mà bạn không biết |
-| Tự thêm affix thiếu | bật | Trang không dựng ra dòng nào thì tự mở danh sách thêm |
-| Tự bật dấu sao | bật | Greater Affix — đo bằng pixel từ ảnh chụp |
+| Tự bấm Scan | bật | Đợi ảnh nạp xong rồi mới bấm |
+| Tự chọn base | bật | Bước chọn hình món đồ — lấy base trơn rồi bấm Next |
+| Tự thêm affix thiếu | bật | Dòng nào trang thiếu thì tự mở danh sách thêm |
+| Tự bật dấu sao | bật | Greater Affix — xem mục dưới |
 | Đếm ngược | 5 giây | Thời gian chờ trước khi bấm đăng |
 
 Thiết lập lưu trong trình duyệt, mỗi máy một bản riêng.
@@ -155,6 +163,43 @@ trang có thể âm thầm đổi số (12.5 thành 10 mà không báo), và OCR
 
 Đang đếm ngược mà bấm **Esc**, hoặc gõ vào ô giá, là nó dừng.
 Gõ giá xong thì bấm **Ctrl+Enter** để đăng — khỏi phải rê chuột.
+
+---
+
+## Dấu sao (Greater Affix)
+
+Dấu ✳ là **hình vẽ**, OCR không đọc ra thành chữ được. D4Lister nhận nó bằng
+**hai đường**, có một đường ăn là đủ:
+
+1. **OCR đọc được cái dấu.** Dấu chấm đầu dòng ◆ hay bị đọc thành `© e ¢ @ ®`,
+   còn dấu sao ✳ hay bị đọc thành `#` hoặc `*`. Đo trên 46 lần thật: 25 dòng
+   OCR thấy `#`/`*` thì mật độ điểm sáng 0.176–0.524, 21 dòng không thấy thì
+   0.000–0.161 — **hai nhóm không chồng nhau**.
+2. **Đếm điểm sáng** trong ô bên trái con số. Đây là lưới đỡ cho lúc OCR nuốt
+   mất cái dấu. Ngưỡng `SAO_NGUONG` = 0.25.
+
+Phải có cả hai vì mỗi đường đều có lỗ: phép đếm điểm sáng **yếu đi khi chữ to**
+(cùng một dấu sao, chữ `h=25` cho 0.45 nhưng chữ `h=39` chỉ còn 0.216 — tụt
+dưới ngưỡng), còn OCR thì có lúc không thấy cái dấu.
+
+**Chỉ đo đúng dòng affix.** Mọi từ đứng trước con số phải là **một ký tự**.
+Dòng affix thật chỉ có đúng một ký tự đứng trước (cái dấu). Có từ thật đứng
+trước nghĩa là đang ở giữa một câu văn — ô soi sẽ trùm lên chữ, chữ sáng rực,
+báo có sao oan. Đã gặp thật: `they are 70% more potent.` đo được 0.490.
+
+Số đo ghi ra `queue\_sao.log` để còn dò lại khi sai.
+
+## Hai chế độ CLASSIC / BETA
+
+Trang có công tắc **Classic | Beta** ở đầu trang Create, cùng hàng với dòng
+`Home / Marketplace / Create`, dạt về mép phải. Hai bản dựng form **khác hẳn
+nhau**.
+
+Tiện ích đỡ cả hai: mỗi lần chạm vào trang nó hỏi lại đang ở bản nào rồi dùng
+bộ mốc tương ứng — gạt qua gạt lại không cần tải lại trang.
+
+Đang dùng **Beta**. Gói ngôn ngữ của trang ghi *"Classic is retiring after
+Season 15"* nên không đầu tư thêm cho Classic; mã đỡ Classic vẫn giữ, nằm im.
 
 ---
 

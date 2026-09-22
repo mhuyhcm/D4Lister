@@ -1,11 +1,8 @@
 # --- RIENG TU: khoa bi mat, tuyet doi khong day len ---
-_cu/
 *.pem
 
 # --- Anh item va ket qua chup cua rieng may nay ---
 queue/
-_anh-cu/
-thu-nghiem/
 *.log
 
 # --- Ban luu trang diablo.trade de tra cau truc DOM ---
@@ -16,7 +13,7 @@ create-listing/
 Thumbs.db
 desktop.ini
 
-# Tesseract xach tay - do cai-dat	esseract-portable.zip bung ra,
+# Tesseract xach tay - do bo-cai/tesseract-portable.zip bung ra,
 # khong day ban da bung len (day ban nen la du).
 tesseract/
 
