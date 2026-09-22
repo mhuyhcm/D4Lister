@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.3';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.4';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -497,9 +497,26 @@
   // Go tu ngan nhung chac an: "Imbuements Skills" -> go "Imbuement".
   // Neu go nguyen ten ma OCR ra so it ("Imbuement Skills") thi bo loc cua
   // trang khong ra gi, vi nhan cua no la so nhieu ("Imbuements Skills").
-  function tuKhoa(ten) {
-    const dau = (ten.split(/\s+/)[0] || '').replace(/s$/i, '');
-    return dau.length >= 3 ? dau : ten;
+  // Tra ve DANH SACH tu khoa de thu LAN LUOT. Khong doan truoc duoc cai nao
+  // trung, vi con phu thuoc OCR nuot dau cach cho nao.
+  //   "LifeonKill" -> ["Lifeon", "Life", ""]      (Lifeon truot, Life trung)
+  //   "AllSkills"  -> ["All", "AllS", ""]
+  // "" o cuoi = xoa bo loc, cuon het danh sach ma tim. Cham nhung chac.
+  function dsTuKhoa(ten) {
+    const tu = tenThuan(ten).split(/\s+/).filter(Boolean);
+    const dau = (tu[0] || '').replace(/s$/i, '');
+    const ra = [];
+    const them = k => { if (k && k.length >= 3 && ra.indexOf(k) < 0) ra.push(k); };
+
+    if (tu.length === 1 && dau.length >= 8) {
+      // OCR giu CHU HOA o dau moi tu -> tach tai do
+      them(dau.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(' ')[0]);
+      them(dau.slice(0, 4));
+    } else {
+      them(dau);
+    }
+    ra.push('');            // duong cuoi: bo het bo loc
+    return ra;
   }
 
   async function themCacAffixThieu(thieu) {
@@ -515,20 +532,13 @@
       const o = oTimTrongKhung(khung);
       if (!o) { loiThem.push([m.ten, 'danh sách mở rồi nhưng không thấy ô tìm kiếm']); continue; }
 
-      const tk = tuKhoa(m.ten);
-      goChu(o, tk);
-      await doi(700);
-
-      let g = dongGoiY(khung, m.ten);
-      if (!g) g = await doCuonTim(khung, m.ten);
-
-      // Duong lui: co the chinh TU DEM DI LOC bi OCR doc sai ("Maxlmum"),
-      // nen bo loc ra rong, khong co gi de cham diem. Xoa bo loc roi cuon
-      // het danh sach ma tim. Cham hon vai giay, nhung hiem khi phai dung.
-      if (!g) {
-        goChu(o, '');
-        await doi(600);
+      let g = null, tk = '';
+      for (const k of dsTuKhoa(m.ten)) {
+        tk = k;
+        goChu(o, k);
+        await doi(k ? 550 : 700);
         g = dongGoiY(khung, m.ten) || await doCuonTim(khung, m.ten);
+        if (g) break;
       }
       if (!g) { loiThem.push([m.ten, moTaThatBai(o, khung, tk)]); continue; }
 
