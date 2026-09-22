@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.1';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.2';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -1032,6 +1032,8 @@
       o('tuThemAffix', 'Tự thêm affix thiếu',
         'Trang không dựng ra dòng nào thì tự mở danh sách thêm vào.') +
       o('tuDauSao', 'Tự bật dấu sao', 'Greater Affix — đo bằng pixel từ ảnh chụp.') +
+      o('tuChonBase', 'Tự chọn base',
+        'Bước chọn hình món đồ sau khi quét — tự lấy base trơn rồi bấm Next.') +
       '<div style="margin-top:12px;display:flex;align-items:center;gap:8px">' +
       '<span>Đếm ngược</span>' +
       '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
@@ -1087,6 +1089,7 @@
     demNguoc:         5,      // giây đếm ngược trước khi bấm đăng
     tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
+    tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
   };
   const KHOA_LUU = 'd4lister-cai-dat';
 
@@ -1292,12 +1295,101 @@
   // Khong hen gio cung nhac nua: trang con bat bam SCAN roi moi dung form,
   // nhanh cham tuy luc. Cu ngo lien tuc den khi cac dong affix hien ra VA
   // so luong dung yen hai nhip -> luc do form moi thuc su xong.
+  // ====================================================================
+  //  BUOC CHON BASE
+  //
+  //  Quet anh xong, voi do khong phai Unique thi trang bat chon "item
+  //  variant" truoc roi moi cho khai affix. Cac variant chi KHAC NHAU CAI
+  //  HINH, khong doi gi den chi so, nen khong co ly do bat user ngoi chon.
+  //
+  //  Moi the la mot button co anh, ben trong:
+  //     ten variant  (font-tooltip-title)
+  //     loai do      ("Ring")
+  //     co the co    "Unlocks new look on salvage"
+  //  Dong cuoi nghia la ban co ngoai hinh rieng, salvage ra thi mo khoa
+  //  ngoai hinh do. The KHONG CO dong do la base mac dinh — tron nhat.
+  //  (Do tren trang da luu: trong 24 the ring, dung MOT the khong co dong
+  //  do, va no ten "Band" — dung ten base pho thong cua nhan trong game.)
+  // ====================================================================
+  const khungBase = () => document.querySelector('[data-slot="data-picker-results"]');
+
+  const theBase = khung =>
+    [...khung.querySelectorAll('button')].filter(b => b.querySelector('img'));
+
+  function tenTheBase(b) {
+    const sp = b.querySelector('[class*="font-tooltip-title"]');
+    if (sp && sp.textContent.trim()) return sp.textContent.trim();
+    const img = b.querySelector('img');
+    return img ? (img.alt || '').trim() : '';
+  }
+
+  const laBaseTron = b => !/unlocks new look/i.test(b.textContent || '');
+
+  // Uu tien the TRUNG TEN mon do vua quet; khong co thi lay the tron.
+  // Danh sach cung ao hoa (chi ve ra phan dang nhin) nen phai cuon ma tim.
+  async function timTheBase(khung, tenMuon) {
+    let tron = null, dau = null;
+    const xet = () => {
+      for (const b of theBase(khung)) {
+        if (!dau) dau = b;
+        const t = tenTheBase(b);
+        if (tenMuon && t && diemKhop(tenMuon, t) >= DIEM_CHAC) return b;
+        if (!tron && laBaseTron(b)) tron = b;
+      }
+      return null;
+    };
+    let g = xet();
+    if (g) return g;
+    if (!tenMuon && tron) return tron;
+
+    const buoc = Math.max(100, khung.clientHeight - 40);
+    for (let y = buoc; y <= khung.scrollHeight; y += buoc) {
+      khung.scrollTop = y;
+      await doi(150);
+      g = xet();
+      if (g) return g;
+      if (!tenMuon && tron) break;
+    }
+    khung.scrollTop = 0;
+    return tron || dau || null;
+  }
+
+  const nutNext = () =>
+    [...document.querySelectorAll('button')].find(b =>
+      /^next$/i.test((b.textContent || '').trim()) && !b.disabled && b.offsetParent !== null);
+
+  let dangChonBase = false, soLanChonBase = 0;
+
+  async function chonBase(tenMuon) {
+    const khung = khungBase();
+    if (!khung || !theBase(khung).length) return;
+    soLanChonBase++;
+    nhac('Đang chọn base cho món đồ…');
+    const b = await timTheBase(khung, tenMuon);
+    if (!b) return;
+    bamThat(b);
+    await doi(450);
+    const n = nutNext();
+    if (n) { bamThat(n); await doi(450); }
+  }
+
   function choFormDungXong(text) {
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
     let truoc = -1, yen = 0;
+    const tenChu = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
+    dangChonBase = false;
+    soLanChonBase = 0;
     nhac('Đã nhận chữ. Đang đợi form… (chưa bấm SCAN thì bấm đi)');
     dongHo = setInterval(() => {
+      // Dang o buoc chon base thi chon giup roi bam Next, dung bat user ngoi
+      // chon cai hinh. Thu toi da hai lan cho khoi bam mai.
+      if (CD.tuChonBase && !dangChonBase && soLanChonBase < 2 && khungBase()) {
+        dangChonBase = true;
+        chonBase(tenChu).then(() => { dangChonBase = false; });
+        return;
+      }
+      if (dangChonBase) return;
       const n = timCacDong().length;
       if (n > 0 && n === truoc) {
         if (++yen >= 2) { clearInterval(dongHo); dongHo = null; apDung(text); return; }
