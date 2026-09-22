@@ -1,8 +1,16 @@
-# D4Lister v1
+# D4Lister v2
 
 Đăng item Diablo 4 lên **diablo.trade** nhanh hơn. Chạy trên **một máy**.
 
-> **v1** — bản đầu tiên chạy ổn định. Tiện ích Chrome bản **2.5**.
+> **v2** — tiện ích Chrome bản **4.7**.
+>
+> Khác v1 ở bốn chỗ:
+> - **Điền thẳng vào ô, không gõ chữ.** Đọc cả khoảng hợp lệ thật từ trang
+>   thay vì đoán, nên biết chắc số nào vượt khoảng.
+> - **Con trỏ nhảy vào ô giá** sau khi điền xong; gõ số rồi **Enter** là đăng.
+> - **Ảnh gửi lên nhẹ đi 74%** — tách bản phóng 2× (cho OCR) khỏi bản cỡ gốc
+>   (cho trang).
+> - **Bảng kết quả gọn lại**, thiết lập gộp vào luôn qua nút bánh răng.
 
 Ý tưởng cốt lõi: **tách hai giai đoạn**. Gom hết item trong game trước (không
 alt-tab lần nào), rồi sang trình duyệt đăng một mạch.
@@ -119,8 +127,9 @@ Từ bản 2.3 tiện ích **tự bấm SCAN** — nhưng chỉ khi ảnh đã n
 (trình duyệt báo tải xong, kích thước ảnh khác 0, và đứng yên hai nhịp liền).
 Món nào phải chọn base trước thì nó cũng tự chọn base trơn rồi bấm Next.
 
-Muốn đặt giá thì cứ gõ vào ô giá — gõ là đếm ngược dừng lại, gõ xong bấm
-**Ctrl+Enter**.
+Điền xong, **con trỏ tự nhảy vào ô giá** — gõ số rồi bấm **Enter** là đăng.
+Gõ phím cũng làm đếm ngược dừng lại, nên không sợ nó đăng trước khi bạn kịp
+nhập giá. **Ctrl+Enter** đăng được từ bất cứ ô nào.
 
 ---
 
@@ -164,9 +173,12 @@ dùng ngay, không phải sửa file, không phải nạp lại.
 | Tự đăng | bật | Điền xong, mọi thứ sạch thì tự bấm SUBMIT |
 | Đăng cả khi có cảnh báo | **tắt** | Bật lên là số sai vẫn lên sàn mà bạn không biết |
 | Tự bấm Scan | bật | Đợi ảnh nạp xong rồi mới bấm |
+| Ghi thẳng vào form | bật | Lấy khoảng hợp lệ từ trang, thêm dòng khỏi gõ chữ |
+| Nhảy vào ô giá | bật | Điền xong đặt con trỏ vào ô giá luôn |
 | Tự chọn base | bật | Bước chọn hình món đồ — lấy base trơn rồi bấm Next |
-| Tự thêm affix thiếu | bật | Dòng nào trang thiếu thì tự mở danh sách thêm |
+| Tự thêm affix thiếu | bật | Dòng nào trang thiếu thì tự thêm |
 | Tự bật dấu sao | bật | Greater Affix — xem mục dưới |
+| Ghi file dò | **tắt** | Tải file chẩn đoán về máy, chỉ bật khi cần gửi đi |
 | Đếm ngược | 5 giây | Thời gian chờ trước khi bấm đăng |
 
 Thiết lập lưu trong trình duyệt, mỗi máy một bản riêng.
