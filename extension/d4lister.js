@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.9';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.0';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -507,25 +507,48 @@
   //   aria-controls               -> id cua dung cai khung dropdown
   // Nho vay khong phai do dam gi ca. Ban truoc do dam nen go nham vao
   // o 44% cua Unique Power.
-  const dangMo = nut =>
-    nut.getAttribute('aria-expanded') === 'true' || nut.getAttribute('data-state') === 'open';
+  const dangHien = el => !!(el && el.getClientRects().length);
 
+  // BAY DA SUP MOT LAN: o go chu cua cmdk LUON ghi aria-expanded="true",
+  // ke ca luc danh sach dang dong (do tren hai trang da luu: dong va mo deu
+  // aria-expanded="true", khac nhau o cho DONG thi trong trang khong co
+  // [cmdk-list] nao). Tin vao aria-expanded la khong bam nut bao gio, roi
+  // ngoi doi mot cai khung khong bao gio duoc ve ra.
+  // => Dau hieu DUY NHAT tin duoc: khung danh sach co that va dang nhin thay.
   const khungPopover = nut => {
     const id = nut.getAttribute('aria-controls');
-    return id ? document.getElementById(id) : null;
+    const k = id ? document.getElementById(id) : null;
+    if (dangHien(k)) return k;
+    if (nut.tagName !== 'INPUT') return null;
+    // cmdk co the ve danh sach sang cho khac, id khong con khop
+    const ds = [...document.querySelectorAll('[cmdk-list]')].filter(dangHien);
+    return ds.find(x => x.querySelector('[cmdk-item]')) || ds[0] || null;
   };
 
+  const dangMo = nut =>
+    nut.tagName === 'INPUT'
+      ? !!khungPopover(nut)
+      : (nut.getAttribute('aria-expanded') === 'true' || nut.getAttribute('data-state') === 'open');
+
   async function moDropdown(nut) {
-    // O go chu khong mo ra bang .click() — phai bam nhu chuot that roi dat
-    // con tro vao thi cmdk moi xo danh sach.
-    if (!dangMo(nut)) {
-      if (nut.tagName === 'INPUT') { bamThat(nut); nut.focus(); }
-      else nut.click();
+    if (dangMo(nut)) return khungPopover(nut);
+    if (nut.tagName !== 'INPUT') {
+      nut.click();
+      return await cho(() => khungPopover(nut), 3000);
     }
-    return await cho(() => {
-      const k = khungPopover(nut);
-      return k && k.offsetParent !== null ? k : null;
-    }, 3000);
+    // O go chu khong mo ra bang .click() — bam nhu chuot that roi dat con
+    // tro vao. Khong an thi thu phim mui ten xuong (loi mo quen thuoc cua
+    // o combobox). Van khong an thi tra ve rong, de vong ngoai go chu vao
+    // da — co ban chi xo danh sach khi da co chu trong o loc.
+    bamThat(nut); nut.focus();
+    let k = await cho(() => khungPopover(nut), 1200);
+    if (k) return k;
+    for (const loai of ['keydown', 'keyup'])
+      nut.dispatchEvent(new KeyboardEvent(loai, {
+        key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40,
+        bubbles: true, cancelable: true,
+      }));
+    return await cho(() => khungPopover(nut), 1200);
   }
 
   // Dong danh sach lai. Voi o go chu thi bam lai vao no KHONG dong duoc
@@ -545,11 +568,6 @@
   const oTimTrongKhung = khung =>
     [...khung.querySelectorAll('input')].find(i =>
       i.type !== 'checkbox' && i.type !== 'file' && i.offsetParent !== null) || null;
-
-  // O CLASSIC o loc nam NGOAI khung danh sach (no chinh la nut vua bam),
-  // nen khong tim trong khung duoc.
-  const oTim = (nut, khung) =>
-    (nut && nut.tagName === 'INPUT') ? nut : oTimTrongKhung(khung);
 
   // Chi tim TRONG khung dropdown, khong quet ca trang - tranh bam nham
   // vao tooltip mon do (cho do cung co ten affix).
@@ -773,19 +791,33 @@
       const nut = nutMoDs();
       if (!nut) { loiThem.push([m.ten, 'không thấy ô ' + tenNut]); break; }
 
-      const khung = await moDropdown(nut);
-      if (!khung) { loiThem.push([m.ten, 'bấm ' + tenNut + ' rồi mà danh sách không mở ra']); continue; }
+      let khung = await moDropdown(nut);
 
-      const o = oTim(nut, khung);
-      if (!o) { loiThem.push([m.ten, 'danh sách mở rồi nhưng không thấy ô tìm kiếm']); continue; }
+      // Chua mo duoc cung dung bo cuoc ngay: o CLASSIC chinh o go chu la
+      // nut mo, co ban chi xo danh sach khi trong o DA CO CHU. Cu go vao
+      // roi ngo lai; go het duong ma van khong xo thi luc do moi bao.
+      const o = cl ? nut : (khung && oTimTrongKhung(khung));
+      if (!o) {
+        loiThem.push([m.ten, khung
+          ? 'danh sách mở rồi nhưng không thấy ô tìm kiếm'
+          : 'bấm ' + tenNut + ' rồi mà danh sách không mở ra']);
+        continue;
+      }
 
       let g = null, tk = '';
       for (const k of dsTuKhoa(tenTim)) {
         tk = k;
+        if (cl && !dangMo(nut)) { bamThat(o); o.focus(); }
         goChu(o, k);
         await doi(k ? 550 : 700);
+        if (!dangHien(khung)) khung = await cho(() => khungPopover(nut), 1500);
+        if (!khung) continue;
         g = dongGoiY(khung, tenTim) || await doCuonTim(khung, tenTim);
         if (g) break;
+      }
+      if (!khung) {
+        loiThem.push([m.ten, 'gõ vào ô ' + tenNut + ' rồi mà danh sách vẫn không xổ ra']);
+        continue;
       }
       if (!g) { loiThem.push([m.ten, moTaThatBai(o, khung, tk)]); continue; }
 
