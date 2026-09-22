@@ -17,8 +17,18 @@ https://raw.githubusercontent.com/mhuyhcm/D4Lister/main/CAI-DAT.bat
 
 *(Chuột phải vào link → Save link as…)*
 
-Nó tự tải mã nguồn, bung Tesseract, cài AutoHotkey nếu máy chưa có, rồi chạy.
+Nó tự lo hết: tải mã nguồn (~200 KB), **kiểm tra máy đã có AutoHotkey và
+Tesseract chưa — thiếu cái nào thì tự tải cái đó về cài**, rồi chạy.
 **Không cần cài Git.**
+
+| Cần | Nặng | Bắt buộc? | Lấy ở đâu |
+|---|---|---|---|
+| AutoHotkey 1.1 | 3 MB | **có** | trang chủ autohotkey.com |
+| Tesseract | 55 MB | không | bản xách tay ghim sẵn trong repo này |
+
+Thiếu Tesseract thì tool vẫn chạy, chỉ là không đọc được chữ trong ảnh — quay
+về cách cũ (dán ảnh, bấm SCAN, tự sửa số). Máy chặn mạng thì mở
+`_he-thong\TAI-VE-TAY.txt`, trong đó có sẵn hai đường tải để làm tay.
 
 Xong nó nhắc bạn làm **việc duy nhất phải làm tay** — nạp tiện ích vào Chrome.
 Đường dẫn đã chép sẵn vào clipboard:
@@ -230,12 +240,17 @@ D4Lister.ahk      ← bấm đúp cái này, hết
 CAI-DAT.bat       ← chỉ dùng một lần trên máy mới
 extension\        ← Chrome trỏ vào đây
 queue\            ← ảnh + chữ đã gom
-tesseract\        ← tự bung ra lần đầu
+tesseract\        ← tự tải về lần đầu, không nằm trong bản tải
 _he-thong\        ← không cần đụng vào
      d4lister-nen.ps1          cài / cập nhật
+     TAI-VE-TAY.txt            hai đường tải, dùng khi máy chặn mạng
      CHAY.bat                  dự phòng nếu không bấm đúp .ahk được
      TAT-HET.bat
      CAI-TIEN-ICH-CHROME.bat
      TatThongBaoSnip.bat  (+ file hoàn tác)
-     bo-cai\                   bộ cài AutoHotkey + Tesseract nén
 ```
+
+Bản tải về nặng khoảng **200 KB**. Trước đây nó kéo theo cả bộ cài Tesseract và
+AutoHotkey nên nặng **59 MB** — mỗi lần cập nhật vài dòng mã cũng phải tải lại
+từng ấy. Hai bộ cài vẫn nằm trong repo ở mốc `v1`, chỉ tải khi máy thực sự
+thiếu.

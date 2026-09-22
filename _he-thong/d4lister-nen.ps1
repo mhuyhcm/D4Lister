@@ -28,8 +28,31 @@ $REPO = 'mhuyhcm/D4Lister'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # Cua NGUOI DUNG - ban tren mang khong duoc ghi de
-$GIU_LAI = @('queue', 'phien-ban.txt', 'tesseract', '_cu', 'create-listing',
-             '_anh-cu', 'thu-nghiem', '.git', 'CAI-DAT.bat')
+$GIU_LAI = @('queue', 'phien-ban.txt', 'tesseract', 'create-listing',
+             '.git', 'CAI-DAT.bat')
+
+# ---------------------------------------------------------------------
+#   HAI CHUONG TRINH PHU: khong nam trong ban tai ve nua
+#
+#   Truoc day ban tai ve keo theo ca bo cai Tesseract (55 MB) va
+#   AutoHotkey (3 MB) -> moi lan cap nhat deu tai lai 59 MB cho mot vai
+#   dong code doi. Gio ban tai ve con khoang 100 KB, hai cai kia chi tai
+#   khi may THUC SU thieu.
+#
+#   Tesseract lay tu chinh repo nay, GHIM VAO MA COMMIT chu khong phai ten
+#   nhanh. Ghim vao commit thi file do nam yen mai mai, du sau nay nhanh
+#   main co xoa no di. (Ghim vao tag v1 cung duoc, nhung tag phai duoc day
+#   len truoc; ghim commit thi khong phu thuoc thu tu lam gi.)
+#   Da do that: raw.githubusercontent tra ve du file 55 MB, con do duoc
+#   tung doan, va noi dung trung hash voi ban tren dia.
+#   AutoHotkey lay tu trang chu - cung da do, 200 OK, 3.426.108 byte.
+#
+#   Muon tai tay thi xem  _he-thong\TAI-VE-TAY.txt
+# ---------------------------------------------------------------------
+$COMMIT_BO_CAI = 'acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f'   # = tag v1
+$TAI_TESS  = "https://raw.githubusercontent.com/$REPO/$COMMIT_BO_CAI/_he-thong/bo-cai/tesseract-portable.zip"
+$TAI_AHK   = 'https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02_setup.exe'
+$TRANG_AHK = 'https://www.autohotkey.com/download/1.1'
 
 function ShaMoiNhat {
     try {
@@ -74,12 +97,31 @@ function ChepDe([string]$goc) {
     return $script:dungExtGlobal
 }
 
-# Bung Tesseract xach tay neu chua co
-function BungTesseract {
-    if (Test-Path (Join-Path $ThuMuc 'tesseract\tesseract.exe')) { return $true }
+function TaiFile([string]$url, [string]$dich, [string]$nhan) {
+    try {
+        Write-Host "   Dang tai $nhan ..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri $url -OutFile $dich `
+            -Headers @{ 'User-Agent' = 'D4Lister' } -TimeoutSec 900
+        return (Test-Path $dich)
+    } catch {
+        Write-Host "   [ ! ] Tai khong duoc: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+# Tesseract xach tay: co san thi thoi, khong thi tai ve roi bung
+function CaiTesseract {
+    if (Test-Path (Join-Path $ThuMuc 'tesseract\tesseract.exe')) {
+        Write-Host '   Da co san.'
+        return $true
+    }
+    # May nao con giu ban nen trong thu muc thi dung luon, khoi tai lai
     $zip = Join-Path $ThuMuc '_he-thong\bo-cai\tesseract-portable.zip'
-    if (-not (Test-Path $zip)) { return $false }
-    Expand-Archive -Path $zip -DestinationPath $ThuMuc -Force
+    if (-not (Test-Path $zip)) {
+        $zip = Join-Path $env:TEMP 'd4l-tesseract.zip'
+        if (-not (TaiFile $TAI_TESS $zip 'Tesseract (~55 MB, chi lan dau)')) { return $false }
+    }
+    try { Expand-Archive -Path $zip -DestinationPath $ThuMuc -Force } catch { return $false }
     Test-Path (Join-Path $ThuMuc 'tesseract\tesseract.exe')
 }
 
@@ -88,6 +130,30 @@ function TimAHK {
       'C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe',
       'C:\Program Files (x86)\AutoHotkey\AutoHotkey.exe') |
       Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+# AutoHotkey: co roi thi thoi, khong thi tai bo cai ve va chay
+function CaiAHK {
+    $ahk = TimAHK
+    if ($ahk) { return $ahk }
+
+    $setup = Join-Path $ThuMuc '_he-thong\bo-cai\AutoHotkey_1.1.37.02_setup.exe'
+    if (-not (Test-Path $setup)) {
+        $setup = Join-Path $env:TEMP 'd4l-ahk-setup.exe'
+        if (-not (TaiFile $TAI_AHK $setup 'AutoHotkey 1.1 (~3 MB)')) { return $null }
+    }
+
+    # Thu cai im lang truoc. Bo cai cua AutoHotkey la mot script AHK da bien
+    # dich, noi dung nen, khong soi duoc no co nhan /S hay khong -> thu mot
+    # cai, khong an thi MO CUA SO ra cho bam tay. Duong nao cung xong.
+    Write-Host '   Chua co. Dang cai AutoHotkey...' -ForegroundColor Yellow
+    try { Start-Process $setup -ArgumentList '/S' -Wait } catch {}
+    $ahk = TimAHK
+    if ($ahk) { return $ahk }
+
+    Write-Host '   Bo cai vua mo ra - bam  Express Installation.' -ForegroundColor Yellow
+    try { Start-Process $setup -Wait } catch {}
+    TimAHK
 }
 
 # =====================================================================
@@ -147,26 +213,24 @@ try {
 Write-Host '   Xong.'
 
 Write-Host ''
-Write-Host '[ 2/4 ] Dang bung Tesseract (doc chu trong anh)...' -ForegroundColor Cyan
-if (BungTesseract) { Write-Host '   Xong.' }
-else { Write-Host '   [ ! ] Khong bung duoc - se chay khong co phan doc chu.' -ForegroundColor Yellow }
+Write-Host '[ 2/4 ] Kiem tra Tesseract (doc chu trong anh)...' -ForegroundColor Cyan
+if (CaiTesseract) { Write-Host '   Xong.' }
+else {
+    Write-Host '   [ ! ] Khong cai duoc - tool van chay, chi la khong co phan' -ForegroundColor Yellow
+    Write-Host '         doc chu (phai bam SCAN roi tu sua so bang tay).' -ForegroundColor Yellow
+    Write-Host "         Muon cai tay: $TAI_TESS"
+}
 
 Write-Host ''
 Write-Host '[ 3/4 ] Kiem tra AutoHotkey...' -ForegroundColor Cyan
-$ahk = TimAHK
-if ($ahk) { Write-Host "   Da cai san." }
+$ahk = CaiAHK
+if ($ahk) { Write-Host '   Xong.' }
 else {
-    $setup = Join-Path $ThuMuc '_he-thong\bo-cai\AutoHotkey_1.1.37.02_setup.exe'
-    if (Test-Path $setup) {
-        Write-Host '   Chua cai. Dang mo bo cai - bam Express Installation.' -ForegroundColor Yellow
-        Start-Process $setup -Wait
-        $ahk = TimAHK
-    }
-    if ($ahk) { Write-Host '   Cai xong.' }
-    else {
-        Write-Host '   [ LOI ] Van chua cai duoc AutoHotkey.' -ForegroundColor Red
-        Read-Host 'Enter de thoat'; exit 1
-    }
+    Write-Host '   [ LOI ] Chua co AutoHotkey thi khong chay duoc.' -ForegroundColor Red
+    Write-Host '   Tai o day roi cai, xong chay lai file nay:' -ForegroundColor Yellow
+    Write-Host "     $TRANG_AHK"
+    try { Start-Process $TRANG_AHK } catch {}
+    Read-Host 'Enter de thoat'; exit 1
 }
 
 Write-Host ''

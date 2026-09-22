@@ -1,0 +1,48 @@
+D4Lister can hai chuong trinh phu
+=================================
+
+Binh thuong KHONG phai doc file nay. Bam dup CAI-DAT.bat la no tu kiem tra
+may ban co chua, thieu cai nao thi tu tai cai do ve.
+
+File nay danh cho luc may chan mang, hoac ban muon tu cai.
+
+
+1. AutoHotkey 1.1   (~3 MB)   -- BAT BUOC, khong co thi khong chay duoc
+-------------------------------------------------------------------------
+Tai:   https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02_setup.exe
+Trang: https://www.autohotkey.com/download/1.1
+
+Chay bo cai, bam  Express Installation.  Cai vao dau cung duoc.
+
+LUU Y: phai la ban 1.1, KHONG phai ban 2. Hai ban viet khac cu phap,
+D4Lister.ahk viet bang 1.1.
+
+
+2. Tesseract   (~55 MB)   -- khong bat buoc
+-------------------------------------------------------------------------
+Thieu Tesseract thi tool van chay, chi la khong doc duoc chu trong anh:
+ban phai bam SCAN tren trang roi tu sua so bang tay.
+
+Cach de nhat - ban xach tay, khong phai cai:
+
+   https://raw.githubusercontent.com/mhuyhcm/D4Lister/acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f/_he-thong/bo-cai/tesseract-portable.zip
+
+Tai ve, bung thang vao thu muc D4Lister. Bung xong phai co:
+
+   D4Lister\tesseract\tesseract.exe
+
+Hoac cai ban chinh thuc (trang cua dai hoc Mannheim, ban Windows chinh chu):
+
+   https://github.com/UB-Mannheim/tesseract/wiki
+
+Cai o dau cung duoc, D4Lister tu do o ba cho:
+
+   D4Lister\tesseract\tesseract.exe
+   C:\Program Files\Tesseract-OCR\tesseract.exe
+   C:\Program Files (x86)\Tesseract-OCR\tesseract.exe
+
+
+Cai xong roi lam gi
+-------------------------------------------------------------------------
+Bam dup  D4Lister.ahk.  Het.
+Moi lan chay no tu hoi GitHub co ban moi khong, co thi tai ve va nap lai.

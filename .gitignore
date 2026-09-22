@@ -19,3 +19,8 @@ tesseract/
 
 # Ma phien ban dang cai tren may nay - moi may mot khac
 phien-ban.txt
+
+# --- Bo cai hai chuong trinh phu ---
+# KHONG day len nua: ban tai ve tu 59 MB xuong con ~200 KB.
+# Van con o mac v1 (commit acd1f63), bo cai tu tai ve tu do khi may thieu.
+_he-thong/bo-cai/

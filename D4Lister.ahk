@@ -880,10 +880,11 @@ BungTesseractNeuCan()
 
 TimTesseract()
 {
+    ; Ba chỗ này thôi. Đường dẫn riêng của một máy nào đó thì ĐỪNG thêm vào —
+    ; máy khác tải bản này về chỉ tổ khó hiểu.
     ds := [ A_ScriptDir . "\tesseract\tesseract.exe"
           , "C:\Program Files\Tesseract-OCR\tesseract.exe"
-          , "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-          , "F:\AUTOHOTKEY\for PC\Tools\bin\Tesseract5\tesseract.exe" ]
+          , "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" ]
     for i, p in ds
         if FileExist(p)
             return p
