@@ -151,7 +151,7 @@ global CAPTURE_DELAY := 600         ; ms chờ trước khi đóng băng màn h�
 ;---------------------------------------------------------------------
 global GRAB_FOCUS := true
 
-global MSG_TIME   := 1500           ; thời gian hiện tooltip (ms)
+global MSG_TIME   := 1100           ; thời gian hiện tooltip (ms)
 global MIN_SIZE   := 50             ; vùng chọn nhỏ hơn (px) thì coi là hỏng
 global SHOW_HINT  := true           ; hiện gợi ý lúc đang kéo chọn vùng
 global QUEUE_DIR  := A_ScriptDir . "\queue"
@@ -204,15 +204,15 @@ Hotkey, %HK_EXIT%,    DoExit
 
 SysGet, scrW, 78
 SysGet, scrH, 79
-tessText := (TESS_EXE = "") ? "KHÔNG THẤY — chỉ có ảnh, phải bấm SCAN" : "có"
-g_StartInfo := "Màn hình " . scrW . "×" . scrH
-             . "   |   scale " . Round(A_ScreenDPI / 96 * 100) . "%`n"
-             . "Đọc chữ: " . tessText
+tessText := (TESS_EXE = "") ? "`nKhông có Tesseract — chỉ có ảnh, phải bấm SCAN" : ""
+; Chỉ nói cái ĐANG SAI. Kích thước màn hình / mức scale là thứ xem một lần
+; rồi thuộc, để lại chỉ tổ rối mắt mỗi lần khởi động.
+g_StartInfo := tessText
 
 if (g_Items.Length() > 0)
-    ShowMsg("D4Lister sẵn sàng — đã nạp lại " . g_Items.Length() . " item`n" . g_StartInfo, "warn")
+    ShowMsg("D4Lister sẵn sàng — " . g_Items.Length() . " item" . g_StartInfo, "warn")
 else
-    ShowMsg("D4Lister sẵn sàng — bấm F3 để chụp item`n" . g_StartInfo, "ok")
+    ShowMsg("D4Lister sẵn sàng" . g_StartInfo, "ok")
 
 ; Kiểm tra bản mới, nhưng để script chạy được ngay đã rồi mới đi hỏi mạng.
 SetTimer, KiemTraCapNhat, -800
@@ -235,7 +235,7 @@ DoCapture:
     region := ""
     try
     {
-        region := FreezeSelectRegion(SHOW_HINT ? "Kéo chọn vùng tooltip item  (Esc để hủy)" : "")
+        region := FreezeSelectRegion(SHOW_HINT ? "Kéo chọn vùng  ·  Esc huỷ" : "")
     }
     catch e
     {
@@ -309,9 +309,7 @@ DoCapture:
     }
 
     g_Busy := false
-    sc := (PROC_MODE = 0) ? 1 : PROC_SCALE
-    ShowMsg("Đã lưu item " . g_Cur . "/" . g_Items.Length()
-          . "   (" . (region.w * sc) . "×" . (region.h * sc) . " px)", "ok")
+    ShowMsg(g_Cur . "/" . g_Items.Length(), "ok")
 return
 
 ;=====================================================================
@@ -320,8 +318,7 @@ return
 ;=====================================================================
 DoMode:
     PROC_MODE := (PROC_MODE = 0) ? 2 : 0
-    ShowMsg("Chế độ xử lý ảnh " . PROC_MODE . ": " . ModeName(PROC_MODE) . "`n"
-          . "Chụp lại đúng món vừa rồi rồi mở 2 file .txt ra so", "warn")
+    ShowMsg("Chế độ ảnh " . PROC_MODE . ": " . ModeName(PROC_MODE), "warn")
 return
 
 ;=====================================================================
@@ -331,7 +328,7 @@ DoPaste:
     RefreshQueue()
     if (g_Items.Length() = 0)
     {
-        ShowMsg("Chưa có item nào — bấm " . HK_CAPTURE . " để chụp", "err")
+        ShowMsg("Chưa có item", "err")
         return
     }
     ; Vừa chụp xong -> lần dán đầu tiên phải về món đầu của đợt chụp
@@ -352,7 +349,7 @@ DoPaste:
     }
     Sleep, 80
     SendInput, ^v
-    ShowMsg("Đã dán item " . g_Cur . "/" . g_Items.Length(), "ok")
+    ShowMsg(g_Cur . "/" . g_Items.Length() . "  ▸", "ok")
 return
 
 ;=====================================================================
@@ -362,7 +359,7 @@ DoNext:
     RefreshQueue()
     if (g_Items.Length() = 0)
     {
-        ShowMsg("Chưa có item nào — bấm " . HK_CAPTURE . " để chụp", "err")
+        ShowMsg("Chưa có item", "err")
         return
     }
     if (g_FreshCapture)
@@ -372,7 +369,7 @@ DoNext:
     }
     if (g_Cur >= g_Items.Length())
     {
-        ShowMsg("Đã ở item cuối (" . g_Cur . "/" . g_Items.Length() . ")", "warn")
+        ShowMsg("cuối  " . g_Cur . "/" . g_Items.Length(), "warn")
         return
     }
     g_Cur += 1
@@ -384,14 +381,14 @@ DoNext:
     ; Sang món kế là DÁN LUÔN. Đăng xong một món chỉ cần bấm đúng phím này.
     Sleep, 80
     SendInput, ^v
-    ShowMsg("Đã dán item " . g_Cur . "/" . g_Items.Length(), "ok")
+    ShowMsg(g_Cur . "/" . g_Items.Length() . "  ▸", "ok")
 return
 
 DoPrev:
     RefreshQueue()
     if (g_Items.Length() = 0)
     {
-        ShowMsg("Chưa có item nào — bấm " . HK_CAPTURE . " để chụp", "err")
+        ShowMsg("Chưa có item", "err")
         return
     }
     if (g_FreshCapture)
@@ -401,7 +398,7 @@ DoPrev:
     }
     if (g_Cur <= 1)
     {
-        ShowMsg("Đã ở item đầu (1/" . g_Items.Length() . ")", "warn")
+        ShowMsg("đầu  1/" . g_Items.Length(), "warn")
         return
     }
     g_Cur -= 1
@@ -410,7 +407,7 @@ DoPrev:
         ShowMsg("Lỗi copy — bấm F6 lại lần nữa", "err")
         return
     }
-    ShowMsg("Item " . g_Cur . "/" . g_Items.Length(), "ok")
+    ShowMsg(g_Cur . "/" . g_Items.Length(), "ok")
 return
 
 ;=====================================================================
@@ -440,7 +437,7 @@ DoClear:
     if (n = 0)
         ShowMsg("Hàng đợi đã trống sẵn", "warn")
     else
-        ShowMsg("Đã xóa " . n . " item — lần chụp tới bắt đầu lại từ item 1", "warn")
+        ShowMsg("Đã xóa " . n . " item", "warn")
 return
 
 DoExit:
@@ -476,7 +473,6 @@ KiemTraCapNhat:
     if FileExist(A_ScriptDir . "\.git")
         return
 
-    ShowMsg("Đang xem có bản mới không…", "warn")
     RunWait, % "powershell -NoProfile -ExecutionPolicy Bypass -File """ . psFile
              . """ -Viec CapNhat -ThuMuc """ . A_ScriptDir . """", , Hide UseErrorLevel
     ma := ErrorLevel
@@ -622,7 +618,7 @@ GoToBatchStart()
         ShowMsg("Lỗi copy — bấm lại phím vừa bấm", "err")
         return
     }
-    ShowMsg("Về đầu đợt — item " . g_Cur . "/" . g_Items.Length(), "ok")
+    ShowMsg("về đầu  " . g_Cur . "/" . g_Items.Length(), "ok")
 }
 
 ;=====================================================================

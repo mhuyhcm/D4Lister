@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.6';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -875,159 +875,58 @@
     document.getElementById('d4l-bao')?.remove();
     const d = document.createElement('div');
     d.id = 'd4l-bao';
-    d.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:999999;max-width:460px;' +
+    d.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:999999;width:250px;' +
       'max-height:70vh;overflow:auto;overflow-wrap:break-word;' +
-      'background:#14141a;color:#eee;border:1px solid #444;border-radius:8px;padding:12px 14px;' +
-      'font:13px/1.5 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.6)';
+      'background:#14141a;color:#eee;border:1px solid #444;border-radius:8px;padding:9px 11px;' +
+      'font:12.5px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.6)';
     document.body.appendChild(d);
     return d;
   }
 
-  // --- HỌC DANH SÁCH AFFIX CỦA TRANG ------------------------------------
-  //  diablo.trade mới là chuẩn, không phải chữ trong game. Tên trong game và
-  //  tên trên trang lệch nhau khá nhiều, nên phải có danh sách thật của trang
-  //  để đối chiếu.
-  //
-  //  Danh sách này trang tải từ máy chủ lúc chạy, và KHÁC NHAU theo từng loại
-  //  đồ (mũ khác dây chuyền). Nên gom theo loại đồ.
-  async function hocDanhSach() {
-    const nut = nutThemAffix();
-    if (!nut) { nhac('Không thấy nút ADD STANDARD AFFIXES. Mở một món đồ ra đã.'); return; }
-    nhac('Đang đọc danh sách affix của trang…');
 
-    const khung = await moDropdown(nut);
-    if (!khung) { nhac('Không mở được danh sách.'); return; }
-    const o = oTimTrongKhung(khung);
-    if (o) { goChu(o, ''); await doi(600); }   // xoá bộ lọc để hiện hết
-
-    // Danh sách chỉ vẽ phần nhìn thấy -> phải cuộn dần mà gom
-    const ten = new Set();
-    const gom = () => {
-      for (const el of khung.querySelectorAll('label,li,[role="option"]')) {
-        const t = (el.textContent || '').trim();
-        if (t && t.length < 90 && /[A-Za-z]{3}/.test(t)) ten.add(t);
-      }
-    };
-    gom();
-    const cuon = [...khung.querySelectorAll('*')].find(e => e.scrollHeight > e.clientHeight + 40);
-    if (cuon) {
-      const buoc = Math.max(40, cuon.clientHeight - 30);
-      for (let y = 0; y <= cuon.scrollHeight; y += buoc) {
-        cuon.scrollTop = y;
-        await doi(130);
-        gom();
-      }
-      cuon.scrollTop = 0;
-    }
-    if (dangMo(nut)) bamThat(nut);
-
-    const loai = layLoaiDo();
-    const ds = [...ten].sort();
-    let kho = {};
-    try { kho = JSON.parse(localStorage.getItem('d4lister-affix') || '{}'); } catch (e) {}
-    kho[loai] = ds;
-    try { localStorage.setItem('d4lister-affix', JSON.stringify(kho)); } catch (e) {}
-
-    const d = khungBao();
-    d.innerHTML =
-      '<b style="color:#d8b978">Đã đọc xong danh sách</b>' +
-      '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span>' +
-      '<div style="margin-top:6px">Loại đồ: <b>' + thoat(loai) + '</b></div>' +
-      '<div>Số affix đọc được: <b>' + ds.length + '</b></div>' +
-      '<div style="margin-top:6px;color:#888;font-size:11px">Đã lưu. Mở thêm món khác loại ' +
-      'rồi bấm lại để gom đủ.</div>' +
-      '<div style="margin-top:10px"><button id="d4l-chep" style="background:#23402a;' +
-      'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:6px 10px;' +
-      'cursor:pointer;font:12px system-ui">Chép cả kho ra clipboard</button></div>';
-    d.querySelector('#d4l-dong').onclick = () => d.remove();
-    d.querySelector('#d4l-chep').onclick = () => {
-      const chu = JSON.stringify(kho, null, 1);
-      navigator.clipboard.writeText(chu).then(
-        () => nhac('Đã chép ' + Object.keys(kho).length + ' loại đồ ra clipboard.'),
-        () => nhac('Chép không được. Bấm F12 → Console để xem.'));
-      console.log('[D4Lister] kho affix:', kho);
-    };
-  }
-
-  // Loại đồ đang mở: "Helm", "Amulet"... Lấy từ dòng loại dưới tên món.
-  function layLoaiDo() {
-    // Di nguoc len tu tieu de mon do cho toi khoi CO CA "Item Power" - do moi
-    // la ca cai tooltip. Ban truoc chi len 2 tang nen cat mat dong loai do.
-    let khoi = document.querySelector('[class*="font-tooltip-title"]');
-    for (let i = 0; i < 8 && khoi; i++) {
-      if (/item power/i.test(khoi.textContent || '')) break;
-      khoi = khoi.parentElement;
-    }
-    const t = (khoi ? khoi.textContent : document.body.textContent) || '';
-    // CLASSIC viet "Unique Gloves Ancestral (Item Power 900)", BETA viet
-    // "Legendary Gloves 750 Item Power" -> nhan ca hai, roi cat duoi.
-    const m = t.match(
-      /(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z][A-Za-z ]{2,22}?)\s*\(?\s*\d*\s*Item Power/i);
-    if (!m) return 'khong-ro';
-    return m[1].replace(/\s*(?:Ancestral|Sacred)\s*$/i, '').trim() || 'khong-ro';
-  }
 
   // --- BẢNG THIẾT LẬP ---------------------------------------------------
   //  Bấm vào chip góc dưới bên trái là mở ra. Lưu trong trình duyệt nên
   //  đổi xong là dùng ngay, không phải sửa file, không phải nạp lại.
+  // Thiet lap. Gat la LUU LUON — khong co nut Luu, khong co dong mo ta duoi
+  // moi cong tac: ten cong tac da du ro, them chu chi lam bang dai ra.
   function moThietLap() {
-    document.getElementById('d4l-tl')?.remove();
-    const d = document.createElement('div');
-    d.id = 'd4l-tl';
-    d.style.cssText = 'position:fixed;left:12px;bottom:46px;z-index:999999;width:320px;' +
-      'background:#14141a;color:#eee;border:1px solid #444;border-radius:8px;padding:12px 14px;' +
-      'font:13px/1.5 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.6)';
+    // NAM TRONG bang ket qua, khong de ra hop thu hai chong len nhau.
+    const d = khungBao();
 
-    const o = (khoa, nhan, ghiChu) =>
-      '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:9px;cursor:pointer">' +
-      '<input type="checkbox" data-k="' + khoa + '"' + (CD[khoa] ? ' checked' : '') +
-      ' style="margin-top:3px">' +
-      '<span><b>' + nhan + '</b>' +
-      (ghiChu ? '<br><span style="color:#888;font-size:11px">' + ghiChu + '</span>' : '') +
-      '</span></label>';
+    const o = (khoa, nhan) =>
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:7px;cursor:pointer">' +
+      '<input type="checkbox" data-k="' + khoa + '"' + (CD[khoa] ? ' checked' : '') + '>' +
+      '<span>' + nhan + '</span></label>';
 
     d.innerHTML =
-      '<b style="color:#d8b978">Thiết lập D4Lister</b>' +
-      '<span id="d4l-tl-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span>' +
-      o('tuDang', 'Tự đăng', 'Điền xong, mọi thứ sạch thì tự bấm SUBMIT.') +
-      o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo',
-        'Nguy hiểm: số sai vẫn lên sàn mà bạn không biết.') +
-      o('tuQuet', 'Tự bấm Scan', 'Đợi ảnh nạp xong rồi mới bấm.') +
-      o('tuThemAffix', 'Tự thêm affix thiếu',
-        'Dòng nào trang thiếu thì tự mở danh sách thêm vào.') +
-      o('tuDauSao', 'Tự bật dấu sao', 'Greater Affix — đo bằng pixel từ ảnh chụp.') +
-      o('tuChonBase', 'Tự chọn base',
-        'Sau khi quét: lấy base trơn rồi bấm Next.') +
-      '<div style="margin-top:12px;display:flex;align-items:center;gap:8px">' +
+      '<div style="display:flex;align-items:center">' +
+      '<b style="color:#d8b978;flex:1">Thiết lập</b>' +
+      '<span id="d4l-tl-dong" style="cursor:pointer;color:#888">&#10005;</span></div>' +
+      o('tuDang', 'Tự đăng') +
+      o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo') +
+      o('tuQuet', 'Tự bấm Scan') +
+      o('tuChonBase', 'Tự chọn base') +
+      o('tuThemAffix', 'Tự thêm affix thiếu') +
+      o('tuDauSao', 'Tự bật dấu sao') +
+      '<div style="margin-top:9px;display:flex;align-items:center;gap:6px">' +
       '<span>Đếm ngược</span>' +
       '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
-      ' style="width:56px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
-      'padding:3px 6px;font:13px system-ui">' +
-      '<span>giây trước khi đăng</span></div>' +
-      '<div style="margin-top:12px;border-top:1px solid #333;padding-top:10px">' +
-      '<button id="d4l-tl-hoc" style="width:100%;background:#22303f;color:#bcd8ee;' +
-      'border:1px solid #3d5f7d;border-radius:5px;padding:6px 10px;cursor:pointer;' +
-      'font:12px system-ui">Đọc danh sách affix của trang</button>' +
-      '<div style="color:#888;font-size:11px;margin-top:4px">Mở một món đồ ra rồi bấm. ' +
-      'Dùng để khớp tên cho đúng với trang.</div></div>' +
-      '<div style="margin-top:12px;display:flex;gap:8px">' +
-      '<button id="d4l-tl-luu" style="flex:1;background:#23402a;color:#cfe8cf;border:1px solid #4a7a52;' +
-      'border-radius:5px;padding:6px 10px;cursor:pointer;font:12px system-ui">Lưu</button>' +
+      ' style="width:48px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
+      'padding:2px 5px;font:13px system-ui">' +
+      '<span>giây</span></div>' +
+      '<div style="margin-top:10px;display:flex;align-items:center;gap:8px">' +
       '<button id="d4l-tl-goc" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
-      'border-radius:5px;padding:6px 10px;cursor:pointer;font:12px system-ui">Về mặc định</button>' +
-      '</div>';
-    document.body.appendChild(d);
+      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Về mặc định</button>' +
+      '<span style="color:#666;font-size:11px">Ctrl+Shift+D chạy lại</span></div>';
 
     d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
-    d.querySelector('#d4l-tl-hoc').onclick = () => { d.remove(); hocDanhSach(); };
-    d.querySelector('#d4l-tl-luu').onclick = () => {
-      d.querySelectorAll('input[type=checkbox]').forEach(i => { CD[i.dataset.k] = i.checked; });
-      const g = parseInt(d.querySelector('#d4l-tl-giay').value, 10);
-      if (g >= 1 && g <= 60) CD.demNguoc = g;
-      luuCaiDat();
-      d.remove();
-      nhac('Đã lưu thiết lập.');
-      setTimeout(() => document.getElementById('d4l-bao')?.remove(), 1800);
+    d.querySelectorAll('input[type=checkbox]').forEach(i => {
+      i.onchange = () => { CD[i.dataset.k] = i.checked; luuCaiDat(); };
+    });
+    d.querySelector('#d4l-tl-giay').onchange = e => {
+      const g = parseInt(e.target.value, 10);
+      if (g >= 1 && g <= 60) { CD.demNguoc = g; luuCaiDat(); }
     };
     d.querySelector('#d4l-tl-goc').onclick = () => {
       CD = Object.assign({}, MAC_DINH);
@@ -1146,80 +1045,75 @@
   }, true);
 
   // --- bang bao ket qua ------------------------------------------------
+  // Bang ket qua. Nguyen tac: mot dong mot y, KHONG giai thich. Cai gi
+  // user doc mot lan roi thuoc thi bo han — de lai chi lam roi mat.
+  // Chi tiet dai (ly do that bai...) day sang Console.
   function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia, nghiNgo, lech) {
     const d = khungBao();
-    let h = '<b style="color:#d8b978">D4Lister</b> ';
-    h += '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>';
     const ten = layTenItemTrenForm();
-    if (ten) h += '<div style="color:#9aa;font-size:12px">' + thoat(ten) + '</div>';
-    if (loi) h += '<span style="color:#e08a5a">' + loi + '</span>';
+
+    // Mot hang duy nhat: ten mon | banh rang | dong
+    let h = '<div style="display:flex;align-items:center;gap:6px">' +
+      '<b style="color:#d8b978;flex:0 0 auto">D4Lister</b>' +
+      '<span style="color:#9aa;font-size:12px;flex:1 1 auto;overflow:hidden;' +
+      'text-overflow:ellipsis;white-space:nowrap">' + thoat(ten || '') + '</span>' +
+      '<span id="d4l-cai" title="Thiết lập" style="cursor:pointer;color:#888;' +
+      'flex:0 0 auto;font-size:14px">&#9881;</span>' +
+      '<span id="d4l-dong" style="cursor:pointer;color:#888;flex:0 0 auto">&#10005;</span></div>';
+
+    if (loi) h += '<div style="margin-top:6px;color:#e08a5a">' + loi + '</div>';
+
     // ok + ngoai DEU da duoc ghi vao o. Khac nhau o cho ngoai khung co ban.
     const daGhi = ok.concat(ngoai);
     if (daGhi.length) {
-      h += '<div style="margin-top:6px;color:#7ec97e">Đã điền ' + daGhi.length + ' dòng</div>';
-      h += daGhi.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b>' +
-        (x.cu && String(x.cu) !== String(x.v)
-          ? ' <span style="color:#777">(trước đó: ' + thoat(x.cu) + ')</span>' : '')).join('<br>');
+      h += '<div id="d4l-mo" style="margin-top:6px;color:#7ec97e;cursor:pointer">' +
+        '<span id="d4l-mui">&#9656;</span> Đã điền ' + daGhi.length + ' dòng</div>' +
+        '<div id="d4l-ct" style="display:none;color:#bbb;font-size:12px;margin-left:12px">' +
+        daGhi.map(x => thoat(x.dong.ten) + ' = <b>' + x.v + '</b>').join('<br>') + '</div>';
     }
     if (ngoai.length) {
-      h += '<div style="margin-top:8px;color:#e8c05a">Cao hơn khoảng thường của trang</div>';
-      h += ngoai.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b> ' +
-        '<span style="color:#888">(trang ghi ' + x.dong.min + '–' + x.dong.max + ')</span>').join('<br>');
-      h += '<div style="color:#888;font-size:11px;margin-top:3px">Đồ masterwork thì bình thường, ' +
-        'trang vẫn nhận.</div>';
+      h += '<div style="margin-top:8px;color:#e8c05a">Cao hơn khoảng của trang</div>';
+      h += ngoai.map(x => '<div style="margin-left:12px">' + thoat(x.dong.ten) + ' = <b>' +
+        x.v + '</b> <span style="color:#888">(' + x.dong.min + '–' + x.dong.max +
+        ')</span></div>').join('');
     }
     if (nghiNgo && nghiNgo.length) {
       h += '<div style="margin-top:8px;color:#e8c05a">Không chắc — bạn xem giúp</div>';
-      h += nghiNgo.map(x =>
-        '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so + (x.phanTram ? '%' : '') + '</b>' +
-        '<br>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#888">giống nhất: ' +
-        thoat(x.dong ? x.dong.ten : '?') + ' (' + Math.round(x.diem * 100) + '%)</span>'
-      ).join('<br>');
-      h += '<div style="color:#888;font-size:11px;margin-top:3px">Chưa điền — đoán bừa ' +
-        'là đăng nhầm chỉ số.</div>';
+      h += nghiNgo.map(x => '<div style="margin-left:12px">' + thoat(x.ten) + ' = <b>' +
+        x.so + (x.phanTram ? '%' : '') + '</b> <span style="color:#888">~ ' +
+        thoat(x.dong ? x.dong.ten : '?') + ' ' + Math.round(x.diem * 100) + '%</span></div>').join('');
     }
     if (thieu.length) {
       const coThat = thieu.filter(x => x.coThat);
-      const laRac  = thieu.filter(x => !x.coThat);
       if (coThat.length) {
         h += '<div style="margin-top:8px;color:#e08a5a">Trang chưa có dòng này</div>';
-        h += coThat.map(x => '&nbsp;&nbsp;' + thoat(x.coThat) + ' = <b>' + x.so +
-          (x.phanTram ? '%' : '') + '</b>').join('<br>');
+        h += coThat.map(x => '<div style="margin-left:12px">' + thoat(x.coThat) + ' = <b>' +
+          x.so + (x.phanTram ? '%' : '') + '</b></div>').join('');
+        h += '<div style="margin-top:6px"><button id="d4l-them" style="background:#23402a;' +
+          'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:4px 9px;' +
+          'cursor:pointer;font:12px system-ui">Thêm giúp tôi</button></div>';
       }
-      // Dong doc khong ra ten affix nao: gan nhu luon la RAC cua OCR
-      // ("7NE Sock" tu may cai hinh o ngoc). To do len cho user lo lang la
-      // bao sai — de mot dong chu xam, ai can thi liec.
-      if (laRac.length) {
-        h += '<div style="margin-top:8px;color:#777;font-size:11px">Bỏ qua ' +
-          laRac.length + ' dòng đọc không ra: ' +
-          laRac.map(x => thoat(x.ten)).join(', ') + '</div>';
-      }
-      // Nut nay chi them duoc nhung dong thu vien xac nhan la co that.
-      // Chi co dong rac thi dung bay nut ra — bam cung khong lam gi.
-      if (coThat.length)
-        h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
-          'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
-          'font:12px system-ui">Thêm giúp tôi</button>' +
-          '<span style="color:#777;font-size:11px;margin-left:8px">hoặc tự bấm ADD STANDARD AFFIXES</span></div>';
     }
-    // Viet vao roi doc lai thay o ghi so khac -> trang khong nhan. Phai
-    // noi that, khong duoc bao "da dien" cho cai no khong nhan.
+    // Viet vao roi doc lai thay o ghi so khac -> trang khong nhan.
     if (lech && lech.length) {
       h += '<div style="margin-top:8px;color:#e06a5a">Trang không nhận số này</div>';
-      h += lech.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ': viết <b>' + x.v +
-        '</b>, ô đang là <b>' + x.thuc + '</b>').join('<br>');
+      h += lech.map(x => '<div style="margin-left:12px">' + thoat(x.dong.ten) +
+        ': <b>' + x.v + '</b> &#8594; <b>' + x.thuc + '</b></div>').join('');
     }
     if (doiSao && doiSao.length) {
-      h += '<div style="margin-top:8px;color:#c9a227">Dấu sao (Greater Affix)</div>';
-      h += doiSao.map(x => '&nbsp;&nbsp;' + (x.bat ? 'bật' : 'tắt') + ' — ' +
-        thoat(x.ten)).join('<br>');
+      h += '<div style="margin-top:8px;color:#c9a227">' +
+        doiSao.map(x => '&#10039; ' + (x.bat ? 'bật' : 'tắt') + ': ' +
+          thoat(x.ten)).join('<br>') + '</div>';
     }
     if (loiThem.length) {
-      h += '<div style="margin-top:8px;color:#e06a5a">Thêm không được</div>';
-      h += loiThem.map(x => '&nbsp;&nbsp;' + thoat(x[0]) + ': ' + thoat(x[1])).join('<br>');
+      // Ly do that bai la chu ky thuat dai — day sang Console, o day chi bao TEN.
+      console.log('[D4Lister] thêm không được:', loiThem);
+      h += '<div style="margin-top:8px;color:#e06a5a">Thêm không được: ' +
+        loiThem.map(x => thoat(x[0])).join(', ') + '</div>';
     }
 
-    // Ban tren dia moi hon ban dang chay -> Chrome chua nap lai.
+    // Ban tren dia moi hon ban dang chay -> Chrome chua nap lai. Cai nay
+    // GIU NGUYEN do dai: khong biet thi user chay ban cu ca ngay khong hay.
     if (banTrenDia && banTrenDia !== BAN) {
       h = '<div style="background:#4a1f1f;border:1px solid #a04040;border-radius:6px;' +
           'padding:8px 10px;margin-bottom:10px">' +
@@ -1232,9 +1126,16 @@
 
     // chỗ dành cho phần đếm ngược tự đăng
     h += '<div id="d4l-dang" style="margin-top:10px"></div>';
-    h += '<div style="margin-top:8px;color:#888;font-size:11px">Ctrl+Shift+D để chạy lại</div>';
     d.innerHTML = h;
     d.querySelector('#d4l-dong').onclick = () => d.remove();
+    d.querySelector('#d4l-cai').onclick = () => moThietLap();
+    const mo = d.querySelector('#d4l-mo');
+    if (mo) mo.onclick = () => {
+      const ct = d.querySelector('#d4l-ct');
+      const hien = ct.style.display === 'none';
+      ct.style.display = hien ? 'block' : 'none';
+      d.querySelector('#d4l-mui').innerHTML = hien ? '&#9662;' : '&#9656;';
+    };
     const nt = d.querySelector('#d4l-them');
     if (nt) nt.onclick = () => themCacAffixThieu(thieu.filter(x => x.coThat));
 

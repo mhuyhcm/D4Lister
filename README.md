@@ -225,11 +225,20 @@ Season 15"* nên không đầu tư thêm cho Classic; mã đỡ Classic vẫn gi
 Nguyên tắc: **mỗi lần chỉ đổi MỘT biến** rồi chụp lại đúng một món quen thuộc
 để so. Đổi nhiều thứ cùng lúc thì không biết cái nào gây ra.
 
-## Còn phải đo
+## Chế độ 0 hay 2 — đã đo xong, dùng 2
 
-Chế độ **0** (ảnh gốc) có thể đã đủ cho Tesseract — nếu đủ thì `F3` nhanh thêm
-khoảng 0,7 giây. Bấm `F7` để nhảy qua lại 0 và 2, chụp cùng một món, rồi mở hai
-file `.txt` ra so.
+Câu hỏi để ngỏ lâu nay: ảnh gốc (chế độ 0) có đủ cho Tesseract không? Đã đo
+trên 9 ảnh chụp thật, chạy Tesseract ở cả hai cỡ:
+
+| | ảnh gốc (1×) | phóng 2× (đang dùng) |
+|---|---|---|
+| thời gian OCR | 0,70 giây | 1,04 giây |
+| `+2to Demonology Skills` | đọc thành **`42to`** | đúng |
+| `+3to Sigil of Subversion` | đọc thành **`43to`** | đúng |
+
+Ảnh gốc nhanh hơn 32%, nhưng **dấu `+` bị đọc thành số `4`** — đúng kiểu lỗi
+đã dính với `psm 6` (`+12.5%` → `412.5%`). Số sai mà trông vẫn hợp lệ là lỗi
+tệ nhất của tool này. **Giữ 2×.**
 
 ---
 
