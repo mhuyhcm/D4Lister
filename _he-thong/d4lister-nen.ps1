@@ -40,16 +40,17 @@ $GIU_LAI = @('queue', 'phien-ban.txt', 'tesseract', 'create-listing',
 #   khi may THUC SU thieu.
 #
 #   Tesseract lay tu chinh repo nay, GHIM VAO MA COMMIT chu khong phai ten
-#   nhanh. Ghim vao commit thi file do nam yen mai mai, du sau nay nhanh
-#   main co xoa no di. (Ghim vao tag v1 cung duoc, nhung tag phai duoc day
-#   len truoc; ghim commit thi khong phu thuoc thu tu lam gi.)
+#   nhanh, cung khong phai ten tag. Commit thi nam yen mai mai; tag thi co
+#   the bi doi cho (tag v1 da bi doi mot lan roi), nhanh main thi da xoa
+#   hai file nay di.
+#   Commit duoi day cung duoc danh dau bang tag "bo-cai" cho de tim.
 #   Da do that: raw.githubusercontent tra ve du file 55 MB, con do duoc
 #   tung doan, va noi dung trung hash voi ban tren dia.
 #   AutoHotkey lay tu trang chu - cung da do, 200 OK, 3.426.108 byte.
 #
 #   Muon tai tay thi xem  _he-thong\TAI-VE-TAY.txt
 # ---------------------------------------------------------------------
-$COMMIT_BO_CAI = 'acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f'   # = tag v1
+$COMMIT_BO_CAI = 'acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f'   # = tag bo-cai
 $TAI_TESS  = "https://raw.githubusercontent.com/$REPO/$COMMIT_BO_CAI/_he-thong/bo-cai/tesseract-portable.zip"
 $TAI_AHK   = 'https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02_setup.exe'
 $TRANG_AHK = 'https://www.autohotkey.com/download/1.1'
