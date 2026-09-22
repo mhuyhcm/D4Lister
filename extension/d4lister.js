@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.6';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.7';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -969,7 +969,9 @@
     const kho = layKhoAffix();
     if (!kho) { viSaoTruot = 'khong tim ra danh muc affix'; return false; }
 
-    const kq = timKhopNhat(tenTim, kho.ds, x => tenThuan(x.description || x.name || ''));
+    // Danh muc tron ca aspect/inherent — chi khop trong dam AFFIX.
+    const chiAffix = kho.ds.filter(x => x && x.type === 'AFFIX');
+    const kq = timKhopNhat(tenTim, chiAffix, x => tenThuan(x.description || x.name || ''));
     if (kq.diem < DIEM_CHAC) {
       viSaoTruot = 'danh muc khong co ten "' + tenTim + '" (giong nhat ' +
         Math.round(kq.diem * 100) + '%)';
@@ -1031,6 +1033,7 @@
       coBoDieuKhienForm: !!timFormTrang(),
       coDanhMuc: !!layKhoAffix(),
       soMucTrongDanhMuc: khoAffix ? khoAffix.ds.length : 0,
+      soMucLaAFFIX: khoAffix ? khoAffix.ds.filter(x => x && x.type === 'AFFIX').length : 0,
       layDanhMucTu: khoAffix ? khoAffix.tu : null,
       mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
       coBoMangDong: !!timBoMangAffix(timFormTrang() ? timFormTrang().getValues('affixes') : null),
@@ -1725,8 +1728,27 @@
     typeof o.id === 'string' && typeof o.description === 'string' &&
     o.description.indexOf('#') >= 0 && o.type === 'AFFIX';
 
-  const laKhoAffix = a => Array.isArray(a) && a.length >= 40 &&
-    laMucAffix(a[0]) && laMucAffix(a[a.length - 1]);
+  // BAY DA SUP LAN HAI: ban truoc doi CA muc dau LAN muc cuoi deu la AFFIX.
+  // Danh muc that la mot BO TRON — affix, inherent, aspect, unique nam
+  // chung mot mang — nen muc cuoi khong phai AFFIX, va cai mang 1450 muc
+  // can tim bi vut di ngay truoc mat. File do bat duoc: no ghi ro
+  // "mangGanGiongNhat: 1450 muc, mau la type AFFIX".
+  // Gio LAY MAU VAI CHO: phan lon phai la muc co ma + cau mo ta, va phai co
+  // it nhat mot muc AFFIX trong do. Loc rieng AFFIX ra luc di khop ten.
+  const laKhoAffix = a => {
+    if (!Array.isArray(a) || a.length < 40) return false;
+    const n = a.length;
+    const moc = [0, 1, n >> 2, n >> 1, n - (n >> 2), n - 2, n - 1];
+    let hop = 0, coAffix = 0;
+    for (const i of moc) {
+      const o = a[i];
+      if (!o || typeof o !== 'object' || typeof o.id !== 'string' ||
+          typeof o.description !== 'string') continue;
+      hop++;
+      if (o.type === 'AFFIX') coAffix++;
+    }
+    return hop >= 5 && coAffix >= 1;
+  };
 
   // Ghi lai MOI mang ung vien gap tren duong quet, de lan sau khong phai
   // doan nua: ten khoa, so muc, va loai cua muc dau.
