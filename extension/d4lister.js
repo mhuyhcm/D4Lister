@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.6';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.7';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -174,6 +174,22 @@
     return khoangCach(x, y, cho) <= cho;
   }
 
+  // Do RARE / MAGIC khong co ten rieng tren diablo.trade: form chi ghi LOAI DO
+  // ("Amulet"), con game tu sinh ten ngau nhien ("Royalty Downfall"). So hai
+  // thu do voi nhau la chan oan.
+  function khopMonDo(tenForm, text) {
+    if (!tenForm) return true;
+    const dong = text.split(/[\r\n]+/).map(x => x.trim()).filter(Boolean).slice(0, 3);
+    if (!dong.length) return true;
+
+    // Do Unique: form co ten rieng -> so voi dong TEN cua chu
+    if (khopTenMon(tenForm, dong[0])) return true;
+
+    // Do Rare: "Amulet" phai nam trong "Ancestral Rare Amulet"
+    const f = xuongTen(tenForm);
+    return !!f && dong.some(d => xuongTen(d).indexOf(f) >= 0);
+  }
+
   // Thu vien 638 ten affix lay tu https://diablo.trade/wiki/affixes
   // (file affix-list.js, nap truoc file nay). Dung de biet mot ten OCR doc ra
   // co THAT SU ton tai khong — de bao cho dung ban chat.
@@ -278,7 +294,7 @@
     // Khong co cho nay thi script se am tham ghi so cua mon A vao form mon B.
     const tenForm = layTenItemTrenForm();
     const tenChu  = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
-    if (!epBuoc && tenForm && tenChu && !khopTenMon(tenForm, tenChu)) {
+    if (!epBuoc && tenForm && tenChu && !khopMonDo(tenForm, text)) {
       baoLechTen(tenForm, tenChu, text);
       return;
     }
