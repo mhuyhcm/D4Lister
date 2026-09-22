@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.6';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -904,7 +904,18 @@
     typeof o.append === 'function' && typeof o.remove === 'function' &&
     Array.isArray(o.fields);
 
-  function timBoMangAffix() {
+  // Trang co nhieu mang dong (affixes, inherents, priceGroups...). Nhan ra
+  // DUNG cai cua affixes bang cach DOI CHIEU voi chinh mang affixes dang co:
+  // phai cung so muc, va muc dau phai cung ma. Doan theo hinh dang thi co
+  // luc them nham vao inherents.
+  const dungMangAffix = (o, cu) => {
+    if (!laBoMang(o) || !Array.isArray(cu)) return false;
+    if (o.fields.length !== cu.length) return false;
+    if (!cu.length) return false;            // ca hai rong thi khong phan biet noi
+    return !!o.fields[0] && !!cu[0] && o.fields[0].id === cu[0].id;
+  };
+
+  function timBoMangAffix(cu) {
     const goc = fiberGoc();
     if (!goc) return null;
     const ngan = [goc];
@@ -916,11 +927,10 @@
       let h = f.memoizedState, i = 0;
       while (h && typeof h === 'object' && i < 80) {
         const x = h.memoizedState;
-        if (laBoMang(x) && (!x.fields.length || laMucAffix(x.fields[0]))) return x;
+        if (dungMangAffix(x, cu)) return x;
         if (x && typeof x === 'object' && !Array.isArray(x))
           for (const t of Object.keys(x))
-            if (laBoMang(x[t]) && (!x[t].fields.length || laMucAffix(x[t].fields[0])))
-              return x[t];
+            if (dungMangAffix(x[t], cu)) return x[t];
         h = h.next; i++;
       }
       if (f.child) ngan.push(f.child);
@@ -973,7 +983,7 @@
     const muc = Object.assign({}, kq.muc, { values: [so], isGreater: !!sao });
 
     // Duong 1: append() cua useFieldArray — dung bai nhat, dung ra ca dong
-    const bo = timBoMangAffix();
+    const bo = timBoMangAffix(cu);
     if (bo) {
       try { bo.append(muc, { shouldFocus: false }); } catch (e) {
         try { bo.append(muc); } catch (e2) {}
@@ -1023,7 +1033,7 @@
       soMucTrongDanhMuc: khoAffix ? khoAffix.ds.length : 0,
       layDanhMucTu: khoAffix ? khoAffix.tu : null,
       mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
-      coBoMangDong: !!timBoMangAffix(),
+      coBoMangDong: !!timBoMangAffix(timFormTrang() ? timFormTrang().getValues('affixes') : null),
       soFiberDaQuet: soFiberDaQuet,
       mangGanGiongNhat: khoGanNhat,
       cacMangUngVien: cacUngVien,
