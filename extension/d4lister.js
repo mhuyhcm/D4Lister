@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.6';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.7';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -875,7 +875,7 @@
     document.getElementById('d4l-bao')?.remove();
     const d = document.createElement('div');
     d.id = 'd4l-bao';
-    d.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:999999;width:250px;' +
+    d.style.cssText = 'position:fixed;right:12px;bottom:42px;z-index:999999;width:250px;' +
       'max-height:70vh;overflow:auto;overflow-wrap:break-word;' +
       'background:#14141a;color:#eee;border:1px solid #444;border-radius:8px;padding:9px 11px;' +
       'font:12.5px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.6)';
@@ -1340,7 +1340,55 @@
   }
 
   // chay lai bang tay neu lo nhip
+  // ====================================================================
+  //  DO DUONG GHI THANG (dang tim hieu — chua dung vao viec gi)
+  //
+  //  Doc ma nguon cua trang thay: no dung react-hook-form, va co san ham
+  //  ocrResultToEquipmentCreateFormState() bien KET QUA OCR thanh ca cai
+  //  form. Ket qua OCR may chu tra ve co dang:
+  //     { status:"success", rawText, normalizedLines: string[], ... }
+  //  normalizedLines chinh la thu D4Lister dang co san.
+  //
+  //  Neu voi toi duoc bo dieu khien form (getValues/setValue) thi ghi ca
+  //  mon do vao MOT PHAT, khoi go tung chu vao o tim affix nua.
+  //  Ctrl+Shift+K = do xem co voi toi duoc khong, in ra Console.
+  // ====================================================================
+  const laBoForm = o => !!o && typeof o === 'object' &&
+    typeof o.getValues === 'function' && typeof o.setValue === 'function';
+
+  function timFormTrang() {
+    const neo = document.querySelector(
+      'input[aria-label="Affix value"], input[inputmode="decimal"], form');
+    if (!neo) return null;
+    const k = Object.keys(neo).find(x => x.indexOf('__reactFiber$') === 0 ||
+                                         x.indexOf('__reactInternalInstance$') === 0);
+    if (!k) return null;
+    for (let f = neo[k], i = 0; f && i < 100; f = f.return, i++) {
+      const p = f.memoizedProps;
+      if (p && laBoForm(p.value)) return p.value;
+      if (laBoForm(p)) return p;
+      if (laBoForm(f.stateNode)) return f.stateNode;
+    }
+    return null;
+  }
+
   document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+      e.preventDefault();
+      const fm = timFormTrang();
+      if (!fm) {
+        console.log('[D4Lister] KHÔNG với tới được form của trang.');
+        nhac('Không với tới form của trang — xem Console.');
+        return;
+      }
+      const v = fm.getValues();
+      console.log('[D4Lister] VỚI TỚI ĐƯỢC form. Các ô trong form:', Object.keys(v));
+      console.log('[D4Lister] Toàn bộ giá trị:', v);
+      console.log('[D4Lister] Dán nguyên khối này cho Claude:',
+        JSON.stringify(v, (k2, x) => (x instanceof Node ? '[DOM]' : x), 1).slice(0, 12000));
+      nhac('Với tới được form — mở Console (F12) xem.');
+      return;
+    }
     if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
       e.preventDefault();
       if (chuDaDan) apDung(chuDaDan);
@@ -1369,7 +1417,7 @@
     c.onmouseenter = () => c.style.opacity = '1';
     c.onmouseleave = () => c.style.opacity = '.55';
     c.onclick = moThietLap;
-    c.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:999998;' +
+    c.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:999998;' +
       'background:rgba(20,52,26,.85);color:#9fe0a0;border:1px solid #3a7a44;' +
       'border-radius:999px;padding:3px 10px;font:11px system-ui,sans-serif;' +
       'cursor:pointer;user-select:none;opacity:.55;transition:opacity .3s';
