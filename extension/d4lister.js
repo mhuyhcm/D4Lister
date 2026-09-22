@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.3';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.4';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -149,49 +149,9 @@
     return { muc: tot, diem: dTot, nhi: dNhi };
   }
 
-  // --- SO TEN MON DO, CHIU DUOC NHIN NHAM -----------------------------
-  //  Font ten mon trong D4 rat cach dieu, Tesseract doc chu O thanh @ ® © Ø €,
-  //  chu J thanh |, va co khi mot chu O no ra HAI ky tu ("ST@®NE" = "STONE").
-  //  Chay theo blacklist tung ky tu thi hom nay va xong, mai lai thung.
-  //
-  //  Cach chac an hon: gom cac ky tu DE NHIN NHAM vao cung mot lop, roi so
-  //  bang khoang cach sua loi. Ten mon do dai va rat khac nhau, nen rong tay
-  //  o day khong nguy hiem - khac han viec chon giua 638 affix.
-  const LOP_NHAM = ['O0@©®Ø€Q', 'Il1|!', 'S5$', 'B8', 'G6', 'Z2'];
 
-  function xuongTen(t) {
-    const s = String(t || '').toUpperCase().replace(/[^A-Z0-9@©®Ø€|!$]/g, '');
-    let r = '';
-    for (const c of s) {
-      const lop = LOP_NHAM.find(g => g.indexOf(c) >= 0);
-      r += lop ? lop[0] : c;
-    }
-    return r;
-  }
 
-  function khopTenMon(a, b) {
-    const x = xuongTen(a), y = xuongTen(b);
-    if (!x || !y) return true;              // thieu du lieu -> khong chan
-    if (x === y) return true;
-    const cho = Math.max(2, Math.floor(Math.max(x.length, y.length) / 6));
-    return khoangCach(x, y, cho) <= cho;
-  }
 
-  // Do RARE / MAGIC khong co ten rieng tren diablo.trade: form chi ghi LOAI DO
-  // ("Amulet"), con game tu sinh ten ngau nhien ("Royalty Downfall"). So hai
-  // thu do voi nhau la chan oan.
-  function khopMonDo(tenForm, text) {
-    if (!tenForm) return true;
-    const dong = text.split(/[\r\n]+/).map(x => x.trim()).filter(Boolean).slice(0, 3);
-    if (!dong.length) return true;
-
-    // Do Unique: form co ten rieng -> so voi dong TEN cua chu
-    if (khopTenMon(tenForm, dong[0])) return true;
-
-    // Do Rare: "Amulet" phai nam trong "Ancestral Rare Amulet"
-    const f = xuongTen(tenForm);
-    return !!f && dong.some(d => xuongTen(d).indexOf(f) >= 0);
-  }
 
   // Thu vien 638 ten affix lay tu https://diablo.trade/wiki/affixes
   // (file affix-list.js, nap truoc file nay). Dung de biet mot ten OCR doc ra
@@ -204,8 +164,11 @@
   const BO_QUA = [
     // "812 Armor" la giap GOC cua mon do — bo. Con "+56 Armor" la affix
     // that (trang cung co ten nay) — phai giu. Khac nhau o CHO CO DAU.
-    /item power/i, /^[\d.,]+\s*armor\b/i, /^damage per second/i, /toughness/i,
+    /item power/i, /^[\d.,]+\s*armor\b/i, /toughness/i,
     /^requires level/i, /empty socket/i,
+    // Ba dong CHI SO GOC cua vu khi. User khong dung den, ma de vao thi lan
+    // nao cung bao "trang chua co dong nay" — bao sai chu khong bat duoc gi.
+    /^damage per second/i, /damage per hit/i, /^attacks per second/i,
     /unlocks new look/i, /sell value/i, /durability/i, /tempers?\s*:/i,
     /unique equipped/i, /lord of hatred/i,
     // Chi so GOC cua day chuyen/nhan. Ten that cua affix la
@@ -381,14 +344,12 @@
 
   // --- ap dung ---------------------------------------------------------
   function apDung(text, epBuoc) {
-    // CHOT AN TOAN: chu phai dung mon dang mo, khong thi KHONG ghi gi ca.
-    // Khong co cho nay thi script se am tham ghi so cua mon A vao form mon B.
+    // KHONG con chot kiem TEN MON nua. Truoc day chu dan phai trung ten mon
+    // dang mo, khong thi tu choi ghi. Nhung ten mon la chu to, font rieng,
+    // chu O viet kieu Ø — OCR doc sai luon, nen chot nay bao lech oan nhieu
+    // hon la bat duoc loi that. Trong khi bo quet cua trang nhan ten mon
+    // gan nhu luon dung, va cai user can la CON SO chay vao dung o.
     const tenForm = layTenItemTrenForm();
-    const tenChu  = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
-    if (!epBuoc && tenForm && tenChu && !khopMonDo(tenForm, text)) {
-      baoLechTen(tenForm, tenChu, text);
-      return;
-    }
 
     const muon = docChuItem(text);
     const dang = timCacDong();
@@ -888,23 +849,6 @@
     if (chuDaDan) apDung(chuDaDan, true);   // dien lai, lan nay co dong moi
   }
 
-  // --- bao lech ten: KHONG ghi gi, hoi lai ------------------------------
-  function baoLechTen(tenForm, tenChu, text) {
-    const d = khungBao();
-    d.innerHTML =
-      '<b style="color:#d8b978">D4Lister</b>' +
-      '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>' +
-      '<div style="margin-top:6px;color:#e06a5a"><b>Dừng lại — không đúng món đồ</b></div>' +
-      '<div style="margin-top:6px">Form đang mở: <b>' + thoat(tenForm) + '</b></div>' +
-      '<div>Chữ vừa dán: <b>' + thoat(tenChu) + '</b></div>' +
-      '<div style="margin-top:8px;color:#aaa">Hai tên khác nhau nên chưa ghi gì cả.</div>' +
-      '<div style="margin-top:10px">' +
-      '<button id="d4l-ep" style="background:#5a2020;color:#f0d0d0;border:1px solid #844;' +
-      'border-radius:5px;padding:5px 10px;cursor:pointer;font:12px system-ui">Vẫn cứ điền</button>' +
-      '<span style="color:#777;font-size:11px;margin-left:8px">chỉ bấm nếu bạn chắc</span></div>';
-    d.querySelector('#d4l-dong').onclick = () => d.remove();
-    d.querySelector('#d4l-ep').onclick = () => { d.remove(); apDung(text, true); };
-  }
 
   const thoat = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -1396,13 +1340,20 @@
       /^scan$/i.test((b.textContent || '').trim()) &&
       !b.disabled && b.getClientRects().length);
 
-  const dangQuet = () => /Scanning screenshot/i.test(document.body.textContent || '');
+  // BAY DA SUP MOT LAN: truoc day cho nay do chu "Scanning screenshot" trong
+  // document.body.textContent de biet trang co dang quet dang do khong.
+  // Nhung textContent GOM CA NOI DUNG THE <script>, ma trang nhung goi ngon
+  // ngu ngay trong script — trong do co dung chuoi "Scanning screenshot".
+  // Vay la vua mo trang da thay, tu bam Scan bi chan ngay cau dau, KHONG
+  // BAO GIO chay. Bo han phep do nay: da co daBamQuet (moi lan dan chi bam
+  // mot lan) va nut Scan phai dang HIEN + khong bi khoa — dang quet do thi
+  // nut bien mat, khong the bam trung.
 
   let anhTruoc = '', daBamQuet = false;
 
   // Tra ve true khi vua bam SCAN, de vong cho bo qua nhip nay.
   function thuBamQuet() {
-    if (daBamQuet || dangQuet()) return false;
+    if (daBamQuet) return false;
     const im = anhDaNap();
     if (!im) { anhTruoc = ''; return false; }
     const dau = (im.currentSrc || im.src) + '|' + im.naturalWidth + 'x' + im.naturalHeight;
