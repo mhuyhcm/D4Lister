@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.9';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.0';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -492,19 +492,27 @@
     // Viet xong roi phai DOC LAI O. Trang co quyen khong nhan so minh viet
     // — no tu cat ve muc toi da chang han. Khong doc lai thi bang bao "da
     // dien 3500" trong khi o dang ghi 2800, user tin nham roi dang len san.
+    // BAY DA SUP MOT LAN: ban truoc chi doc lai nhung dong SACH, bo qua dong
+    // vuot khoang. Ma dung cai dong vuot khoang moi la cai trang hay khong
+    // nhan — "+196 Weapon Damage" bi trang giu lai thanh 19, ma bang van bao
+    // "da dien 4 dong". Gio doc lai CA HAI nhom.
     const lech = [];
-    const chot = () => {
-      for (let i = ok.length - 1; i >= 0; i--) {
-        const thuc = parseFloat(String(ok[i].dong.lay()).replace(/,/g, ''));
-        if (isFinite(thuc) && Math.abs(thuc - ok[i].v) > 0.001) {
-          lech.unshift(Object.assign({}, ok[i], { thuc: thuc }));
-          ok.splice(i, 1);
+    const doLai = ds => {
+      for (let i = ds.length - 1; i >= 0; i--) {
+        const thuc = parseFloat(String(ds[i].dong.lay()).replace(/,/g, ''));
+        if (isFinite(thuc) && Math.abs(thuc - ds[i].v) > 0.001) {
+          lech.unshift(Object.assign({}, ds[i], { thuc: thuc }));
+          ds.splice(i, 1);
         }
       }
+    };
+    const chot = () => {
+      doLai(ok);
+      doLai(ngoaiKhoang);
       bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
     };
 
-    if (ok.length) {
+    if (ok.length || ngoaiKhoang.length) {
       setTimeout(() => {
         // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot
         // cau chu sau khi da nhan so. Doc nguoc tu cau do.
@@ -969,44 +977,50 @@
     return co;
   }
 
-  function themAffixThang(tenTim, so, sao) {
-    const fm = timFormTrang();
-    if (!fm) { viSaoTruot = 'khong voi toi duoc bo dieu khien form'; return false; }
+  // Tim mot muc trong danh muc, gan san con so va dau sao. Khong co thi null.
+  function timMucTrongKho(tenTim, so, sao) {
     const kho = layKhoAffix();
-    if (!kho) { viSaoTruot = 'khong tim ra danh muc affix'; return false; }
-
+    if (!kho) { viSaoTruot = 'khong tim ra danh muc affix'; return null; }
     // Danh muc tron ca aspect/inherent — chi khop trong dam AFFIX.
     const chiAffix = kho.ds.filter(x => x && x.type === 'AFFIX');
     const kq = timKhopNhat(tenTim, chiAffix, x => tenThuan(x.description || x.name || ''));
     if (kq.diem < DIEM_CHAC) {
       viSaoTruot = 'danh muc khong co ten "' + tenTim + '" (giong nhat ' +
         Math.round(kq.diem * 100) + '%)';
-      return false;
+      return null;
     }
+    return Object.assign({}, kq.muc, { values: [so], isGreater: !!sao });
+  }
+
+  // BAY DA SUP MOT LAN: day TUNG DONG MOT. Tu lan thu hai tro di, so sach
+  // cua useFieldArray chua kip cap nhat nen doi chieu do dai bi lech ->
+  // tuong khong co bo mang -> quay ve ghi de ca mang -> NUOT MAT dong vua
+  // them o lan truoc. Da gap that: mon 4 affix ma form chi hien 3.
+  // => Gom het roi day MOT LAN.
+  function dayCaLoat(ds) {
+    if (!ds.length) return false;
+    const fm = timFormTrang();
+    if (!fm) { viSaoTruot = 'khong voi toi duoc bo dieu khien form'; return false; }
 
     let cu;
     try { cu = fm.getValues('affixes'); } catch (e) { cu = null; }
     if (!Array.isArray(cu)) { viSaoTruot = 'khong doc duoc mang affixes'; return false; }
 
-    const muc = Object.assign({}, kq.muc, { values: [so], isGreater: !!sao });
-
-    // Duong 1: append() cua useFieldArray — dung bai nhat, dung ra ca dong
     const bo = timBoMangAffix(cu);
     if (bo) {
-      try { bo.append(muc, { shouldFocus: false }); } catch (e) {
-        try { bo.append(muc); } catch (e2) {}
+      try { bo.append(ds, { shouldFocus: false }); } catch (e) {
+        try { bo.append(ds); } catch (e2) {}
       }
     } else {
-      // Duong 2: ghi de ca mang
-      fm.setValue('affixes', cu.concat([muc]),
+      fm.setValue('affixes', cu.concat(ds),
         { shouldDirty: true, shouldTouch: true, shouldValidate: true });
     }
 
     let sau;
     try { sau = fm.getValues('affixes'); } catch (e) { sau = null; }
-    if (Array.isArray(sau) && sau.length > cu.length) return true;
-    viSaoTruot = 'da day vao ma mang khong dai ra (' + cu.length + ' -> ' +
-      (Array.isArray(sau) ? sau.length : '?') + '), co bo mang: ' + !!bo;
+    if (Array.isArray(sau) && sau.length === cu.length + ds.length) return true;
+    viSaoTruot = 'day ' + ds.length + ' dong vao ma mang di tu ' + cu.length +
+      ' den ' + (Array.isArray(sau) ? sau.length : '?') + ', co bo mang: ' + !!bo;
     return false;
   }
 
@@ -1017,11 +1031,15 @@
     await layKhoAffixCoMo();
 
     // Thu duong THANG truoc cho ca loat. Duoc het thi khong bam gi ca.
-    const conLai = [];
+    const conLai = [], themVao = [];
     for (const m of thieu) {
-      const tenTim = m.coThat || m.ten;
-      if (themAffixThang(tenTim, m.so, m.sao)) soDayThang++;
+      const muc = timMucTrongKho(m.coThat || m.ten, m.so, m.sao);
+      if (muc) themVao.push(muc);
       else conLai.push(m);
+    }
+    if (themVao.length) {
+      if (dayCaLoat(themVao)) soDayThang += themVao.length;
+      else for (const m of thieu) if (conLai.indexOf(m) < 0) conLai.push(m);
     }
     if (!conLai.length) {
       if (chuDaDan) apDung(chuDaDan, true);
