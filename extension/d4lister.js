@@ -11,20 +11,11 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.6';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
   let dongHo = null;
-
-  const chuan = s => (s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9%]+/g, ' ')
-    .trim();
-
-  // bo chu "s" cuoi moi tu -> chiu duoc lech so it/so nhieu.
-  // Can that: trang viet "Imbuements Skills", game viet "Imbuement Skills".
-  const chuanManh = s => chuan(s).split(' ').map(t => t.replace(/s$/, '')).join(' ');
 
   // ====================================================================
   //  KHOP TEN AFFIX
@@ -500,8 +491,7 @@
 
   // Co mat trong form chua? Dung de xac nhan sau moi lan thu.
   const daCoDong = ten =>
-    timCacDong().some(d => chuanManh(d.ten) === chuanManh(ten)
-      || chuanManh(d.ten).includes(chuanManh(ten)));
+    timCacDong().some(d => diemKhop(ten, d.ten) >= DIEM_CHAC);
 
   // Go tu ngan nhung chac an: "Imbuements Skills" -> go "Imbuement".
   // Neu go nguyen ten ma OCR ra so it ("Imbuement Skills") thi bo loc cua
@@ -566,10 +556,17 @@
           }));
       }]);
 
+      // Dem so dong TRUOC khi bam. Neu sau khi bam ma so dong TANG len thi
+      // chac chan da them duoc, du ten co khop hay khong -> dung ngay.
+      //
+      // Can chot nay vi bam vao o tich la BAT/TAT qua lai: kiem sai mot cai
+      // la no bam tiep cach 2, cach 3, va co the TAT lai cai vua bat.
+      const soDongTruoc = timCacDong().length;
       let xong = false, daThu = [];
       for (const [ten, lam] of cach) {
         lam();
-        xong = await cho(() => daCoDong(m.ten), 1600);
+        xong = await cho(
+          () => daCoDong(m.ten) || timCacDong().length > soDongTruoc, 1600);
         if (xong) break;
         daThu.push(ten);
       }
