@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.4';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.5';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -858,7 +858,7 @@
   // mot lan roi thi NHO LUON VAO MAY — khong bao gio phai mo lai nua, ke ca
   // sau khi dong trinh duyet. Do la cai mo duy nhat con sot lai ma user
   // nhin thay; nho roi thi het han.
-  const KHOA_KHO = 'd4lister-kho-affix';
+  const KHOA_KHO = 'd4lister-kho-affix-2';   // -2: ban truoc nho nham danh muc ASPECT
   let khoAffix = null;
 
   function nhoKho(ds) {
@@ -1026,6 +1026,7 @@
       coBoMangDong: !!timBoMangAffix(),
       soFiberDaQuet: soFiberDaQuet,
       mangGanGiongNhat: khoGanNhat,
+      cacMangUngVien: cacUngVien,
       banExt: BAN,
     });
     thieu = conLai;
@@ -1706,12 +1707,20 @@
 
   // Mot muc trong danh muc affix trong the nao: co ma, co cau mo ta kieu
   // "+# Willpower", va co khoang hop le.
+  // BAY DA SUP MOT LAN: phep nhan dang cu chi doi co id + cau mo ta chua "#".
+  // ASPECT cung thoa het (vd "Your Maximum Ferocity stacks are increased by
+  // # [4-6]."), nen no vo phai danh muc 364 aspect roi tuong da xong — khong
+  // bao gio di tim danh muc affix that nua. Phai doi DUNG type "AFFIX".
   const laMucAffix = o => !!o && typeof o === 'object' && !Array.isArray(o) &&
     typeof o.id === 'string' && typeof o.description === 'string' &&
-    o.description.indexOf('#') >= 0;
+    o.description.indexOf('#') >= 0 && o.type === 'AFFIX';
 
   const laKhoAffix = a => Array.isArray(a) && a.length >= 40 &&
     laMucAffix(a[0]) && laMucAffix(a[a.length - 1]);
+
+  // Ghi lai MOI mang ung vien gap tren duong quet, de lan sau khong phai
+  // doan nua: ten khoa, so muc, va loai cua muc dau.
+  let cacUngVien = [];
 
   // Lung tim MANG chua toan bo affix. Co no thi them affix chi con la day
   // them mot muc vao mang affixes — khong bam chuot phat nao.
@@ -1720,6 +1729,15 @@
   // giu danh muc co the la mot nhanh KHAC han, khong phai to tien cua o
   // nhap. Lan nay quet CA CAY tu goc xuong, va soi ca chuoi hook chu khong
   // chi props — gia tri cua useState/useQuery nam trong hook.
+  function ghiUngVien(ten, m) {
+    if (!Array.isArray(m) || m.length < 20 || cacUngVien.length > 40) return;
+    const d = m[0];
+    if (!d || typeof d !== 'object' || typeof d.id !== 'string') return;
+    if (cacUngVien.some(x => x.ten === ten && x.soMuc === m.length)) return;
+    cacUngVien.push({ ten: ten, soMuc: m.length, loai: d.type || '?',
+                      tenMau: d.name || null, moTaMau: d.description || null });
+  }
+
   function fiberGoc() {
     const ds = [document.body].concat([...document.body.children]);
     for (const el of ds) {
@@ -1741,6 +1759,7 @@
     if (!o || typeof o !== 'object') return;
     if (laKhoAffix(o)) { hop.thay = o; hop.tu = 'chính nó'; return; }
     if (Array.isArray(o)) {
+      ghiUngVien('(mảng trần)', o);
       if (o.length > hop.gan.soMuc && o.length >= 5 && laMucAffix(o[0]))
         hop.gan = { soMuc: o.length, mau: o[0] };
       return;
@@ -1749,6 +1768,7 @@
     for (const ten of Object.keys(o)) {
       if (++dem > 60) break;
       const x = o[ten];
+      if (Array.isArray(x)) ghiUngVien(ten, x);
       if (laKhoAffix(x)) { hop.thay = x; hop.tu = '.' + ten; return; }
       if (Array.isArray(x) && x.length > hop.gan.soMuc && x.length >= 5 && laMucAffix(x[0]))
         hop.gan = { soMuc: x.length, mau: x[0] };
@@ -1757,6 +1777,7 @@
         for (const ten2 of Object.keys(x)) {
           if (++dem2 > 60) break;
           const y = x[ten2];
+          if (Array.isArray(y)) ghiUngVien(ten + '.' + ten2, y);
           if (laKhoAffix(y)) { hop.thay = y; hop.tu = '.' + ten + '.' + ten2; return; }
           if (Array.isArray(y) && y.length > hop.gan.soMuc && y.length >= 5 && laMucAffix(y[0]))
             hop.gan = { soMuc: y.length, mau: y[0] };
@@ -1768,6 +1789,7 @@
   function timKhoAffix() {
     const goc = fiberGoc();
     if (!goc) return null;
+    cacUngVien = [];
     const hop = { thay: null, tu: '', gan: { soMuc: 0, mau: null }, soFiber: 0 };
     const ngan = [goc];
     while (ngan.length && hop.soFiber < 30000) {
