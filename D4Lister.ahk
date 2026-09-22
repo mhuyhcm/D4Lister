@@ -869,13 +869,39 @@ BungTesseractNeuCan()
 {
     if FileExist(A_ScriptDir . "\tesseract\tesseract.exe")
         return
+
+    ; Máy nào còn giữ bản nén trong thư mục thì bung luôn, khỏi tải.
     zip := A_ScriptDir . "\_he-thong\bo-cai\tesseract-portable.zip"
-    if !FileExist(zip)
+    if FileExist(zip)
+    {
+        ShowMsg("Lần đầu chạy — đang bung Tesseract, đợi vài giây…", "warn")
+        RunWait, % "powershell -NoProfile -Command ""Expand-Archive -Path '" . zip
+                 . "' -DestinationPath '" . A_ScriptDir . "' -Force""", , Hide
+        HideMsgNow()
         return
-    ShowMsg("Lần đầu chạy — đang bung Tesseract, đợi vài giây…", "warn")
-    RunWait, % "powershell -NoProfile -Command ""Expand-Archive -Path '" . zip
-             . "' -DestinationPath '" . A_ScriptDir . "' -Force""", , Hide
+    }
+
+    ; Không có thì tải về. Bản tải từ GitHub không kèm Tesseract nữa (nặng
+    ; 55 MB, mà mỗi lần cập nhật vài dòng mã cũng phải tải lại từng ấy), nên
+    ; chỗ này là đường lấy nó — cho ai chỉ chép thư mục sang chứ không chạy
+    ; CAI-DAT.bat. GHIM VÀO MÃ COMMIT để đường dẫn không bao giờ hỏng.
+    url := "https://raw.githubusercontent.com/mhuyhcm/D4Lister/"
+         . "acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f"
+         . "/_he-thong/bo-cai/tesseract-portable.zip"
+    tam := A_Temp . "\d4l-tesseract.zip"
+    ShowMsg("Lần đầu chạy — đang tải Tesseract (55 MB), đợi một lát…", "warn")
+    RunWait, % "powershell -NoProfile -Command """
+             . "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; "
+             . "Invoke-WebRequest -Uri '" . url . "' -OutFile '" . tam . "' -TimeoutSec 900"""
+             , , Hide
+    if FileExist(tam)
+    {
+        RunWait, % "powershell -NoProfile -Command ""Expand-Archive -Path '" . tam
+                 . "' -DestinationPath '" . A_ScriptDir . "' -Force""", , Hide
+        FileDelete, %tam%
+    }
     HideMsgNow()
+    ; Tải không được thì thôi, chạy tiếp — chỉ là không có phần đọc chữ.
 }
 
 TimTesseract()

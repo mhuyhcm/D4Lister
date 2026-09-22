@@ -193,7 +193,7 @@ Write-Host '================================================================'
 Write-Host "   Se cai vao: $ThuMuc"
 
 Write-Host ''
-Write-Host '[ 1/4 ] Dang tai tu GitHub (~60 MB, hoi lau)...' -ForegroundColor Cyan
+Write-Host '[ 1/4 ] Dang tai D4Lister tu GitHub (~200 KB)...' -ForegroundColor Cyan
 $moi = ShaMoiNhat
 if (-not $moi) {
     Write-Host '   [ LOI ] Khong hoi duoc GitHub. Kiem tra mang roi chay lai.' -ForegroundColor Red
