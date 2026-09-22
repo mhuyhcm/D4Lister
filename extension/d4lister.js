@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.1';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.2';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -144,6 +144,34 @@
     return { muc: tot, diem: dTot, nhi: dNhi };
   }
 
+  // --- SO TEN MON DO, CHIU DUOC NHIN NHAM -----------------------------
+  //  Font ten mon trong D4 rat cach dieu, Tesseract doc chu O thanh @ ® © Ø €,
+  //  chu J thanh |, va co khi mot chu O no ra HAI ky tu ("ST@®NE" = "STONE").
+  //  Chay theo blacklist tung ky tu thi hom nay va xong, mai lai thung.
+  //
+  //  Cach chac an hon: gom cac ky tu DE NHIN NHAM vao cung mot lop, roi so
+  //  bang khoang cach sua loi. Ten mon do dai va rat khac nhau, nen rong tay
+  //  o day khong nguy hiem - khac han viec chon giua 638 affix.
+  const LOP_NHAM = ['O0@©®Ø€Q', 'Il1|!', 'S5$', 'B8', 'G6', 'Z2'];
+
+  function xuongTen(t) {
+    const s = String(t || '').toUpperCase().replace(/[^A-Z0-9@©®Ø€|!$]/g, '');
+    let r = '';
+    for (const c of s) {
+      const lop = LOP_NHAM.find(g => g.indexOf(c) >= 0);
+      r += lop ? lop[0] : c;
+    }
+    return r;
+  }
+
+  function khopTenMon(a, b) {
+    const x = xuongTen(a), y = xuongTen(b);
+    if (!x || !y) return true;              // thieu du lieu -> khong chan
+    if (x === y) return true;
+    const cho = Math.max(2, Math.floor(Math.max(x.length, y.length) / 6));
+    return khoangCach(x, y, cho) <= cho;
+  }
+
   // Thu vien 638 ten affix lay tu https://diablo.trade/wiki/affixes
   // (file affix-list.js, nap truoc file nay). Dung de biet mot ten OCR doc ra
   // co THAT SU ton tai khong — de bao cho dung ban chat.
@@ -239,7 +267,7 @@
     // Khong co cho nay thi script se am tham ghi so cua mon A vao form mon B.
     const tenForm = layTenItemTrenForm();
     const tenChu  = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
-    if (!epBuoc && tenForm && tenChu && chuanManh(tenForm) !== chuanManh(tenChu)) {
+    if (!epBuoc && tenForm && tenChu && !khopTenMon(tenForm, tenChu)) {
       baoLechTen(tenForm, tenChu, text);
       return;
     }

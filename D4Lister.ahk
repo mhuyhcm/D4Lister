@@ -1157,6 +1157,18 @@ LocChu(raw)
             break
         }
     }
+    ; TÊN CÓ THỂ NẰM TRÊN NHIỀU DÒNG: tên dài thì game tự xuống dòng
+    ; ("ROYALTY" / "DOWNFALL"). Gộp mọi dòng TRƯỚC dòng loại đồ lại.
+    if (viTriTen > 1)
+    {
+        gop := ""
+        Loop, % viTriTen
+            gop .= (gop = "" ? "" : " ") . ds[A_Index]
+        Loop, % viTriTen - 1
+            ds.RemoveAt(1)
+        ds[1] := gop
+        viTriTen := 1
+    }
     ds[viTriTen] := LocTenMon(ds[viTriTen])
 
     ; ĐƯA DÒNG TÊN LÊN ĐẦU. Tiện ích Chrome lấy dòng 1 làm tên món để đối
