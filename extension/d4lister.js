@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.9';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.0';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -513,6 +513,7 @@
           }
         }
         chot();
+        tuDo();          // tu di do, im lang neu on
       }, 350);
       return;
     }
@@ -844,9 +845,71 @@
     return ra;
   }
 
+  // ====================================================================
+  //  THEM AFFIX BANG CACH DAY THANG VAO FORM — khong bam phat nao
+  //
+  //  Muc trong danh muc affix cua trang co du: ma, cau mo ta "+# Willpower",
+  //  loai, khoang hop le. Chi can them "values" va "isGreater" la thanh mot
+  //  dong affix hoan chinh, day vao mang affixes la xong.
+  //  Khong tim duoc danh muc, hoac day vao ma mang khong dai ra, thi tra ve
+  //  false — vong ngoai tu quay ve duong go chu cu.
+  // ====================================================================
+  let khoAffix = null;
+
+  function layKhoAffix() {
+    if (khoAffix) return khoAffix;
+    const k = timKhoAffix();
+    if (k) {
+      khoAffix = k;
+      console.log('[D4Lister] danh mục affix: ' + k.ds.length + ' mục (' + k.tu + ')');
+    }
+    return khoAffix;
+  }
+
+  function themAffixThang(tenTim, so, sao) {
+    const fm = timFormTrang();
+    const kho = layKhoAffix();
+    if (!fm || !kho) return false;
+
+    const kq = timKhopNhat(tenTim, kho.ds, x => tenThuan(x.description || x.name || ''));
+    if (kq.diem < DIEM_CHAC) return false;
+
+    let cu;
+    try { cu = fm.getValues('affixes'); } catch (e) { return false; }
+    if (!Array.isArray(cu)) return false;
+
+    const muc = Object.assign({}, kq.muc, {
+      values: [so],
+      isGreater: !!sao,
+    });
+    fm.setValue('affixes', cu.concat([muc]),
+      { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+
+    // Day vao roi phai DEM LAI. Khong dai ra nghia la trang khong nhan.
+    let sau;
+    try { sau = fm.getValues('affixes'); } catch (e) { return false; }
+    return Array.isArray(sau) && sau.length > cu.length;
+  }
+
   async function themCacAffixThieu(thieu) {
     loiThem = [];
     nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
+
+    // Thu duong THANG truoc cho ca loat. Duoc het thi khong bam gi ca.
+    const conLai = [];
+    for (const m of thieu) {
+      const tenTim = m.coThat || m.ten;
+      if (!themAffixThang(tenTim, m.so, m.sao)) conLai.push(m);
+    }
+    if (!conLai.length) {
+      if (chuDaDan) apDung(chuDaDan, true);
+      return;
+    }
+    if (conLai.length < thieu.length)
+      console.log('[D4Lister] đẩy thẳng được ' + (thieu.length - conLai.length) +
+        '/' + thieu.length + ' dòng, còn lại đi đường gõ chữ');
+    thieu = conLai;
+
     for (const m of thieu) {
       // Tim bang TEN CHUAN CUA TRANG (thu vien da xac nhan), khong phai ten
       // OCR doc ra. "Life On Kill" de tim hon "LifeonKill".
@@ -1439,6 +1502,70 @@
       if (laBoForm(f.stateNode)) return f.stateNode;
     }
     return null;
+  }
+
+  // ====================================================================
+  //  TU DO — va TU GHI FILE khi khong do duoc
+  //
+  //  Moi lan dan, tien ich tu di tim bo dieu khien form va danh muc affix.
+  //  Tim duoc thi dung luon, khong noi gi. KHONG tim duoc thi ghi mot file
+  //  nho vao thu muc Tai xuong de con biet duong ma sua — user khong phai
+  //  bam phim nao, khong phai chep gi tu Console.
+  //  Moi phien chi ghi MOT lan cho moi loai, khong lam phien.
+  // ====================================================================
+  const daGhiNhatKy = {};
+
+  function ghiNhatKy(loai, du) {
+    if (daGhiNhatKy[loai]) return;
+    daGhiNhatKy[loai] = true;
+    try {
+      const chu = JSON.stringify(du, (k, v) => {
+        if (v instanceof Node) return '[DOM ' + (v.nodeName || '?') + ']';
+        if (typeof v === 'function') return '[hàm]';
+        return v;
+      }, 1);
+      const b = new Blob([chu], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = 'd4lister-do-' + loai + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      console.log('[D4Lister] đã ghi file dò: ' + a.download);
+    } catch (e) {
+      console.log('[D4Lister] không ghi được file dò:', e);
+    }
+  }
+
+  // Goi sau moi lan dien xong. Im lang khi moi thu on.
+  function tuDo() {
+    const fm = timFormTrang();
+    if (!fm) {
+      ghiNhatKy('khong-thay-form', {
+        viSao: 'khong voi toi duoc bo dieu khien form cua trang',
+        duongDan: location.href,
+        banExt: BAN,
+        soOAffixBeta: document.querySelectorAll('input[aria-label="Affix value"]').length,
+        soNutXoaClassic: document.querySelectorAll('button[title="Remove attribute"]').length,
+        soOSo: document.querySelectorAll('input[inputmode="decimal"]').length,
+      });
+      return;
+    }
+    if (layKhoAffix()) return;      // du ca hai thu roi, khong can ghi gi
+
+    // Co form ma khong co danh muc -> ghi lai de con sua cach lung
+    let v = null;
+    try { v = fm.getValues(); } catch (e) {}
+    ghiNhatKy('khong-thay-danh-muc', {
+      viSao: 'voi toi duoc form nhung khong tim ra danh muc affix',
+      duongDan: location.href,
+      banExt: BAN,
+      cacOTrongForm: v ? Object.keys(v) : null,
+      soAffixTrenForm: v && Array.isArray(v.affixes) ? v.affixes.length : null,
+      mauMotAffix: v && Array.isArray(v.affixes) && v.affixes[0] ? v.affixes[0] : null,
+      danhSachDangMo: document.querySelectorAll('[cmdk-item]').length,
+    });
   }
 
   // Mot muc trong danh muc affix trong the nao: co ma, co cau mo ta kieu
