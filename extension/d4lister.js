@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.1';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.2';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -895,6 +895,7 @@
   // van khong thay thi mo no MOT LAN cho moi trang, hot lay danh muc roi
   // dong lai — tu do ve sau moi affix deu day thang, khong bam gi nua.
   let daThuMoKho = false;
+  let soDayThang = 0;      // dem so dong day thang duoc trong lan dan nay
 
   async function layKhoAffixCoMo() {
     if (layKhoAffix()) return khoAffix;
@@ -921,7 +922,8 @@
     const conLai = [];
     for (const m of thieu) {
       const tenTim = m.coThat || m.ten;
-      if (!themAffixThang(tenTim, m.so, m.sao)) conLai.push(m);
+      if (themAffixThang(tenTim, m.so, m.sao)) soDayThang++;
+      else conLai.push(m);
     }
     if (!conLai.length) {
       if (chuDaDan) apDung(chuDaDan, true);
@@ -1220,8 +1222,15 @@
     // ok + ngoai DEU da duoc ghi vao o. Khac nhau o cho ngoai khung co ban.
     const daGhi = ok.concat(ngoai);
     if (daGhi.length) {
+      // Cho biet no ghi bang DUONG NAO. Khong co dau hieu nay thi luc moi
+      // thu chay tron tru trong y het luc no khong chay gi ca.
+      const thang = daGhi.some(x => x.dong && x.dong.qua === 'form');
       h += '<div id="d4l-mo" style="margin-top:6px;color:#7ec97e;cursor:pointer">' +
-        '<span id="d4l-mui">&#9656;</span> Đã điền ' + daGhi.length + ' dòng</div>' +
+        '<span id="d4l-mui">&#9656;</span> Đã điền ' + daGhi.length + ' dòng' +
+        (thang ? '<span title="ghi thẳng vào form, không gõ chữ"' +
+                 ' style="color:#7ec9c9"> &#9889; thẳng</span>' : '') +
+        (soDayThang ? '<span style="color:#7ec9c9"> · +' + soDayThang +
+                      ' thêm thẳng</span>' : '') + '</div>' +
         '<div id="d4l-ct" style="display:none;color:#bbb;font-size:12px;margin-left:12px">' +
         daGhi.map(x => thoat(x.dong.ten) + ' = <b>' + x.v + '</b>').join('<br>') + '</div>';
     }
@@ -1461,6 +1470,7 @@
     soLanChonBase = 0;
     daBamQuet = false;
     anhTruoc = '';
+    soDayThang = 0;
     nhac('Đã nhận chữ. Đang đợi form…');
     dongHo = setInterval(() => {
       // Dang o buoc chon base thi chon giup roi bam Next, dung bat user ngoi
