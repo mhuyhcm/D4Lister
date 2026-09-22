@@ -126,12 +126,22 @@ Muốn đặt giá thì cứ gõ vào ô giá — gõ là đếm ngược dừng
 
 ## Cách nó chạy
 
-Mỗi lần `F3` đẻ ra hai file trong `queue\`:
+Mỗi lần `F3` đẻ ra ba file trong `queue\`:
 
 ```
-001.png    ảnh tooltip
-001.txt    chữ Tesseract đọc được
+001.png        ảnh phóng 2× — CHỈ để Tesseract đọc chữ và đo dấu sao
+001-nho.png    ảnh cỡ gốc — bản này mới đưa lên clipboard cho trang
+001.txt        chữ Tesseract đọc được
 ```
+
+Hai bản ảnh vì hai việc khác nhau. **Phóng 2× là bắt buộc cho OCR** — đã đo,
+ảnh gốc làm Tesseract đọc dấu `+` thành số `4` (`+2 to Demonology` thành
+`42to Demonology`). Nhưng phóng 2× làm ảnh **nặng gấp bốn**: nội suy đẻ ra vô
+số sắc độ trung gian, PNG nén kém hẳn. Đo trên 12 ảnh thật: **1322 KB so với
+344 KB**.
+
+Mà trang chỉ cần nhận ra **món gì** (tên, loại, độ hiếm) — mọi con số đã do
+tiện ích ghi thẳng vào form. Nên gửi bản nhẹ là đủ.
 
 Lúc dán, **cả hai** được bỏ lên clipboard cùng lúc. Một lần `Ctrl+V`:
 

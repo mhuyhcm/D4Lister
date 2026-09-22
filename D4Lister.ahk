@@ -281,6 +281,20 @@ DoCapture:
     ; Xử lý ảnh theo chế độ đang chọn. Hỏng thì vẫn dùng ảnh gốc, không bỏ món.
     if (!ProcessImage(rawFile, outFile, PROC_MODE))
         FileCopy, %rawFile%, %outFile%, 1
+
+    ; HAI BẢN ẢNH, mỗi bản một việc:
+    ;   NNN.png      phóng 2× — CHỈ để Tesseract đọc chữ và đo dấu sao.
+    ;                Phóng 2× là bắt buộc: đã đo, ảnh gốc làm OCR đọc dấu "+"
+    ;                thành số "4" ("+2 to Demonology" -> "42to Demonology").
+    ;   NNN-nho.png  đúng cỡ gốc — bản này mới đưa lên clipboard cho trang.
+    ;                Trang chỉ cần nhận ra MÓN GÌ (tên, loại, độ hiếm); mọi
+    ;                con số đã do tiện ích ghi thẳng vào form rồi.
+    ; Phóng 2× làm ảnh nặng gấp ~4 lần (nội suy đẻ ra vô số sắc độ trung
+    ; gian, PNG nén kém hẳn): đo trên 12 ảnh thật, 1322 KB so với 344 KB.
+    ; Tải lên nặng gấp bốn mà chẳng để làm gì.
+    nhoFile := RegExReplace(outFile, "\.png$", "-nho.png")
+    if (!ProcessImage(rawFile, nhoFile, PROC_MODE, 1))
+        FileCopy, %rawFile%, %nhoFile%, 1
     FileDelete, %rawFile%
 
     if !FileExist(outFile)
@@ -419,8 +433,9 @@ DoClear:
     n := 0
     Loop, %QUEUE_DIR%\*.png
     {
+        laNho := InStr(A_LoopFileName, "-nho.png")
         FileDelete, % A_LoopFileFullPath
-        if (!ErrorLevel)
+        if (!ErrorLevel && !laNho)      ; bản "-nho" không tính là một món
             n++
     }
     Loop, %QUEUE_DIR%\*.txt
@@ -515,9 +530,15 @@ ScanQueueFiles()
 {
     global QUEUE_DIR
 
+    ; Bỏ qua bản "-nho" — nó là ảnh gửi cho trang, không phải một món riêng.
+    ; Không chặn thì mỗi món bị đếm thành hai.
     list := ""
     Loop, %QUEUE_DIR%\*.png
+    {
+        if (InStr(A_LoopFileName, "-nho.png"))
+            continue
         list .= A_LoopFileName . "`n"
+    }
 
     items := []
     if (list = "")
@@ -747,9 +768,11 @@ BuildColorMatrix(ByRef cm, c, b, s)
 ;   tooltip D4 khá nhỏ; phóng 2x bicubic làm nét chữ mượt và dày hơn, engine
 ;   có nhiều pixel hơn để phân biệt — đặc biệt với dòng chữ xám mờ.
 ;=====================================================================
-ProcessImage(srcFile, outFile, mode)
+ProcessImage(srcFile, outFile, mode, heSo := 0)
 {
     global PROC_SCALE, PROC_CONTRAST, PROC_BRIGHT
+    if (heSo = 0)
+        heSo := PROC_SCALE
 
     if (mode = 0)
     {
@@ -775,8 +798,8 @@ ProcessImage(srcFile, outFile, mode)
     sw := 0, sh := 0
     DllCall("gdiplus\GdipGetImageWidth", "ptr", pSrc, "uint*", sw)
     DllCall("gdiplus\GdipGetImageHeight", "ptr", pSrc, "uint*", sh)
-    dw := sw * PROC_SCALE
-    dh := sh * PROC_SCALE
+    dw := sw * heSo
+    dh := sh * heSo
 
     ; --- Dựng ColorMatrix 5x5 (25 float, hàng-major) ---
     VarSetCapacity(cm, 100, 0)
@@ -845,7 +868,13 @@ SetClipImage(file)
         ; Chữ đọc được của đúng món này đi kèm luôn. Chưa có (Tesseract chưa
         ; chạy xong, hoặc máy không có Tesseract) thì chỉ đặt ảnh — vẫn dùng
         ; được theo cách cũ: dán rồi bấm SCAN.
-        SetImageClipboard(file, DocChuCuaAnh(file))
+        ;
+        ; Đưa lên clipboard BẢN NHỎ (cỡ gốc) cho nhẹ. Chữ thì vẫn đọc từ bản
+        ; 2× — DocChuCuaAnh() nhận đúng file gốc, đừng đổi tham số đó.
+        anhGui := RegExReplace(file, "\.png$", "-nho.png")
+        if !FileExist(anhGui)
+            anhGui := file
+        SetImageClipboard(anhGui, DocChuCuaAnh(file))
     }
     catch e
     {
