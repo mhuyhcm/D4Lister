@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.8';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.9';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -44,6 +44,9 @@
     // KHONG duoc bo so tran: co affix ten that su bat dau bang so —
     // "100% Main Hand Weapon Damage" khac han "Main Hand Weapon Damage".
     let t = String(nhan || '').replace(/\[[^\]]*\]/g, ' ');
+    // CLASSIC viet cho trong bang ngoac tron: "+(0) Strength",
+    // "x(0)% Critical Strike Damage Multiplier".
+    t = t.replace(/\(\s*[\d.,\s–—-]*\s*\)/g, ' ');
     t = t.replace(/^[\s+x#%]+/, '');
     return t.replace(/\s+/g, ' ').trim();
   }
@@ -199,7 +202,9 @@
   // cuoi tooltip D4 - chung lot qua duoc vi cung co dang "<so> <chu>",
   // vi du "84 Unlocks new look on salvage".
   const BO_QUA = [
-    /item power/i, /^armor\b/i, /^damage per second/i, /toughness/i,
+    // "812 Armor" la giap GOC cua mon do — bo. Con "+56 Armor" la affix
+    // that (trang cung co ten nay) — phai giu. Khac nhau o CHO CO DAU.
+    /item power/i, /^[\d.,]+\s*armor\b/i, /^damage per second/i, /toughness/i,
     /^requires level/i, /empty socket/i,
     /unlocks new look/i, /sell value/i, /durability/i, /tempers?\s*:/i,
     /unique equipped/i, /lord of hatred/i,
@@ -234,14 +239,91 @@
       if (!isFinite(so)) continue;
       let ten = m[4].replace(/^to\s+/i, '').trim();
       if (!ten || ten.length < 3) continue;
-      if (BO_QUA.some(r => r.test(d2))) continue;
+      // Do CA dong goc LAN ten da tach. Co dong chi lo ra o ten: "1,234
+      // Damage Per Second" khong khop "^damage per second", nhung ten thi co.
+      if (BO_QUA.some(r => r.test(d2) || r.test(ten))) continue;
       ra.push({ ten, so, phanTram: m[3] === '%', nhan: dauSo, sao });
     }
     return ra;
   }
 
+  // ====================================================================
+  //  HAI CHE DO CUA TRANG: CLASSIC va BETA
+  //
+  //  Goc tren ben phai trang Create co cong tac doi CLASSIC / BETA. Hai ban
+  //  ve form KHAC HAN nhau, nen moi lan dung den DOM deu phai hoi lai dang
+  //  o ban nao — user doi qua doi lai duoc, khong tai lai trang.
+  //
+  //  Nhan dang bang PHAN TU THAT, khong dem chu: goi ngon ngu cua trang co
+  //  du ca hai chuoi ("Affix value", "Remove attribute") o ca hai che do.
+  // ====================================================================
+  function cheDo() {
+    if (document.querySelector('button[title="Remove attribute"]')) return 'classic';
+    if (document.querySelector('input[aria-label="Affix value"]')) return 'beta';
+    // form con trong: chi con o "+ ADD AFFIX" de nhan ra CLASSIC
+    if (document.querySelector('input[cmdk-input][placeholder*="ADD AFFIX"]')) return 'classic';
+    return 'beta';
+  }
+
+  // Mot dong affix cua CLASSIC la mot the div chua dung nam thu anh em:
+  //   nut sao (role=checkbox) | nut xoa | o so | span ten | nut sua
+  // Doi phai co NUT XOA thi moi tinh la dong affix — nho vay o "%" cua
+  // Unique Power (cung la input[inputmode=decimal]) tu dong bi loai ra.
+  function dongClassic() {
+    const ra = [];
+    for (const nutXoa of document.querySelectorAll('button[title="Remove attribute"]')) {
+      const khoi = nutXoa.parentElement;
+      if (!khoi) continue;
+      const inp = khoi.querySelector('input[inputmode="decimal"]');
+      if (!inp) continue;
+      const sp = [...khoi.children].find(e => e.tagName === 'SPAN');
+      const ten = tenThuan(sp ? sp.textContent : '');
+      if (!ten) continue;
+      const nutSao = [...khoi.querySelectorAll('button[role="checkbox"]')]
+        .find(b => b.querySelector('img[alt="Greater Affix"]')) || null;
+      // CLASSIC khong nhung khoang hop le vao DOM — doc nguoc tu cau canh
+      // bao cua trang, xem docCanhBaoNgoai() ben duoi.
+      ra.push({ ten, inp, min: null, max: null, nutSao, khoi });
+    }
+    return ra;
+  }
+
+  // CLASSIC bao vuot khoang bang mot cau chu:
+  //   "Willpower: 250 is outside its 1-180 roll range."
+  // Doc lai cau do de biet dong nao vuot va khoang dung la bao nhieu.
+  const RE_NGOAI =
+    /([A-Za-z][A-Za-z0-9 %+'\-]{2,60}?):\s*([\d.,]+)\s+is outside its\s*([\d.,]+)\s*[–—-]\s*([\d.,]+)\s*roll range/i;
+
+  function docCanhBaoNgoai() {
+    const ra = [], da = new Set();
+    const xet = chu => {
+      const m = String(chu || '').match(RE_NGOAI);
+      if (!m) return;
+      const ten = tenThuan(m[1]);
+      if (!ten || da.has(ten)) return;
+      da.add(ten);
+      ra.push({
+        ten,
+        min: parseFloat(m[3].replace(/,/g, '')),
+        max: parseFloat(m[4].replace(/,/g, '')),
+      });
+    };
+    // Lay o cac the THUAN CHU truoc: cau nao ra cau nay, khong dinh chu khac.
+    for (const el of document.querySelectorAll('[role="alert"],p,span,div,li'))
+      if (!el.children.length) xet(el.textContent);
+    // Khong thay thi vet lai ca trang theo tung dong.
+    if (!ra.length)
+      for (const d of ((document.body && document.body.innerText) || '').split(/\r?\n/))
+        xet(d);
+    return ra;
+  }
+
   // --- tim cac dong affix dang co tren form ---------------------------
   function timCacDong() {
+    return cheDo() === 'classic' ? dongClassic() : dongBeta();
+  }
+
+  function dongBeta() {
     const ra = [];
     for (const inp of document.querySelectorAll('input[aria-label="Affix value"]')) {
       // di nguoc len tim khoi chua ca nut Remove -> do la mot dong affix
@@ -287,8 +369,14 @@
   // Chi tin dung mot cho: tieu de tooltip mon do do trang tu ve.
   // KHONG duoc do sang alt cua anh - se vo nham logo trang ("Diablo.Trade").
   function layTenItemTrenForm() {
-    const a = document.querySelector('[class*="font-tooltip-title"]');
-    return a && a.textContent.trim() ? a.textContent.trim() : '';
+    // O CLASSIC lop chu nay dung cho CA nhan "Gold" cua o gia. Nhan do boc
+    // mot the input ben trong -> bo qua, chi lay the thuan chu.
+    for (const a of document.querySelectorAll('[class*="font-tooltip-title"]')) {
+      if (a.querySelector('input,textarea,select')) continue;
+      const t = (a.textContent || '').trim();
+      if (t) return t;
+    }
+    return '';
   }
 
   // --- ap dung ---------------------------------------------------------
@@ -363,6 +451,24 @@
       if (reRange) ngoaiKhoang.push({ ...m, dong, v, cu });
       else ok.push({ ...m, dong, v, cu });
     }
+
+    // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot cau
+    // chu sau khi da nhan duoc so. Cho no hien ra roi doc lai, khong thi
+    // dong nao vuot khoang cung bi bao la "xong" — dung nhat la luc nay.
+    if (cheDo() === 'classic' && ok.length) {
+      setTimeout(() => {
+        for (const c of docCanhBaoNgoai()) {
+          const i = ok.findIndex(o => diemKhop(c.ten, o.dong.ten) >= DIEM_CHAC);
+          if (i < 0) continue;
+          ok[i].dong.min = c.min;
+          ok[i].dong.max = c.max;
+          ngoaiKhoang.push(ok[i]);
+          ok.splice(i, 1);
+        }
+        bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo);
+      }, 900);
+      return;
+    }
     bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo);
   }
 
@@ -387,6 +493,15 @@
     [...document.querySelectorAll('button')]
       .find(b => /add standard affixes/i.test((b.textContent || '').trim()));
 
+  // CLASSIC khong co nut rieng: chinh O GO CHU "+ ADD AFFIX" vua la nut mo
+  // danh sach vua la o loc. No cung noi ra aria-expanded / aria-controls
+  // nhu nut cua BETA, nen phan con lai dung chung duoc.
+  const oAddClassic = () =>
+    document.querySelector('input[cmdk-input][placeholder*="ADD AFFIX"]') ||
+    document.querySelector('input[cmdk-input]');
+
+  const nutMoDs = () => (cheDo() === 'classic' ? oAddClassic() : nutThemAffix());
+
   // Nut Add la mot Radix Popover. No noi thang ra trang thai cua no:
   //   aria-expanded / data-state  -> dang mo hay dang dong
   //   aria-controls               -> id cua dung cai khung dropdown
@@ -401,17 +516,40 @@
   };
 
   async function moDropdown(nut) {
-    if (!dangMo(nut)) nut.click();
+    // O go chu khong mo ra bang .click() — phai bam nhu chuot that roi dat
+    // con tro vao thi cmdk moi xo danh sach.
+    if (!dangMo(nut)) {
+      if (nut.tagName === 'INPUT') { bamThat(nut); nut.focus(); }
+      else nut.click();
+    }
     return await cho(() => {
       const k = khungPopover(nut);
       return k && k.offsetParent !== null ? k : null;
     }, 3000);
   }
 
+  // Dong danh sach lai. Voi o go chu thi bam lai vao no KHONG dong duoc
+  // (dang mo ma bam vao thi van mo) — phai go phim Esc va xoa chu da loc.
+  function dongDs(nut) {
+    if (nut.tagName !== 'INPUT') { bamThat(nut); return; }
+    datGiaTri(nut, '');
+    for (const loai of ['keydown', 'keyup'])
+      nut.dispatchEvent(new KeyboardEvent(loai, {
+        key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+        bubbles: true, cancelable: true,
+      }));
+    try { nut.blur(); } catch (e) {}
+  }
+
   // o loc nam TRONG khung dropdown, khong tim o ngoai
   const oTimTrongKhung = khung =>
     [...khung.querySelectorAll('input')].find(i =>
       i.type !== 'checkbox' && i.type !== 'file' && i.offsetParent !== null) || null;
+
+  // O CLASSIC o loc nam NGOAI khung danh sach (no chinh la nut vua bam),
+  // nen khong tim trong khung duoc.
+  const oTim = (nut, khung) =>
+    (nut && nut.tagName === 'INPUT') ? nut : oTimTrongKhung(khung);
 
   // Chi tim TRONG khung dropdown, khong quet ca trang - tranh bam nham
   // vao tooltip mon do (cho do cung co ten affix).
@@ -421,6 +559,41 @@
   // Uu tien the NAO CO O TICH ben trong; khong co thi lay the nho nhat
   // con chua du chu -> tranh bam trung vao khoi cha.
   function dongGoiY(khung, ten) {
+    return cheDo() === 'classic'
+      ? dongGoiYClassic(khung, ten)
+      : dongGoiYBeta(khung, ten);
+  }
+
+  // Mot dong trong danh sach CLASSIC:
+  //   <div cmdk-item role=option aria-disabled=...>
+  //     <div><div class=flex-1><div>+(0) Strength</div> <nut hoi> </div>
+  //          <span>Affix <img alt=GENERIC></span></div></div>
+  // Chu cua ca the gom ca "View attribute description" lan "Affix" -> khong
+  // khop duoc. Ten that nam o the DIV RONG dau tien (khong con the con).
+  function nhanDongClassic(el) {
+    for (const d of el.querySelectorAll('div')) {
+      if (d.children.length) continue;
+      const t = (d.textContent || '').trim();
+      if (t && /[A-Za-z]{3}/.test(t)) return t;
+    }
+    return (el.textContent || '').trim();
+  }
+
+  function dongGoiYClassic(khung, ten) {
+    const uv = [];
+    for (const el of khung.querySelectorAll('[cmdk-item],[role="option"]')) {
+      const t = nhanDongClassic(el);
+      if (!t || t.length > 90) continue;
+      const d = diemKhop(ten, t);
+      if (d >= DIEM_CHAC) uv.push({ el, t });
+    }
+    if (!uv.length) return null;
+    // Hai dong KHAC NHAU cung dat diem cao -> nhap nhang, khong duoc doan.
+    if (uv.some(x => tenThuan(x.t) !== tenThuan(uv[0].t))) return null;
+    return uv[0].el;
+  }
+
+  function dongGoiYBeta(khung, ten) {
     // Uu tien the NAO THUONG LA NUT BAM THAT truoc, roi moi den div/span boc ngoai.
     const hang = el =>
       (el.getAttribute('role') === 'option' || el.tagName === 'LI') ? 0
@@ -463,7 +636,26 @@
 
   // Danh sach co the chi ve phan dang nhin thay (cuon toi dau ve toi do).
   // Neu tim khong ra thi cuon dan xuong roi tim lai.
+  // Danh sach cua CLASSIC chi VE RA chung muoi dong quanh cho dang nhin, du
+  // ben trong co gan 700 dong — cuon toi dau moi ve toi do. Vi vay phai cuon
+  // TUNG MAN MOT, nhay quang la lot mat dong can tim. Con dai qua thi bo ve
+  // ngay, de vong ngoai go tu khoa khac cho danh sach ngan lai.
+  async function doCuonTimClassic(khung, ten) {
+    if (khung.scrollHeight <= khung.clientHeight) return null;
+    if (khung.scrollHeight > 4000) return null;   // ~75 dong: loc chua du chat
+    const buoc = Math.max(80, Math.round(khung.clientHeight * 0.8));
+    for (let y = 0; y <= khung.scrollHeight; y += buoc) {
+      khung.scrollTop = y;
+      await doi(160);
+      const g = dongGoiYClassic(khung, ten);
+      if (g) return g;
+    }
+    khung.scrollTop = 0;
+    return null;
+  }
+
   async function doCuonTim(khung, ten) {
+    if (cheDo() === 'classic') return await doCuonTimClassic(khung, ten);
     const cuonDuoc = [...khung.querySelectorAll('*')].find(e =>
       e.scrollHeight > e.clientHeight + 40);
     if (!cuonDuoc) return null;
@@ -478,8 +670,9 @@
 
   // Ke lai that ro rang no NHIN THAY gi, de con sua dung cho.
   function moTaThatBai(o, khung, tk) {
+    const cl = cheDo() === 'classic';
     const dong = [...khung.querySelectorAll('label,li,[role="option"]')]
-      .map(e => (e.textContent || '').trim())
+      .map(e => (cl ? nhanDongClassic(e) : (e.textContent || '')).trim())
       .filter(t => t && t.length < 80);
     const soTich = khung.querySelectorAll('input[type="checkbox"],[role="checkbox"]').length;
     return 'gõ "' + tk + '" | ô tìm ghi "' + (o.getAttribute('placeholder') || '?') +
@@ -521,6 +714,7 @@
   //   "AllSkills"  -> ["All", "AllS", ""]
   // "" o cuoi = xoa bo loc, cuon het danh sach ma tim. Cham nhung chac.
   function dsTuKhoa(ten) {
+    if (cheDo() === 'classic') return dsTuKhoaClassic(ten);
     const tu = tenThuan(ten).split(/\s+/).filter(Boolean);
     const dau = (tu[0] || '').replace(/s$/i, '');
     const ra = [];
@@ -537,6 +731,34 @@
     return ra;
   }
 
+  // CLASSIC KHONG duoc bo het bo loc: danh sach gan 700 dong ma chi ve ra
+  // muoi dong mot, cuon het la mat ca phut. Nen di tu DAI xuong NGAN, loc
+  // cang chat cang tot, nhung khong bao gio de trong.
+  //   "Life On Kill" -> ["life on kill", "life on", "life", "kill"]
+  //   "LifeonKill"   -> ["lifeonkill", "Lifeon Kill", "Lifeon", "life"]
+  function dsTuKhoaClassic(ten) {
+    const t = tenThuan(ten);
+    const tu = t.split(/\s+/).filter(Boolean);
+    const ra = [];
+    const them = k => {
+      k = (k || '').trim();
+      if (k.length >= 3 && ra.indexOf(k) < 0) ra.push(k);
+    };
+
+    them(t);
+    if (tu.length > 2) them(tu.slice(0, 2).join(' '));
+    // OCR nuot dau cach nhung con giu chu hoa -> tach tai cho chu hoa
+    const tach = t.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    if (tach !== t) { them(tach); them(tach.split(' ')[0]); }
+    them((tu[0] || '').replace(/s$/i, ''));
+    // tu dai nhat thuong la tu dac trung nhat ("Vulnerable", "Overpower")
+    them(tu.slice().sort((a, b) => b.length - a.length)[0]);
+    // OCR dinh lien ma KHONG con chu hoa ("Lifeon") -> cat lay dau tu
+    const d0 = (tach.split(/\s+/)[0] || '');
+    if (d0.length >= 6) them(d0.slice(0, 4));
+    return ra;
+  }
+
   async function themCacAffixThieu(thieu) {
     loiThem = [];
     nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
@@ -545,13 +767,16 @@
       // OCR doc ra. "Life On Kill" de tim hon "LifeonKill".
       const tenTim = m.coThat || m.ten;
 
-      const nut = nutThemAffix();
-      if (!nut) { loiThem.push([m.ten, 'không thấy nút ADD STANDARD AFFIXES']); break; }
+      const cl = cheDo() === 'classic';
+      const tenNut = cl ? '+ ADD AFFIX' : 'ADD STANDARD AFFIXES';
+
+      const nut = nutMoDs();
+      if (!nut) { loiThem.push([m.ten, 'không thấy ô ' + tenNut]); break; }
 
       const khung = await moDropdown(nut);
-      if (!khung) { loiThem.push([m.ten, 'bấm nút ADD rồi mà danh sách không mở ra']); continue; }
+      if (!khung) { loiThem.push([m.ten, 'bấm ' + tenNut + ' rồi mà danh sách không mở ra']); continue; }
 
-      const o = oTimTrongKhung(khung);
+      const o = oTim(nut, khung);
       if (!o) { loiThem.push([m.ten, 'danh sách mở rồi nhưng không thấy ô tìm kiếm']); continue; }
 
       let g = null, tk = '';
@@ -563,6 +788,15 @@
         if (g) break;
       }
       if (!g) { loiThem.push([m.ten, moTaThatBai(o, khung, tk)]); continue; }
+
+      // CLASSIC lam mo di nhung dong DA CO tren form (aria-disabled). Gap
+      // dong mo la affix von da nam tren form roi, bam cung khong an gi —
+      // coi nhu xong, luot dien lai o cuoi se tim ra no.
+      if (g.getAttribute && g.getAttribute('aria-disabled') === 'true') {
+        if (dangMo(nut)) dongDs(nut);
+        await doi(300);
+        continue;
+      }
 
       // Thu 3 duong, duong nao an thi dung. Sau moi duong deu KIEM LAI form
       // chu khong tin la da xong.
@@ -596,7 +830,7 @@
       if (!xong)
         loiThem.push([m.ten, 'thấy dòng rồi nhưng không chọn được. Đã thử: ' + daThu.join(', ')]);
 
-      if (dangMo(nut)) bamThat(nut);   // dong dropdown lai cho gon
+      if (dangMo(nut)) dongDs(nut);   // dong danh sach lai cho gon
       await doi(400);
     }
     if (chuDaDan) apDung(chuDaDan, true);   // dien lai, lan nay co dong moi
@@ -710,9 +944,12 @@
       khoi = khoi.parentElement;
     }
     const t = (khoi ? khoi.textContent : document.body.textContent) || '';
+    // CLASSIC viet "Unique Gloves Ancestral (Item Power 900)", BETA viet
+    // "Legendary Gloves 750 Item Power" -> nhan ca hai, roi cat duoi.
     const m = t.match(
-      /(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z][A-Za-z ]{2,22}?)\s*\d*\s*Item Power/i);
-    return m ? m[1].trim() : 'khong-ro';
+      /(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z][A-Za-z ]{2,22}?)\s*\(?\s*\d*\s*Item Power/i);
+    if (!m) return 'khong-ro';
+    return m[1].replace(/\s*(?:Ancestral|Sacred)\s*$/i, '').trim() || 'khong-ro';
   }
 
   // --- BẢNG THIẾT LẬP ---------------------------------------------------
@@ -1009,7 +1246,7 @@
     let truoc = -1, yen = 0;
     nhac('Đã nhận chữ. Đang đợi form… (chưa bấm SCAN thì bấm đi)');
     dongHo = setInterval(() => {
-      const n = document.querySelectorAll('input[aria-label="Affix value"]').length;
+      const n = timCacDong().length;
       if (n > 0 && n === truoc) {
         if (++yen >= 2) { clearInterval(dongHo); dongHo = null; apDung(text); return; }
       } else {
