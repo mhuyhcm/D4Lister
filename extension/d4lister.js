@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.0';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.1';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -20,6 +20,7 @@
   const YEN_TOI_DA = 400;    // form khong doi suot ngan nay = dung xong
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
+  let chuDaDoc = [];      // cac dong doc duoc tu anh, de ghi vao file do
   let dongHo = null;
 
   // ====================================================================
@@ -329,26 +330,50 @@
     try { v = fm.getValues(); } catch (e) { return null; }
     if (!v || !Array.isArray(v.affixes) || !v.affixes.length) return null;
 
+    // GHI QUA DAU? Qua chinh O NHAP tren man hinh, khong ghi thang vao so
+    // sach cua form.
+    //
+    // BAY DA SUP MOT LAN: setValue() co doi so sach that, doc lai cung ra so
+    // moi — nhung O TREN MAN HINH KHONG DOI THEO. Da gap: viet 196 vao
+    // Weapon Damage, getValues tra ve 196, ma o van hien 19, va bang bao
+    // "da dien" nen khong ai biet. O nhap la thanh phan co trang thai rieng,
+    // no chi doc gia tri form luc dung ra.
+    // => Ghi vao O NHAP bang setter goc + su kien 'input', dung y het luc
+    //    nguoi ta go tay: o doi, va form cung nhan duoc.
+    // Form van rat co gia: no cho KHOANG HOP LE (minValue/maxValue) ma o
+    // che do CLASSIC khong he co, va cho duong THEM DONG MOI.
+    const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
+    const ghepDuoc = dsDom.length === v.affixes.length;
+
     const ra = [];
     v.affixes.forEach((a, i) => {
       const ten = tenThuan(a.description || a.name || '');
       if (!ten) return;
       const duong = 'affixes.' + i;
+      const o = ghepDuoc ? dsDom[i] : null;
       ra.push({
         ten,
         qua:    'form',
         min:    typeof a.minValue === 'number' ? a.minValue : null,
         max:    typeof a.maxValue === 'number' ? a.maxValue : null,
-        nguyen: false,
+        nguyen: o ? o.nguyen : false,
         coSao:  true,
+        // Doc tu O NHAP neu ghep duoc — do moi la cai user nhin thay.
         lay:    () => {
+          if (o) return o.lay();
           const x = fm.getValues(duong + '.values.0');
           return (x === null || x === undefined) ? '' : String(x);
         },
-        dat:    x => fm.setValue(duong + '.values.0', x,
-                    { shouldDirty: true, shouldTouch: true, shouldValidate: true }),
-        laySao: () => !!fm.getValues(duong + '.isGreater'),
-        datSao: bat => fm.setValue(duong + '.isGreater', !!bat, { shouldDirty: true }),
+        dat:    x => {
+          if (o) o.dat(x);
+          else fm.setValue(duong + '.values.0', x,
+                 { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+        },
+        laySao: () => (o && o.coSao) ? o.laySao() : !!fm.getValues(duong + '.isGreater'),
+        datSao: bat => {
+          if (o && o.coSao) o.datSao(bat);
+          else fm.setValue(duong + '.isGreater', !!bat, { shouldDirty: true });
+        },
       });
     });
     return ra.length ? ra : null;
@@ -429,6 +454,8 @@
     const tenForm = layTenItemTrenForm();
 
     const muon = docChuItem(text);
+    chuDaDoc = muon.map(m => m.ten + ' = ' + m.so + (m.phanTram ? '%' : '') +
+      (m.sao ? ' *' : ''));
     const dang = timCacDong();
     if (!dang.length) {
       bao([], [], [], 'Form chưa có món đồ nào. Bấm nút SCAN trước đã.');
@@ -1756,6 +1783,33 @@
       });
       return;
     }
+    // DOI CHIEU HAI BEN: so sach trong form va cai dang hien tren man hinh.
+    // Lech nhau la dau hieu ghi vao form ma o hien thi khong doi theo.
+    try {
+      const v0 = fm.getValues();
+      const dsForm = Array.isArray(v0.affixes) ? v0.affixes : [];
+      const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
+      const lech = dsForm.length !== dsDom.length || dsForm.some((a, i) => {
+        const d = dsDom[i];
+        if (!d) return true;
+        const x = parseFloat(String(d.lay()).replace(/,/g, ''));
+        const y = Array.isArray(a.values) ? a.values[0] : null;
+        return isFinite(x) && y !== null && Math.abs(x - y) > 0.001;
+      });
+      if (lech)
+        ghiNhatKy('lech-form-va-man-hinh', {
+          viSao: 'so sach trong form khac cai dang hien tren man hinh',
+          soDongTrongForm: dsForm.length,
+          soDongTrenManHinh: dsDom.length,
+          trongForm: dsForm.map(a => ({
+            ten: tenThuan(a.description || ''), so: (a.values || [])[0],
+            sao: !!a.isGreater, min: a.minValue, max: a.maxValue })),
+          trenManHinh: dsDom.map(d => ({ ten: d.ten, so: d.lay(), sao: d.laySao() })),
+          docDuocTuAnh: chuDaDoc,
+          banExt: BAN,
+        });
+    } catch (e) {}
+
     if (layKhoAffix()) return;      // du ca hai thu roi, khong can ghi gi
 
     // Chua thay thi thu mo danh sach mot lan da, roi moi ket luan.
