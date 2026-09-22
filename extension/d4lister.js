@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.2';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.3';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -343,14 +343,21 @@
     // Form van rat co gia: no cho KHOANG HOP LE (minValue/maxValue) ma o
     // che do CLASSIC khong he co, va cho duong THEM DONG MOI.
     const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
-    const ghepDuoc = dsDom.length === v.affixes.length;
+    const daGhep = {};
+    const ghepTheoTen = ten => {
+      for (let j = 0; j < dsDom.length; j++) {
+        if (daGhep[j]) continue;
+        if (diemKhop(ten, dsDom[j].ten) >= DIEM_CHAC) { daGhep[j] = true; return dsDom[j]; }
+      }
+      return null;
+    };
 
     const ra = [];
     v.affixes.forEach((a, i) => {
       const ten = tenThuan(a.description || a.name || '');
       if (!ten) return;
       const duong = 'affixes.' + i;
-      const o = ghepDuoc ? dsDom[i] : null;
+      const o = ghepTheoTen(ten);
       ra.push({
         ten,
         qua:    'form',
@@ -1738,10 +1745,18 @@
     if (!Array.isArray(v)) return false;
     const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
     if (!dsDom.length) return true;        // chua co dong nao, khong doi chieu duoc
-    if (v.length !== dsDom.length) return false;
-    for (let i = 0; i < v.length; i++) {
-      const ten = tenThuan((v[i] && (v[i].description || v[i].name)) || '');
-      if (!ten || diemKhop(ten, dsDom[i].ten) < DIEM_CHAC) return false;
+    // So THEO TEN, khong theo thu tu: trang co the xep khac, va form co the
+    // giu them muc khong ve ra man hinh. Chi doi mot dieu — MOI DONG DANG
+    // HIEN deu phai co mot muc tuong ung trong form.
+    const daDung = {};
+    for (const d of dsDom) {
+      let thay = false;
+      for (let i = 0; i < v.length; i++) {
+        if (daDung[i]) continue;
+        const ten = tenThuan((v[i] && (v[i].description || v[i].name)) || '');
+        if (ten && diemKhop(ten, d.ten) >= DIEM_CHAC) { daDung[i] = true; thay = true; break; }
+      }
+      if (!thay) return false;
     }
     return true;
   }
@@ -1795,17 +1810,26 @@
   }
 
   // Goi sau moi lan dien xong. Im lang khi moi thu on.
+  // BAY DA SUP MOT LAN — va lan nay la bay do CHINH TOI dat ra: ghi file do
+  // ngay khi khong voi toi duoc form. Nhung khong voi toi duoc form KHONG
+  // PHAI la hong: tien ich tu quay ve duong o nhap cu, van dien dung va du,
+  // chi mat khoang hop le va phai go chu khi them dong. Lan dan DAU TIEN
+  // (luc form chua dung xong) la no ghi ngay mot file, ma moi phien chi ghi
+  // mot lan nen file do nam lai, trong y nhu bao hong trong khi moi thu van
+  // chay dung. => Chi ghi khi THUC SU hong: khong doc noi mot dong nao.
   function tuDo() {
     const fm = timFormTrang();
     if (!fm) {
-      ghiNhatKy('khong-thay-form', {
-        viSao: 'khong voi toi duoc bo dieu khien form cua trang',
-        duongDan: location.href,
-        banExt: BAN,
-        soOAffixBeta: document.querySelectorAll('input[aria-label="Affix value"]').length,
-        soNutXoaClassic: document.querySelectorAll('button[title="Remove attribute"]').length,
-        soOSo: document.querySelectorAll('input[inputmode="decimal"]').length,
-      });
+      const soDong = timCacDong().length;
+      if (soDong === 0)
+        ghiNhatKy('khong-doc-duoc-dong-nao', {
+          viSao: 'khong voi toi duoc form, ma duong o nhap cung khong ra dong nao',
+          duongDan: location.href,
+          banExt: BAN,
+          soOAffixBeta: document.querySelectorAll('input[aria-label="Affix value"]').length,
+          soNutXoaClassic: document.querySelectorAll('button[title="Remove attribute"]').length,
+          soOSo: document.querySelectorAll('input[inputmode="decimal"]').length,
+        });
       return;
     }
     // DOI CHIEU HAI BEN: so sach trong form va cai dang hien tren man hinh.
@@ -1835,28 +1859,11 @@
         });
     } catch (e) {}
 
-    if (layKhoAffix()) return;      // du ca hai thu roi, khong can ghi gi
-
-    // Chua thay thi thu mo danh sach mot lan da, roi moi ket luan.
-    if (!daThuMoKho) {
-      layKhoAffixCoMo().then(co => { if (!co) tuDo(); });
-      return;
-    }
-
-    // Co form ma khong co danh muc -> ghi lai de con sua cach lung
-    let v = null;
-    try { v = fm.getValues(); } catch (e) {}
-    ghiNhatKy('khong-thay-danh-muc', {
-      viSao: 'voi toi duoc form nhung khong tim ra danh muc affix',
-      duongDan: location.href,
-      banExt: BAN,
-      cacOTrongForm: v ? Object.keys(v) : null,
-      soAffixTrenForm: v && Array.isArray(v.affixes) ? v.affixes.length : null,
-      mauMotAffix: v && Array.isArray(v.affixes) && v.affixes[0] ? v.affixes[0] : null,
-      danhSachDangMo: document.querySelectorAll('[cmdk-item]').length,
-      soFiberDaQuet: soFiberDaQuet,
-      mangGanGiongNhat: khoGanNhat,
-    });
+    // Thieu danh muc cung KHONG phai hong — chi la khau them affix phai go
+    // chu. Luc do da co file do rieng ("phai-go-chu") kem ly do cu the roi,
+    // ghi them mot file nua chi lam nhieu.
+    if (!layKhoAffix() && !daThuMoKho)
+      layKhoAffixCoMo();
   }
 
   // Mot muc trong danh muc affix trong the nao: co ma, co cau mo ta kieu
