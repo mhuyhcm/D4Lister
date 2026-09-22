@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.0';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.1';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -49,17 +49,23 @@
 
   // Nhan cua trang co dang "+[1 - 180] Willpower" -> ten thuan la "Willpower"
   function tenThuan(nhan) {
+    // Bo khoang gia tri "[1 - 180]" va cac dau dan "+ x # %".
+    // KHONG duoc bo so tran: co affix ten that su bat dau bang so —
+    // "100% Main Hand Weapon Damage" khac han "Main Hand Weapon Damage".
     let t = String(nhan || '').replace(/\[[^\]]*\]/g, ' ');
-    t = t.replace(/^[\s+x#%\d.,\-]+/, '');
+    t = t.replace(/^[\s+x#%]+/, '');
     return t.replace(/\s+/g, ' ').trim();
   }
 
   const tachTu = t =>
     tenThuan(t).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(Boolean);
 
-  // Tu cang dai cang cho sai nhieu. Tu ngan sai 1 ky tu la thanh tu khac han
-  // ("core" -> "corpse"), nen tu <= 3 khong cho sai.
-  const choPhep = w => (w.length <= 3 ? 0 : w.length <= 7 ? 1 : 2);
+  // Tu NGAN sai 1 ky tu la thanh tu KHAC HAN. Do that tren 638 affix cua
+  // trang: Bash/Dash, Reap/Leap chi khac 1 ky tu ma la hai skill khac nhau;
+  // Fireball/Firewall khac 2. Nen:
+  //   tu <= 7 ky tu : KHONG cho sai
+  //   tu >= 8 ky tu : cho sai 1   (du de cuu "Wilpower" -> "Willpower")
+  const choPhep = w => (w.length >= 8 ? 1 : 0);
 
   // Khoang cach sua loi, bo cuoc som cho nhanh
   function khoangCach(a, b, toiDa) {
@@ -86,15 +92,40 @@
     return n > 0 && khoangCach(x, y, n) <= n;
   }
 
-  // Diem 0..1 = bao nhieu phan tu khop duoc
+  // Diem 0..1 = bao nhieu phan tu khop duoc.
+  //
+  // Hai vong: vong dau chi nhan tu GIONG HET, vong sau moi cho sai.
+  // Nho vay "Maximum Lite" van khop "Maximum Life" (tu "Maximum" giong het
+  // lam chung cho "Lite"), nhung "Bash" khong the khop "Dash" — no tro troi
+  // mot minh, khong co gi lam chung.
   function diemKhop(a, b) {
     const A = tachTu(a), B = tachTu(b);
     if (!A.length || !B.length) return 0;
     const con = B.slice();
+    const conA = [];
     let khop = 0;
-    for (const x of A) {
+
+    for (const x of A) {                    // vong 1: giong het
+      const i = con.indexOf(x);
+      if (i >= 0) { khop++; con.splice(i, 1); } else conA.push(x);
+    }
+    // Co it nhat mot tu giong het -> cho phep tu ngan sai vai ky tu.
+    const coChung = khop > 0;
+    for (const x of conA) {                 // vong 2: cho sai
       for (let i = 0; i < con.length; i++) {
-        if (hopTu(x, con[i])) { khop++; con.splice(i, 1); break; }
+        const y = con[i];
+        const n = coChung ? Math.max(1, choPhep(x), choPhep(y))
+                          : Math.max(choPhep(x), choPhep(y));
+        if (n <= 0 || khoangCach(x, y, n) > n) continue;
+
+        // Tu TRO TROI mot minh (khong co tu nao lam chung) va DAI BANG NHAU
+        // thi doi hoi giong het. Vi "Fireball" va "Firewall" cung 8 ky tu,
+        // khac dung 1 ky tu — y het "Wilpower" -> "Willpower". Phan biet
+        // duoc bang KIEU LOI: OCR nuot chu thi do dai doi, con hai ten khac
+        // nhau thi thuong dai bang nhau.
+        if (!coChung && x.length === y.length) continue;
+
+        khop++; con.splice(i, 1); break;
       }
     }
     return khop / Math.max(A.length, B.length);
@@ -112,6 +143,11 @@
     }
     return { muc: tot, diem: dTot, nhi: dNhi };
   }
+
+  // Thu vien 638 ten affix lay tu https://diablo.trade/wiki/affixes
+  // (file affix-list.js, nap truoc file nay). Dung de biet mot ten OCR doc ra
+  // co THAT SU ton tai khong — de bao cho dung ban chat.
+  const THU_VIEN = (typeof D4L_AFFIX !== 'undefined' && D4L_AFFIX.length) ? D4L_AFFIX : [];
 
   // Dong KHONG phai affix: ten do, loai do, chi so goc. Nhom thu hai la phan
   // cuoi tooltip D4 - chung lot qua duoc vi cung co dang "<so> <chu>",
@@ -235,7 +271,13 @@
       // nut xoa "Remove ..."), nen day da la doi chieu voi chuan roi.
       const kq = timKhopNhat(m.ten, dang, d => d.ten, daDung);
 
-      if (kq.diem < DIEM_NGO) { khongThay.push(m); continue; }
+      if (kq.diem < DIEM_NGO) {
+        // Co ten nay trong thu vien khong? Neu co -> affix that, chi la trang
+        // chua dung dong do ra. Neu khong -> nhieu kha nang OCR doc bay.
+        const tv = THU_VIEN.length ? timKhopNhat(m.ten, THU_VIEN) : { diem: 0, muc: null };
+        khongThay.push({ ...m, coThat: tv.diem >= DIEM_CHAC ? tv.muc : null });
+        continue;
+      }
 
       // Diem giua hai muc: co ve dung nhung khong chac. Doan bua o day la
       // tao listing sai ma khong ai biet -> dung lai, hoi.
@@ -802,9 +844,20 @@
         'Đoán bừa ở đây là đăng nhầm chỉ số.</div>';
     }
     if (thieu.length) {
-      h += '<div style="margin-top:8px;color:#e08a5a">Trang chưa có dòng này</div>';
-      h += thieu.map(x => '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so +
-        (x.phanTram ? '%' : '') + '</b>').join('<br>');
+      const coThat = thieu.filter(x => x.coThat);
+      const laRac  = thieu.filter(x => !x.coThat);
+      if (coThat.length) {
+        h += '<div style="margin-top:8px;color:#e08a5a">Trang chưa có dòng này</div>';
+        h += coThat.map(x => '&nbsp;&nbsp;' + thoat(x.coThat) + ' = <b>' + x.so +
+          (x.phanTram ? '%' : '') + '</b>').join('<br>');
+      }
+      if (laRac.length) {
+        h += '<div style="margin-top:8px;color:#e06a5a">Không có affix nào tên như vậy</div>';
+        h += laRac.map(x => '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so +
+          (x.phanTram ? '%' : '') + '</b>').join('<br>');
+        h += '<div style="color:#888;font-size:11px;margin-top:3px">Nhiều khả năng ' +
+          'chụp thiếu hoặc OCR đọc sai. Chụp lại món này xem sao.</div>';
+      }
       h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
         'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
         'font:12px system-ui">Thêm giúp tôi</button>' +
