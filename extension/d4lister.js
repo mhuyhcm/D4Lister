@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.4';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.5';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -169,11 +169,14 @@
     // Ba dong CHI SO GOC cua vu khi. User khong dung den, ma de vao thi lan
     // nao cung bao "trang chua co dong nay" — bao sai chu khong bat duoc gi.
     /^damage per second/i, /damage per hit/i, /^attacks per second/i,
+    // Khu o ngoc: OCR hay nha ra rac tu may cai hinh o ("7NE Sock").
+    // Thu vien 638 ten khong co affix nao chua chu "socket" ca.
+    /sock/i, /scroll down/i,
     /unlocks new look/i, /sell value/i, /durability/i, /tempers?\s*:/i,
     /unique equipped/i, /lord of hatred/i,
     // Chi so GOC cua day chuyen/nhan. Ten that cua affix la
     // "Resistance to All Elements", KHAC han - nen chan cai nay an toan.
-    /all resist/i,
+    /\ball resist\b/i,
   ];
 
   // --- doc chu item thanh danh sach {ten, so} -------------------------
@@ -413,24 +416,40 @@
       else ok.push({ ...m, dong, v, cu });
     }
 
-    // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot cau
-    // chu sau khi da nhan duoc so. Cho no hien ra roi doc lai, khong thi
-    // dong nao vuot khoang cung bi bao la "xong" — dung nhat la luc nay.
-    if (cheDo() === 'classic' && ok.length) {
-      setTimeout(() => {
-        for (const c of docCanhBaoNgoai()) {
-          const i = ok.findIndex(o => diemKhop(c.ten, o.dong.ten) >= DIEM_CHAC);
-          if (i < 0) continue;
-          ok[i].dong.min = c.min;
-          ok[i].dong.max = c.max;
-          ngoaiKhoang.push(ok[i]);
+    // Viet xong roi phai DOC LAI O. Trang co quyen khong nhan so minh viet
+    // — no tu cat ve muc toi da chang han. Khong doc lai thi bang bao "da
+    // dien 3500" trong khi o dang ghi 2800, user tin nham roi dang len san.
+    const lech = [];
+    const chot = () => {
+      for (let i = ok.length - 1; i >= 0; i--) {
+        const thuc = parseFloat(String(ok[i].dong.inp.value).replace(/,/g, ''));
+        if (isFinite(thuc) && Math.abs(thuc - ok[i].v) > 0.001) {
+          lech.unshift(Object.assign({}, ok[i], { thuc: thuc }));
           ok.splice(i, 1);
         }
-        bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo);
+      }
+      bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
+    };
+
+    if (ok.length) {
+      setTimeout(() => {
+        // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot
+        // cau chu sau khi da nhan so. Doc nguoc tu cau do.
+        if (cheDo() === 'classic') {
+          for (const c of docCanhBaoNgoai()) {
+            const i = ok.findIndex(o => diemKhop(c.ten, o.dong.ten) >= DIEM_CHAC);
+            if (i < 0) continue;
+            ok[i].dong.min = c.min;
+            ok[i].dong.max = c.max;
+            ngoaiKhoang.push(ok[i]);
+            ok.splice(i, 1);
+          }
+        }
+        chot();
       }, 900);
       return;
     }
-    bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo);
+    bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
   }
 
   // --- tu them dong affix ma trang khong dung ra ------------------------
@@ -1127,7 +1146,7 @@
   }, true);
 
   // --- bang bao ket qua ------------------------------------------------
-  function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia, nghiNgo) {
+  function bao(ok, ngoai, thieu, loi, doiSao, banTrenDia, nghiNgo, lech) {
     const d = khungBao();
     let h = '<b style="color:#d8b978">D4Lister</b> ';
     h += '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span><br>';
@@ -1167,17 +1186,28 @@
         h += coThat.map(x => '&nbsp;&nbsp;' + thoat(x.coThat) + ' = <b>' + x.so +
           (x.phanTram ? '%' : '') + '</b>').join('<br>');
       }
+      // Dong doc khong ra ten affix nao: gan nhu luon la RAC cua OCR
+      // ("7NE Sock" tu may cai hinh o ngoc). To do len cho user lo lang la
+      // bao sai — de mot dong chu xam, ai can thi liec.
       if (laRac.length) {
-        h += '<div style="margin-top:8px;color:#e06a5a">Không có affix nào tên như vậy</div>';
-        h += laRac.map(x => '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so +
-          (x.phanTram ? '%' : '') + '</b>').join('<br>');
-        h += '<div style="color:#888;font-size:11px;margin-top:3px">Có thể chụp thiếu ' +
-          'hoặc đọc sai. Chụp lại xem sao.</div>';
+        h += '<div style="margin-top:8px;color:#777;font-size:11px">Bỏ qua ' +
+          laRac.length + ' dòng đọc không ra: ' +
+          laRac.map(x => thoat(x.ten)).join(', ') + '</div>';
       }
-      h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
-        'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
-        'font:12px system-ui">Thêm giúp tôi</button>' +
-        '<span style="color:#777;font-size:11px;margin-left:8px">hoặc tự bấm ADD STANDARD AFFIXES</span></div>';
+      // Nut nay chi them duoc nhung dong thu vien xac nhan la co that.
+      // Chi co dong rac thi dung bay nut ra — bam cung khong lam gi.
+      if (coThat.length)
+        h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
+          'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
+          'font:12px system-ui">Thêm giúp tôi</button>' +
+          '<span style="color:#777;font-size:11px;margin-left:8px">hoặc tự bấm ADD STANDARD AFFIXES</span></div>';
+    }
+    // Viet vao roi doc lai thay o ghi so khac -> trang khong nhan. Phai
+    // noi that, khong duoc bao "da dien" cho cai no khong nhan.
+    if (lech && lech.length) {
+      h += '<div style="margin-top:8px;color:#e06a5a">Trang không nhận số này</div>';
+      h += lech.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ': viết <b>' + x.v +
+        '</b>, ô đang là <b>' + x.thuc + '</b>').join('<br>');
     }
     if (doiSao && doiSao.length) {
       h += '<div style="margin-top:8px;color:#c9a227">Dấu sao (Greater Affix)</div>';
@@ -1210,7 +1240,8 @@
 
     // Sạch = không có dòng nào vượt khoảng, không thiếu affix, không lỗi.
     const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi
-               && !(nghiNgo && nghiNgo.length) && daGhi.length > 0;
+               && !(nghiNgo && nghiNgo.length) && !(lech && lech.length)
+               && daGhi.length > 0;
 
     // Thiếu affix mà bật tự thêm -> thêm luôn, khỏi bấm nút.
     // CHỈ MỘT LẦN cho mỗi lần dán: thêm không được thì `thieu` vẫn còn,

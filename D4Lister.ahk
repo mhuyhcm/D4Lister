@@ -1018,7 +1018,7 @@ DanhDauSao(chuDaLoc, pngFile)
                                . "|Attacks per Second|Damage Per Second|Block Chance")
             continue
 
-        soDau := "", wDau := "", tenSau := ""
+        soDau := "", wDau := "", tenSau := "", saoOCR := false
         for i, c in ws
         {
             ; cho phép tối đa 2 ký tự rác dính trước số:  "=+12.5%"  "#+3,500"
@@ -1039,6 +1039,17 @@ DanhDauSao(chuDaLoc, pngFile)
                         cauVan := true
                 if (cauVan)
                     break
+                ; OCR DOC DUOC CAI DAU SAO. Dau cham dau dong (◆) bi doc
+                ; thanh © e ¢ @ ®, con dau sao (✳) bi doc thanh # hoac *.
+                ; Do tren 46 lan do that: 25 dong OCR thay # / * thi mat do
+                ; 0.176-0.524, 21 dong khong thay thi 0.000-0.161 — hai nhom
+                ; KHONG CHONG NHAU chut nao. Nen day la dau hieu CHINH.
+                Loop, % i - 1
+                {
+                    g := Trim(ws[A_Index][12])
+                    if (g = "#" || g = "*")
+                        saoOCR := true
+                }
                 ; ngay sau số phải là CHỮ -> mới là affix.
                 ; Chặn "Requires Level 70", "helm by 39%" (số đứng cuối).
                 if (i + 1 > ws.Length() || !RegExMatch(ws[i + 1][12], "^[A-Za-z]{2}"))
@@ -1089,13 +1100,17 @@ DanhDauSao(chuDaLoc, pngFile)
             chuDong := ""
             for i2, c2 in ws
                 chuDong .= c2[12] . " "
-            FileAppend, % Format("{:.3f}", matDo) . "   h=" . hh . " o=" . (bx1 - bx0)
+            FileAppend, % Format("{:.3f}", matDo) . (saoOCR ? " OCR" : "    ") . "   h=" . hh . " o=" . (bx1 - bx0)
                        . "x" . (by1 - by0) . "   " . SubStr(Trim(chuDong), 1, 40) . "`n"
                        , % thuMuc . "\_sao.log", UTF-8
         }
         ; Khoá = SỐ + 3 chữ đầu của tên affix. Chỉ dùng số thì hai dòng cùng
         ; số (vd hai dòng "+3") sẽ lẫn vào nhau.
-        if (matDo > SAO_NGUONG)
+        ; Dau hieu CHINH la dau sao OCR doc duoc. Mat do chi con lam luoi
+        ; do cho truong hop OCR nuot mat cai dau — phep do mat do yeu di khi
+        ; chu to (do that: cung mot dau sao, chu h=25 cho 0.45 nhung chu
+        ; h=39 chi con 0.216, tut xuong duoi nguong va bi bo sot).
+        if (saoOCR || matDo > SAO_NGUONG)
             coSao[KhoaAffix(soDau, tenSau)] := true
     }
 
