@@ -1211,14 +1211,28 @@ LocMotDong(d)
     ; là cách viết THẬT của D4 (chữ x rồi tới số) — không được đụng vào.
     d := RegExReplace(d, "^\s*[A-Za-z]{1,2}(?=\+)", "")
     d := RegExReplace(d, "^\s*[*|_~\[\]{}<>]+", "")
-    d := RegExReplace(d, "(\d)to(?=[A-Za-z])", "$1 to ")  ; "+3toImbuement" -> "+3 to Imbuement"
-    ; Affix giới hạn theo class có đuôi "(… Only)" -> tên affix thành
-    ; "Strength (@ Only)", không khớp được với "Strength".
-    ; BẮT BUỘC có dấu "(" mới cắt. Bản trước không bắt buộc nên với chuỗi
-    ; "+151 Strength Only)" nó nuốt luôn cả "+151 Strength" -> mất trắng dòng.
-    ; Thiếu dấu "(" thì cứ để nguyên: tiện ích Chrome vẫn khớp được
-    ; "Strength Only" với "Strength" bằng phép so khớp chứa-trong.
-    d := RegExReplace(d, "\s*\([^()]{0,20}Only\s*\)?\s*$", "")
+    ; "+3toImbuement" -> "+3 to Imbuement",  "+2to AllSkills" -> "+2 to AllSkills"
+    ; Phải bắt cả khi sau "to" là DẤU CÁCH: không tách thì con số dính liền chữ,
+    ; dòng không còn dạng "<số> <chữ>" nữa và bị bỏ luôn.
+    d := RegExReplace(d, "(\d)to(?=[A-Za-z\s])", "$1 to ")
+    ; --- Cắt đuôi GIỚI HẠN THEO CLASS ---------------------------------
+    ; Trong game viết "+111 Dexterity (🗡 🛡 Only)". Mấy cái icon đó OCR đọc
+    ; ra rác, và dấu "(" có khi thành ";". Đã gặp thật:
+    ;     "+111 Dexterity; %% Only)"
+    ;     "+282LifeonKill (i @ 9 PD @O HY |"
+    ;
+    ; ĐO ĐƯỢC: trong 638 tên affix thật của diablo.trade, KHÔNG tên nào
+    ; chứa chữ "Only" hay dấu "(" ";" "[". Nên cắt ở đó là an toàn tuyệt đối.
+    d := RegExReplace(d, "i)\s*[^A-Za-z0-9]*\bOnly\b.*$", "")
+
+    ; Cắt phần trong ngoặc NẾU nó không có từ thật nào (từ >= 4 chữ cái).
+    ; Giữ lại "1,603 Armor (+37.4% Toughness)" vì "Toughness" là từ thật —
+    ; dòng đó cần nguyên vẹn để bên tiện ích còn nhận ra là chỉ số GỐC.
+    if RegExMatch(d, "^(.*?)([(;\[{].*)$", p)
+    {
+        if !RegExMatch(p2, "[A-Za-z]{4}")
+            d := p1
+    }
     d := RegExReplace(d, "\s+", " ")
     d := RegExReplace(d, "\s+", " ")
     d := Trim(d)

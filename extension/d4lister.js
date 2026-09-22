@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.2';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.3';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -98,9 +98,20 @@
   // Nho vay "Maximum Lite" van khop "Maximum Life" (tu "Maximum" giong het
   // lam chung cho "Lite"), nhung "Bash" khong the khop "Dash" — no tro troi
   // mot minh, khong co gi lam chung.
+  // Chi con chu va so, bo het dau cach. OCR font nay hay NUOT DAU CACH:
+  // "LifeonKill", "AllSkills", "MaximumLife". DO DUOC: bo het dau cach thi
+  // ca 638 ten cua trang VAN KHAC NHAU (0 cap trung), va "CoreSkills" van
+  // khac "CorpseSkills" - nen so kieu nay an toan, mien la GIONG HET.
+  const lienChu = t => tenThuan(t).toLowerCase().replace(/[^a-z0-9]/g, '');
+
   function diemKhop(a, b) {
     const A = tachTu(a), B = tachTu(b);
     if (!A.length || !B.length) return 0;
+
+    // Nuot dau cach: chap lien lai ma giong het thi chac chan la mot.
+    const la = lienChu(a);
+    if (la && la === lienChu(b)) return 1;
+
     const con = B.slice();
     const conA = [];
     let khop = 0;
