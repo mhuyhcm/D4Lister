@@ -74,7 +74,7 @@ global HK_EXIT    := "^+F12"        ; thoát script
 ;     Ngưỡng 0.23 nằm giữa, cách hai bên đều rộng.
 global SAO_RONG   := 2.2    ; bề rộng ô soi = mấy lần chiều cao chữ
 global SAO_SANG   := 150    ; điểm ảnh sáng hơn mức này thì tính là "sáng"
-global SAO_NGUONG := 0.23   ; mật độ điểm sáng vượt mức này = có dấu ✳
+global SAO_NGUONG := 0.25   ; mật độ điểm sáng vượt mức này = có dấu ✳
 global SAO_LOG    := true   ; ghi số đo ra queue\_sao.log để dò khi sai
 
 global TESS_EXE := ""               ; để trống = tự dò theo danh sách dưới
@@ -1014,7 +1014,8 @@ DanhDauSao(chuDaLoc, pngFile)
         for i2, c2 in ws
             chuCaDong .= c2[12] . " "
         if RegExMatch(chuCaDong, "i)Toughness|Item Power|Sell Value|Durabil|Temper|All Resist"
-                               . "|Requires|Unlocks|Equipped|Socket|Lord of")
+                               . "|Requires|Unlocks|Equipped|Socket|Lord of"
+                               . "|Attacks per Second|Damage Per Second|Block Chance")
             continue
 
         soDau := "", wDau := "", tenSau := ""
@@ -1023,9 +1024,20 @@ DanhDauSao(chuDaLoc, pngFile)
             ; cho phép tối đa 2 ký tự rác dính trước số:  "=+12.5%"  "#+3,500"
             if RegExMatch(c[12], "^[^\d]{0,2}([\d][\d.,]*)%?$", m)
             {
-                ; số phải ở ĐẦU dòng (tối đa 3 chữ đứng trước là rác bullet).
-                ; Chặn "grant you Barrier equal to 90% of the" — số nằm giữa câu.
-                if (i > 3)
+                ; Mọi từ ĐỨNG TRƯỚC con số phải là MỘT ký tự. Dòng affix
+                ; thật chỉ có đúng một ký tự đứng trước: dấu chấm đầu dòng ◆
+                ; (OCR đọc thành © e ¢ @ ®) hoặc dấu sao ✳ (đọc thành # *).
+                ; Có từ THẬT đứng trước nghĩa là dòng này là CÂU VĂN, không
+                ; phải dòng affix. Ô soi nằm bên TRÁI con số, gặp câu văn thì
+                ; nó trùm lên chữ -> sáng rực -> báo có sao oan. Đã đo thật:
+                ; "costs 33 Primary Resource." 0.517, "they are 70% more
+                ; potent." 0.490, "dealing 300% of their damage over 5" 0.257
+                ; — đều vượt ngưỡng, đều không phải affix.
+                cauVan := false
+                Loop, % i - 1
+                    if (StrLen(Trim(ws[A_Index][12])) > 2)
+                        cauVan := true
+                if (cauVan)
                     break
                 ; ngay sau số phải là CHỮ -> mới là affix.
                 ; Chặn "Requires Level 70", "helm by 39%" (số đứng cuối).
