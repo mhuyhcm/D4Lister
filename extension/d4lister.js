@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '1.7';          // doi cung luc voi version trong manifest.json
+  const BAN = '1.8';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -203,6 +203,9 @@
     /^requires level/i, /empty socket/i,
     /unlocks new look/i, /sell value/i, /durability/i, /tempers?\s*:/i,
     /unique equipped/i, /lord of hatred/i,
+    // Chi so GOC cua day chuyen/nhan. Ten that cua affix la
+    // "Resistance to All Elements", KHAC han - nen chan cai nay an toan.
+    /all resist/i,
   ];
 
   // --- doc chu item thanh danh sach {ten, so} -------------------------
@@ -538,6 +541,10 @@
     loiThem = [];
     nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
     for (const m of thieu) {
+      // Tim bang TEN CHUAN CUA TRANG (thu vien da xac nhan), khong phai ten
+      // OCR doc ra. "Life On Kill" de tim hon "LifeonKill".
+      const tenTim = m.coThat || m.ten;
+
       const nut = nutThemAffix();
       if (!nut) { loiThem.push([m.ten, 'không thấy nút ADD STANDARD AFFIXES']); break; }
 
@@ -548,11 +555,11 @@
       if (!o) { loiThem.push([m.ten, 'danh sách mở rồi nhưng không thấy ô tìm kiếm']); continue; }
 
       let g = null, tk = '';
-      for (const k of dsTuKhoa(m.ten)) {
+      for (const k of dsTuKhoa(tenTim)) {
         tk = k;
         goChu(o, k);
         await doi(k ? 550 : 700);
-        g = dongGoiY(khung, m.ten) || await doCuonTim(khung, m.ten);
+        g = dongGoiY(khung, tenTim) || await doCuonTim(khung, tenTim);
         if (g) break;
       }
       if (!g) { loiThem.push([m.ten, moTaThatBai(o, khung, tk)]); continue; }
@@ -582,7 +589,7 @@
       for (const [ten, lam] of cach) {
         lam();
         xong = await cho(
-          () => daCoDong(m.ten) || timCacDong().length > soDongTruoc, 1600);
+          () => daCoDong(tenTim) || timCacDong().length > soDongTruoc, 1600);
         if (xong) break;
         daThu.push(ten);
       }
@@ -961,7 +968,7 @@
     d.innerHTML = h;
     d.querySelector('#d4l-dong').onclick = () => d.remove();
     const nt = d.querySelector('#d4l-them');
-    if (nt) nt.onclick = () => themCacAffixThieu(thieu);
+    if (nt) nt.onclick = () => themCacAffixThieu(thieu.filter(x => x.coThat));
 
     // Sạch = không có dòng nào vượt khoảng, không thiếu affix, không lỗi.
     const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi
@@ -970,9 +977,14 @@
     // Thiếu affix mà bật tự thêm -> thêm luôn, khỏi bấm nút.
     // CHỈ MỘT LẦN cho mỗi lần dán: thêm không được thì `thieu` vẫn còn,
     // không chặn thì nó gọi lại chính nó mãi mãi.
-    if (CD.tuThemAffix && thieu.length && !daTuThem) {
+    // CHI them nhung cai thu vien xac nhan la CO THAT. Cai nao thu vien bao
+    // "khong co affix nao ten nhu vay" thi di tim lam gi cho mat cong — vua
+    // roi no con mo dropdown di tim "All Resist", ma do la chi so GOC cua
+    // day chuyen, khong phai affix.
+    const themDuoc = thieu.filter(x => x.coThat);
+    if (CD.tuThemAffix && themDuoc.length && !daTuThem) {
       daTuThem = true;
-      themCacAffixThieu(thieu);   // xong sẽ tự gọi lại apDung -> vẽ lại bảng
+      themCacAffixThieu(themDuoc);   // xong sẽ tự gọi lại apDung -> vẽ lại bảng
       return;
     }
     xetTuDang(d.querySelector('#d4l-dang'), sach);

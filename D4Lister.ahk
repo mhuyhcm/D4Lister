@@ -1013,7 +1013,7 @@ DanhDauSao(chuDaLoc, pngFile)
         chuCaDong := ""
         for i2, c2 in ws
             chuCaDong .= c2[12] . " "
-        if RegExMatch(chuCaDong, "i)Toughness|Item Power|Sell Value|Durabil|Temper"
+        if RegExMatch(chuCaDong, "i)Toughness|Item Power|Sell Value|Durabil|Temper|All Resist"
                                . "|Requires|Unlocks|Equipped|Socket|Lord of")
             continue
 
@@ -1095,7 +1095,10 @@ DanhDauSao(chuDaLoc, pngFile)
     Loop, Parse, chuDaLoc, `n, `r
     {
         d := A_LoopField
-        if (RegExMatch(d, "^\+?\s*([\d][\d.,]*)%?\s+(\S+)", m)
+        ; Phai nhan ca dau "x" va truong hop so dinh lien chu, giong het
+        ; cho doc dong. Thieu chu "x" thi moi affix Damage Multiplier do
+        ; duoc la co sao nhung khong bao gio gan duoc dau.
+        if (RegExMatch(d, "^[+x]?\s*([\d][\d.,]*)%?\s*([A-Za-z]\S*)", m)
             && coSao.HasKey(KhoaAffix(m1, m2)))
             d := "**" . d
         ra .= d . "`n"
@@ -1205,7 +1208,9 @@ LocTenMon(d)
 
 LocMotDong(d)
 {
-    d := RegExReplace(d, "=\s*\+", "+")               ; "=+1,813" -> "+1,813"
+    ; Rac "=" dinh truoc dau: "=+1,813" -> "+1,813",  "=x35%" -> "x35%"
+    ; PHAI bat ca dau "x": moi affix Damage Multiplier deu viet kieu "x35%".
+    d := RegExReplace(d, "=\s*([+x])", "$1")
     ; Mảnh icon bullet hay dính liền vào số: "*+1,813", "T+12.5%".
     ; Chỉ cắt chữ cái khi nó dính NGAY trước dấu +, vì "x50% Critical..."
     ; là cách viết THẬT của D4 (chữ x rồi tới số) — không được đụng vào.
