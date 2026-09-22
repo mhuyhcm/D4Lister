@@ -1139,6 +1139,19 @@ KhoaAffix(so, ten)
 ;   dưới 2 chữ cái, không chứa số, và không phải từ thật.
 ;   Lọc theo ký tự sẽ ăn mất dấu ")" của "(+14,106.1% Toughness)".
 ;=====================================================================
+; Dong nay co phai TEN MON khong: khong co chu so, va chu yeu la CHU HOA.
+; Dung khi Tesseract nha dong loai do len truoc, phai di tim ten o phia sau.
+LaDongTen(d)
+{
+    if RegExMatch(d, "\d")
+        return false
+    chu := RegExReplace(d, "[^A-Za-z]", "")
+    if (StrLen(chu) < 3)
+        return false
+    hoa := StrLen(RegExReplace(d, "[^A-Z]", ""))
+    return (hoa * 10 >= StrLen(chu) * 6)
+}
+
 LocChu(raw)
 {
     ds := []
@@ -1161,40 +1174,60 @@ LocChu(raw)
     ; CHỈ dò trong 4 dòng đầu. Cuối tooltip còn có "Unique Equipped" — không
     ; chặn thì có ảnh nó chạy tuốt xuống dưới rồi tưởng "Requires Level 70"
     ; là tên món (đã gặp thật).
-    viTriTen := 1
-    hetDo := (ds.Length() < 4) ? ds.Length() : 4
+    viTriLoai := 0
+    hetDo := (ds.Length() < 5) ? ds.Length() : 5
     Loop, % hetDo
     {
-        if (A_Index > 1
-            && RegExMatch(ds[A_Index], "i)\b(Unique|Legendary|Rare|Magic|Mythic|Common)\b\s+\S"))
+        if RegExMatch(ds[A_Index], "i)\b(Unique|Legendary|Rare|Magic|Mythic|Common)\b\s+\S")
         {
-            viTriTen := A_Index - 1
+            viTriLoai := A_Index
             break
         }
     }
-    ; TÊN CÓ THỂ NẰM TRÊN NHIỀU DÒNG: tên dài thì game tự xuống dòng
-    ; ("ROYALTY" / "DOWNFALL"). Gộp mọi dòng TRƯỚC dòng loại đồ lại.
-    if (viTriTen > 1)
+
+    ; Gom cac dong lam nen TEN MON.
+    ;  - Thuong thi ten nam TRUOC dong loai do. Ten dai thi game tu xuong
+    ;    dong ("ROYALTY" / "DOWNFALL") nen phai gop moi dong truoc no lai.
+    ;  - NHUNG co anh Tesseract nha DONG LOAI DO LEN TRUOC CA TEN (da gap
+    ;    that: "Ancestral Unique Gloves" / "900 Item Power" / "HAND @F" /
+    ;    "AP@THE@SIS"). Luc do phia truoc khong con gi, ma lay chinh dong
+    ;    loai do lam ten thi tien ich so voi form la lech, roi tu choi dien
+    ;    -> mat luon ca viec sua dau sao. Nen phai di tim o phia SAU.
+    viTri := []
+    if (viTriLoai > 1)
+    {
+        Loop, % viTriLoai - 1
+            viTri.Push(A_Index)
+    }
+    else if (viTriLoai = 1)
+    {
+        het := (ds.Length() < 7) ? ds.Length() : 7
+        Loop, % het
+        {
+            if (A_Index = 1)
+                continue
+            if (!LaDongTen(ds[A_Index]))
+            {
+                if (viTri.Length() > 0)
+                    break
+                continue
+            }
+            viTri.Push(A_Index)
+        }
+    }
+
+    if (viTri.Length() > 0)
     {
         gop := ""
-        Loop, % viTriTen
-            gop .= (gop = "" ? "" : " ") . ds[A_Index]
-        Loop, % viTriTen - 1
-            ds.RemoveAt(1)
-        ds[1] := gop
-        viTriTen := 1
+        for k, i in viTri
+            gop .= (gop = "" ? "" : " ") . ds[i]
+        ; xoa tu DUOI LEN cho khoi lech chi so
+        Loop, % viTri.Length()
+            ds.RemoveAt(viTri[viTri.Length() - A_Index + 1])
+        ds.InsertAt(1, LocTenMon(gop))
     }
-    ds[viTriTen] := LocTenMon(ds[viTriTen])
-
-    ; ĐƯA DÒNG TÊN LÊN ĐẦU. Tiện ích Chrome lấy dòng 1 làm tên món để đối
-    ; chiếu với form; có ảnh Tesseract nhả "900 Item Power" lên trước tên,
-    ; không dời thì tiện ích tưởng sai món và từ chối điền.
-    if (viTriTen > 1)
-    {
-        ten := ds[viTriTen]
-        ds.RemoveAt(viTriTen)
-        ds.InsertAt(1, ten)
-    }
+    else
+        ds[1] := LocTenMon(ds[1])
 
     ra := ""
     for i, d in ds
