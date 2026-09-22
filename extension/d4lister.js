@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.2';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.4';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -854,48 +854,89 @@
   //  Khong tim duoc danh muc, hoac day vao ma mang khong dai ra, thi tra ve
   //  false — vong ngoai tu quay ve duong go chu cu.
   // ====================================================================
+  // Danh muc chi duoc trang dung ra khi danh sach ADD AFFIX mo. Hot duoc
+  // mot lan roi thi NHO LUON VAO MAY — khong bao gio phai mo lai nua, ke ca
+  // sau khi dong trinh duyet. Do la cai mo duy nhat con sot lai ma user
+  // nhin thay; nho roi thi het han.
+  const KHOA_KHO = 'd4lister-kho-affix';
   let khoAffix = null;
+
+  function nhoKho(ds) {
+    try {
+      localStorage.setItem(KHOA_KHO, JSON.stringify({ ngay: Date.now(), ds: ds }));
+    } catch (e) { /* day bo nho thi thoi, lan sau mo lai */ }
+  }
+
+  function docKhoDaNho() {
+    try {
+      const t = localStorage.getItem(KHOA_KHO);
+      if (!t) return null;
+      const o = JSON.parse(t);
+      // Qua 30 ngay thi hot lai — trang co the them affix moi theo mua.
+      if (!o || !Array.isArray(o.ds) || Date.now() - o.ngay > 30 * 864e5) return null;
+      return laKhoAffix(o.ds) ? o.ds : null;
+    } catch (e) { return null; }
+  }
 
   function layKhoAffix() {
     if (khoAffix) return khoAffix;
     const k = timKhoAffix();
     if (k) {
       khoAffix = k;
+      nhoKho(k.ds);
       console.log('[D4Lister] danh mục affix: ' + k.ds.length + ' mục (' + k.tu + ')');
+      return khoAffix;
+    }
+    const cu = docKhoDaNho();
+    if (cu) {
+      khoAffix = { ds: cu, tu: 'nhớ sẵn trong máy' };
+      console.log('[D4Lister] danh mục affix: ' + cu.length + ' mục (nhớ sẵn)');
     }
     return khoAffix;
   }
 
-  function themAffixThang(tenTim, so, sao) {
-    const fm = timFormTrang();
-    const kho = layKhoAffix();
-    if (!fm || !kho) return false;
+  // react-hook-form quan ly mang dong bang useFieldArray, no tra ve
+  //    { fields: [...], append(), remove(), ... }
+  // Ghi de setValue('affixes', [...]) co khi KHONG dung ra dong moi, vi
+  // useFieldArray giu so sach rieng. Phai goi dung append() cua no.
+  // Lung trong cay React tim bo do.
+  const laBoMang = o => !!o && typeof o === 'object' &&
+    typeof o.append === 'function' && typeof o.remove === 'function' &&
+    Array.isArray(o.fields);
 
-    const kq = timKhopNhat(tenTim, kho.ds, x => tenThuan(x.description || x.name || ''));
-    if (kq.diem < DIEM_CHAC) return false;
-
-    let cu;
-    try { cu = fm.getValues('affixes'); } catch (e) { return false; }
-    if (!Array.isArray(cu)) return false;
-
-    const muc = Object.assign({}, kq.muc, {
-      values: [so],
-      isGreater: !!sao,
-    });
-    fm.setValue('affixes', cu.concat([muc]),
-      { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-
-    // Day vao roi phai DEM LAI. Khong dai ra nghia la trang khong nhan.
-    let sau;
-    try { sau = fm.getValues('affixes'); } catch (e) { return false; }
-    return Array.isArray(sau) && sau.length > cu.length;
+  function timBoMangAffix() {
+    const goc = fiberGoc();
+    if (!goc) return null;
+    const ngan = [goc];
+    let n = 0;
+    while (ngan.length && n < 30000) {
+      const f = ngan.pop();
+      if (!f) continue;
+      n++;
+      let h = f.memoizedState, i = 0;
+      while (h && typeof h === 'object' && i < 80) {
+        const x = h.memoizedState;
+        if (laBoMang(x) && (!x.fields.length || laMucAffix(x.fields[0]))) return x;
+        if (x && typeof x === 'object' && !Array.isArray(x))
+          for (const t of Object.keys(x))
+            if (laBoMang(x[t]) && (!x[t].fields.length || laMucAffix(x[t].fields[0])))
+              return x[t];
+        h = h.next; i++;
+      }
+      if (f.child) ngan.push(f.child);
+      if (f.sibling) ngan.push(f.sibling);
+    }
+    return null;
   }
 
-  // Danh muc chi duoc dung ra khi danh sach ADD AFFIX mo. Quet ca cay ma
-  // van khong thay thi mo no MOT LAN cho moi trang, hot lay danh muc roi
-  // dong lai — tu do ve sau moi affix deu day thang, khong bam gi nua.
-  let daThuMoKho = false;
+  // Vi sao lan truoc khong day duoc — de ghi vao file do.
+  let viSaoTruot = null;
   let soDayThang = 0;      // dem so dong day thang duoc trong lan dan nay
+
+  // Danh muc chi duoc dung ra khi danh sach ADD AFFIX mo. Quet ca cay ma
+  // van khong thay, va cung chua nho san trong may, thi mo no MOT LAN cho
+  // moi trang, hot lay danh muc roi dong lai.
+  let daThuMoKho = false;
 
   async function layKhoAffixCoMo() {
     if (layKhoAffix()) return khoAffix;
@@ -910,6 +951,45 @@
     dongDs(nut);
     await doi(150);
     return co;
+  }
+
+  function themAffixThang(tenTim, so, sao) {
+    const fm = timFormTrang();
+    if (!fm) { viSaoTruot = 'khong voi toi duoc bo dieu khien form'; return false; }
+    const kho = layKhoAffix();
+    if (!kho) { viSaoTruot = 'khong tim ra danh muc affix'; return false; }
+
+    const kq = timKhopNhat(tenTim, kho.ds, x => tenThuan(x.description || x.name || ''));
+    if (kq.diem < DIEM_CHAC) {
+      viSaoTruot = 'danh muc khong co ten "' + tenTim + '" (giong nhat ' +
+        Math.round(kq.diem * 100) + '%)';
+      return false;
+    }
+
+    let cu;
+    try { cu = fm.getValues('affixes'); } catch (e) { cu = null; }
+    if (!Array.isArray(cu)) { viSaoTruot = 'khong doc duoc mang affixes'; return false; }
+
+    const muc = Object.assign({}, kq.muc, { values: [so], isGreater: !!sao });
+
+    // Duong 1: append() cua useFieldArray — dung bai nhat, dung ra ca dong
+    const bo = timBoMangAffix();
+    if (bo) {
+      try { bo.append(muc, { shouldFocus: false }); } catch (e) {
+        try { bo.append(muc); } catch (e2) {}
+      }
+    } else {
+      // Duong 2: ghi de ca mang
+      fm.setValue('affixes', cu.concat([muc]),
+        { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    }
+
+    let sau;
+    try { sau = fm.getValues('affixes'); } catch (e) { sau = null; }
+    if (Array.isArray(sau) && sau.length > cu.length) return true;
+    viSaoTruot = 'da day vao ma mang khong dai ra (' + cu.length + ' -> ' +
+      (Array.isArray(sau) ? sau.length : '?') + '), co bo mang: ' + !!bo;
+    return false;
   }
 
   async function themCacAffixThieu(thieu) {
@@ -929,9 +1009,25 @@
       if (chuDaDan) apDung(chuDaDan, true);
       return;
     }
-    if (conLai.length < thieu.length)
-      console.log('[D4Lister] đẩy thẳng được ' + (thieu.length - conLai.length) +
-        '/' + thieu.length + ' dòng, còn lại đi đường gõ chữ');
+    // Phai quay ve duong go chu = co cai gi do sai. Ghi lai ngay, kem ly do,
+    // de khoi phai bat user ta lai bang loi.
+    console.log('[D4Lister] đẩy thẳng được ' + (thieu.length - conLai.length) +
+      '/' + thieu.length + ' dòng, còn lại đi đường gõ chữ. Vì:', viSaoTruot);
+    ghiNhatKy('phai-go-chu', {
+      viSao: viSaoTruot,
+      soDongPhaiGoChu: conLai.length,
+      tenCacDongDo: conLai.map(x => x.coThat || x.ten),
+      soDongDayDuoc: thieu.length - conLai.length,
+      coBoDieuKhienForm: !!timFormTrang(),
+      coDanhMuc: !!layKhoAffix(),
+      soMucTrongDanhMuc: khoAffix ? khoAffix.ds.length : 0,
+      layDanhMucTu: khoAffix ? khoAffix.tu : null,
+      mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
+      coBoMangDong: !!timBoMangAffix(),
+      soFiberDaQuet: soFiberDaQuet,
+      mangGanGiongNhat: khoGanNhat,
+      banExt: BAN,
+    });
     thieu = conLai;
 
     for (const m of thieu) {
