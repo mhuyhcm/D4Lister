@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '0.8';          // doi cung luc voi version trong manifest.json
+  const BAN = '0.9';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -403,6 +403,81 @@
     return d;
   }
 
+  // --- HỌC DANH SÁCH AFFIX CỦA TRANG ------------------------------------
+  //  diablo.trade mới là chuẩn, không phải chữ trong game. Tên trong game và
+  //  tên trên trang lệch nhau khá nhiều, nên phải có danh sách thật của trang
+  //  để đối chiếu.
+  //
+  //  Danh sách này trang tải từ máy chủ lúc chạy, và KHÁC NHAU theo từng loại
+  //  đồ (mũ khác dây chuyền). Nên gom theo loại đồ.
+  async function hocDanhSach() {
+    const nut = nutThemAffix();
+    if (!nut) { nhac('Không thấy nút ADD STANDARD AFFIXES. Mở một món đồ ra đã.'); return; }
+    nhac('Đang đọc danh sách affix của trang…');
+
+    const khung = await moDropdown(nut);
+    if (!khung) { nhac('Không mở được danh sách.'); return; }
+    const o = oTimTrongKhung(khung);
+    if (o) { goChu(o, ''); await doi(600); }   // xoá bộ lọc để hiện hết
+
+    // Danh sách chỉ vẽ phần nhìn thấy -> phải cuộn dần mà gom
+    const ten = new Set();
+    const gom = () => {
+      for (const el of khung.querySelectorAll('label,li,[role="option"]')) {
+        const t = (el.textContent || '').trim();
+        if (t && t.length < 90 && /[A-Za-z]{3}/.test(t)) ten.add(t);
+      }
+    };
+    gom();
+    const cuon = [...khung.querySelectorAll('*')].find(e => e.scrollHeight > e.clientHeight + 40);
+    if (cuon) {
+      const buoc = Math.max(40, cuon.clientHeight - 30);
+      for (let y = 0; y <= cuon.scrollHeight; y += buoc) {
+        cuon.scrollTop = y;
+        await doi(130);
+        gom();
+      }
+      cuon.scrollTop = 0;
+    }
+    if (dangMo(nut)) bamThat(nut);
+
+    const loai = layLoaiDo();
+    const ds = [...ten].sort();
+    let kho = {};
+    try { kho = JSON.parse(localStorage.getItem('d4lister-affix') || '{}'); } catch (e) {}
+    kho[loai] = ds;
+    try { localStorage.setItem('d4lister-affix', JSON.stringify(kho)); } catch (e) {}
+
+    const d = khungBao();
+    d.innerHTML =
+      '<b style="color:#d8b978">Đã đọc xong danh sách</b>' +
+      '<span id="d4l-dong" style="float:right;cursor:pointer;color:#888">&#10005;</span>' +
+      '<div style="margin-top:6px">Loại đồ: <b>' + thoat(loai) + '</b></div>' +
+      '<div>Số affix đọc được: <b>' + ds.length + '</b></div>' +
+      '<div style="margin-top:6px;color:#888;font-size:11px">Đã lưu. Mở thêm món khác loại ' +
+      'rồi bấm lại để gom đủ.</div>' +
+      '<div style="margin-top:10px"><button id="d4l-chep" style="background:#23402a;' +
+      'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:6px 10px;' +
+      'cursor:pointer;font:12px system-ui">Chép cả kho ra clipboard</button></div>';
+    d.querySelector('#d4l-dong').onclick = () => d.remove();
+    d.querySelector('#d4l-chep').onclick = () => {
+      const chu = JSON.stringify(kho, null, 1);
+      navigator.clipboard.writeText(chu).then(
+        () => nhac('Đã chép ' + Object.keys(kho).length + ' loại đồ ra clipboard.'),
+        () => nhac('Chép không được. Bấm F12 → Console để xem.'));
+      console.log('[D4Lister] kho affix:', kho);
+    };
+  }
+
+  // Loại đồ đang mở: "Helm", "Amulet"... Lấy từ dòng loại dưới tên món.
+  function layLoaiDo() {
+    const a = document.querySelector('[class*="font-tooltip-title"]');
+    const khoi = a && a.parentElement && a.parentElement.parentElement;
+    const t = khoi ? (khoi.textContent || '') : '';
+    const m = t.match(/(?:Ancestral|Sacred)?\s*(?:Unique|Legendary|Rare|Magic|Mythic|Common)\s+([A-Za-z ]{3,24})/i);
+    return m ? m[1].trim() : 'khong-ro';
+  }
+
   // --- BẢNG THIẾT LẬP ---------------------------------------------------
   //  Bấm vào chip góc dưới bên trái là mở ra. Lưu trong trình duyệt nên
   //  đổi xong là dùng ngay, không phải sửa file, không phải nạp lại.
@@ -437,6 +512,12 @@
       ' style="width:56px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
       'padding:3px 6px;font:13px system-ui">' +
       '<span>giây trước khi đăng</span></div>' +
+      '<div style="margin-top:12px;border-top:1px solid #333;padding-top:10px">' +
+      '<button id="d4l-tl-hoc" style="width:100%;background:#22303f;color:#bcd8ee;' +
+      'border:1px solid #3d5f7d;border-radius:5px;padding:6px 10px;cursor:pointer;' +
+      'font:12px system-ui">Đọc danh sách affix của trang</button>' +
+      '<div style="color:#888;font-size:11px;margin-top:4px">Mở một món đồ ra rồi bấm. ' +
+      'Dùng để khớp tên cho đúng với trang.</div></div>' +
       '<div style="margin-top:12px;display:flex;gap:8px">' +
       '<button id="d4l-tl-luu" style="flex:1;background:#23402a;color:#cfe8cf;border:1px solid #4a7a52;' +
       'border-radius:5px;padding:6px 10px;cursor:pointer;font:12px system-ui">Lưu</button>' +
@@ -446,6 +527,7 @@
     document.body.appendChild(d);
 
     d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
+    d.querySelector('#d4l-tl-hoc').onclick = () => { d.remove(); hocDanhSach(); };
     d.querySelector('#d4l-tl-luu').onclick = () => {
       d.querySelectorAll('input[type=checkbox]').forEach(i => { CD[i.dataset.k] = i.checked; });
       const g = parseInt(d.querySelector('#d4l-tl-giay').value, 10);
