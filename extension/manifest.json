@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "D4Lister — điền item vào diablo.trade",
-  "version": "4.4",
+  "version": "4.5",
   "description": "Đọc chữ item từ clipboard rồi điền thẳng vào form, tự thêm affix thiếu, tự bật dấu sao. Tự đăng khi mọi thứ sạch.",
   "content_scripts": [
     {
