@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.7';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.8';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -249,7 +249,8 @@
         .find(b => b.querySelector('img[alt="Greater Affix"]')) || null;
       // CLASSIC khong nhung khoang hop le vao DOM — doc nguoc tu cau canh
       // bao cua trang, xem docCanhBaoNgoai() ben duoi.
-      ra.push({ ten, inp, min: null, max: null, nutSao, khoi });
+      ra.push(Object.assign({ ten, inp, min: null, max: null, nutSao, khoi },
+        cachDungO(inp, nutSao)));
     }
     return ra;
   }
@@ -284,8 +285,70 @@
     return ra;
   }
 
+  // Moi dong affix deu phai tra loi duoc 5 cau nay, du no la O NHAP tren
+  // trang hay la MOT MUC trong bo dieu khien form. Nho vay phan dien so o
+  // apDung() khong can biet minh dang ghi bang duong nao.
+  const cachDungO = (inp, nutSao) => ({
+    qua:    'o nhap',
+    nguyen: inp.getAttribute('inputmode') === 'numeric',
+    coSao:  !!nutSao,
+    lay:    () => inp.value,
+    dat:    x => datGiaTri(inp, x),
+    laySao: () => saoDangBat(nutSao),
+    datSao: bat => { if (nutSao && saoDangBat(nutSao) !== !!bat) bamThat(nutSao); },
+  });
+
+  // ====================================================================
+  //  GHI THANG VAO BO DIEU KHIEN FORM
+  //
+  //  Trang dung react-hook-form. Bo dieu khien cua no giu san ca mang
+  //  affixes, moi phan tu co:
+  //     description "+# Willpower"   <- ten chuan, # la cho dien so
+  //     values      [112]            <- con so
+  //     isGreater   true/false       <- dau sao
+  //     minValue / maxValue          <- khoang hop le
+  //  Ghi thang vao day thi KHONG phai go chu, khong phai bam chuot gia,
+  //  va co luon khoang hop le — thay vi di mo tung o nhap tren man hinh.
+  //  Khong voi toi duoc thi tra ve null, apDung() tu quay ve duong cu.
+  // ====================================================================
+  function dongForm() {
+    const fm = timFormTrang();
+    if (!fm) return null;
+    let v;
+    try { v = fm.getValues(); } catch (e) { return null; }
+    if (!v || !Array.isArray(v.affixes) || !v.affixes.length) return null;
+
+    const ra = [];
+    v.affixes.forEach((a, i) => {
+      const ten = tenThuan(a.description || a.name || '');
+      if (!ten) return;
+      const duong = 'affixes.' + i;
+      ra.push({
+        ten,
+        qua:    'form',
+        min:    typeof a.minValue === 'number' ? a.minValue : null,
+        max:    typeof a.maxValue === 'number' ? a.maxValue : null,
+        nguyen: false,
+        coSao:  true,
+        lay:    () => {
+          const x = fm.getValues(duong + '.values.0');
+          return (x === null || x === undefined) ? '' : String(x);
+        },
+        dat:    x => fm.setValue(duong + '.values.0', x,
+                    { shouldDirty: true, shouldTouch: true, shouldValidate: true }),
+        laySao: () => !!fm.getValues(duong + '.isGreater'),
+        datSao: bat => fm.setValue(duong + '.isGreater', !!bat, { shouldDirty: true }),
+      });
+    });
+    return ra.length ? ra : null;
+  }
+
   // --- tim cac dong affix dang co tren form ---------------------------
   function timCacDong() {
+    if (CD.ghiThangForm) {
+      const f = dongForm();
+      if (f) return f;
+    }
     return cheDo() === 'classic' ? dongClassic() : dongBeta();
   }
 
@@ -315,7 +378,7 @@
       }
       // cong tac dau sao cua chinh dong nay (Radix: role=checkbox + aria-checked)
       const nutSao = khoi.querySelector('button[aria-label="Greater Affix"]');
-      ra.push({ ten, inp, min, max, nutSao });
+      ra.push(Object.assign({ ten, inp, min, max, nutSao }, cachDungO(inp, nutSao)));
     }
     return ra;
   }
@@ -399,15 +462,14 @@
       daDung.add(dong);
 
       // o nhap chi cho so nguyen thi lam tron
-      const nguyen = dong.inp.getAttribute('inputmode') === 'numeric';
-      const v = nguyen ? Math.round(m.so) : m.so;
+      const v = dong.nguyen ? Math.round(m.so) : m.so;
 
-      const cu = dong.inp.value;
-      datGiaTri(dong.inp, v);
+      const cu = dong.lay();
+      dong.dat(v);
 
       // Dau sao: bat/tat cho khop voi cai do duoc tren anh.
-      if (CD.tuDauSao && coDoSao && dong.nutSao && saoDangBat(dong.nutSao) !== !!m.sao) {
-        bamThat(dong.nutSao);
+      if (CD.tuDauSao && coDoSao && dong.coSao && dong.laySao() !== !!m.sao) {
+        dong.datSao(!!m.sao);
         doiSao.push({ ten: dong.ten, bat: !!m.sao });
       }
 
@@ -422,7 +484,7 @@
     const lech = [];
     const chot = () => {
       for (let i = ok.length - 1; i >= 0; i--) {
-        const thuc = parseFloat(String(ok[i].dong.inp.value).replace(/,/g, ''));
+        const thuc = parseFloat(String(ok[i].dong.lay()).replace(/,/g, ''));
         if (isFinite(thuc) && Math.abs(thuc - ok[i].v) > 0.001) {
           lech.unshift(Object.assign({}, ok[i], { thuc: thuc }));
           ok.splice(i, 1);
@@ -906,6 +968,7 @@
       o('tuDang', 'Tự đăng') +
       o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo') +
       o('tuQuet', 'Tự bấm Scan') +
+      o('ghiThangForm', 'Ghi thẳng vào form') +
       o('tuChonBase', 'Tự chọn base') +
       o('tuThemAffix', 'Tự thêm affix thiếu') +
       o('tuDauSao', 'Tự bật dấu sao') +
@@ -953,6 +1016,7 @@
     tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
     tuQuet:           true,   // ảnh nạp xong thì tự bấm Scan
+    ghiThangForm:     true,   // ghi thẳng vào form của trang, khỏi gõ vào ô
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
   };
   const KHOA_LUU = 'd4lister-cai-dat';
@@ -1356,10 +1420,8 @@
   const laBoForm = o => !!o && typeof o === 'object' &&
     typeof o.getValues === 'function' && typeof o.setValue === 'function';
 
-  function timFormTrang() {
-    const neo = document.querySelector(
-      'input[aria-label="Affix value"], input[inputmode="decimal"], form');
-    if (!neo) return null;
+  // Di nguoc len tu MOT the cu the, tim doi tuong co getValues/setValue.
+  function boFormTu(neo) {
     const k = Object.keys(neo).find(x => x.indexOf('__reactFiber$') === 0 ||
                                          x.indexOf('__reactInternalInstance$') === 0);
     if (!k) return null;
@@ -1369,6 +1431,24 @@
       if (laBoForm(p)) return p;
       if (laBoForm(f.stateNode)) return f.stateNode;
     }
+    return null;
+  }
+
+  // BAY: querySelector voi nhieu mau ngan cach bang dau phay tra ve the
+  // DUNG DAU TRONG TAI LIEU, khong phai mau dau tien. De chung mot cau thi
+  // no vo phai the <form> bao ngoai — the do khong mang moc React nen tim
+  // hoai khong ra. Phai thu TUNG MAU MOT, va thu ca cac the cung mau.
+  function timFormTrang() {
+    const mau = ['input[aria-label="Affix value"]',
+                 'input[inputmode="decimal"]',
+                 'button[title="Remove attribute"]',
+                 'button[aria-label^="Remove "]',
+                 'form'];
+    for (const m of mau)
+      for (const neo of document.querySelectorAll(m)) {
+        const bo = boFormTu(neo);
+        if (bo) return bo;
+      }
     return null;
   }
 
