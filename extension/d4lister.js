@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.6';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.7';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1231,6 +1231,7 @@
       o('tuQuet', 'Tự bấm Scan') +
       o('ghiThangForm', 'Ghi thẳng vào form') +
       o('nhayVaoGia', 'Nhảy vào ô giá') +
+      o('ghiFileDo', 'Ghi file dò') +
       o('tuChonBase', 'Tự chọn base') +
       o('tuThemAffix', 'Tự thêm affix thiếu') +
       o('tuDauSao', 'Tự bật dấu sao') +
@@ -1280,6 +1281,7 @@
     tuQuet:           true,   // ảnh nạp xong thì tự bấm Scan
     ghiThangForm:     true,   // ghi thẳng vào form của trang, khỏi gõ vào ô
     nhayVaoGia:       true,   // điền xong thì đặt con trỏ vào ô giá
+    ghiFileDo:        false,  // tải file dò về máy (chỉ bật khi cần gửi cho Claude)
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
   };
   const KHOA_LUU = 'd4lister-cai-dat';
@@ -1808,6 +1810,12 @@
   function ghiNhatKy(loai, du) {
     if (daGhiNhatKy[loai]) return;
     daGhiNhatKy[loai] = true;
+
+    // Mac dinh CHI ghi ra Console. Tai han mot file ve may moi lan chay la
+    // phien, va phan lon truong hop no chi xac nhan lai cai da biet.
+    // Can file that thi bat cong tac "Ghi file dò" trong thiet lap.
+    console.log('[D4Lister] dò — ' + loai + ':', du);
+    if (!CD.ghiFileDo) return;
     try {
       const chu = JSON.stringify(du, (k, v) => {
         if (v instanceof Node) return '[DOM ' + (v.nodeName || '?') + ']';
