@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.3';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.4';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1095,6 +1095,7 @@
       layDanhMucTu: khoAffix ? khoAffix.tu : null,
       mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
       coBoMangDong: !!timBoMangAffix(timFormTrang() ? timFormTrang().getValues('affixes') : null),
+      cacUngVienForm: ungVienForm,
       soFiberDaQuet: soFiberDaQuet,
       mangGanGiongNhat: khoGanNhat,
       cacMangUngVien: cacUngVien,
@@ -1738,11 +1739,26 @@
   // (Willpower 112, Cooldown Reduction 10).
   // => Khong nhan bua bat cu bo dieu khien nao. Phai DOI CHIEU: so dong va
   //    ten tung dong phai khop voi cai dang hien tren man hinh.
+  // Ghi lai MOI bo dieu khien da gap va vi sao bi tu choi — de khong phai
+  // doan nua khi no bao "khong voi toi duoc form".
+  let ungVienForm = [];
+  function ghiUngVien2(v, dsDom, viSao) {
+    if (ungVienForm.length > 6) return;
+    ungVienForm.push({
+      viSao: viSao,
+      soDongTrongForm: Array.isArray(v) ? v.length : null,
+      tenTrongForm: Array.isArray(v)
+        ? v.slice(0, 8).map(a => tenThuan((a && (a.description || a.name)) || '')) : null,
+      soDongTrenManHinh: dsDom ? dsDom.length : null,
+      tenTrenManHinh: dsDom ? dsDom.slice(0, 8).map(d => d.ten) : null,
+    });
+  }
+
   function dungFormNay(bo) {
     if (!laBoForm(bo)) return false;
     let v;
-    try { v = bo.getValues('affixes'); } catch (e) { return false; }
-    if (!Array.isArray(v)) return false;
+    try { v = bo.getValues('affixes'); } catch (e) { ghiUngVien2(null, null, 'getValues nem loi'); return false; }
+    if (!Array.isArray(v)) { ghiUngVien2(null, null, 'affixes khong phai mang'); return false; }
     const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
     if (!dsDom.length) return true;        // chua co dong nao, khong doi chieu duoc
     // So THEO TEN, khong theo thu tu: trang co the xep khac, va form co the
@@ -1756,7 +1772,10 @@
         const ten = tenThuan((v[i] && (v[i].description || v[i].name)) || '');
         if (ten && diemKhop(ten, d.ten) >= DIEM_CHAC) { daDung[i] = true; thay = true; break; }
       }
-      if (!thay) return false;
+      if (!thay) {
+        ghiUngVien2(v, dsDom, 'dong "' + d.ten + '" tren man hinh khong co trong form');
+        return false;
+      }
     }
     return true;
   }
@@ -2001,6 +2020,7 @@
   // no vo phai the <form> bao ngoai — the do khong mang moc React nen tim
   // hoai khong ra. Phai thu TUNG MAU MOT, va thu ca cac the cung mau.
   function timFormTrang() {
+    ungVienForm = [];
     const mau = ['input[aria-label="Affix value"]',
                  'input[inputmode="decimal"]',
                  'button[title="Remove attribute"]',
