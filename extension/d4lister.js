@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '3.7';          // doi cung luc voi version trong manifest.json
+  const BAN = '3.8';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -53,6 +53,12 @@
     // "x(0)% Critical Strike Damage Multiplier".
     t = t.replace(/\(\s*[\d.,\s–—-]*\s*\)/g, ' ');
     t = t.replace(/^[\s+x#%]+/, '');
+    // Trang viet "+# to Demonology Skills", con chu OCR doc ra chi la
+    // "Demonology Skills" (phan doc chu da cat chu "to" roi). Khong cat o
+    // day nua thi hai ben lech dung mot tu -> 67%, truot ca khau dien lan
+    // khau them. Da do: trong 638 ten affix cua trang KHONG ten nao bat dau
+    // bang "to", nen cat la an toan.
+    t = t.replace(/^to\s+/i, '');
     return t.replace(/\s+/g, ' ').trim();
   }
 
