@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '4.6';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1096,7 +1096,6 @@
       mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
       coBoMangDong: !!timBoMangAffix(timFormTrang() ? timFormTrang().getValues('affixes') : null),
       cacUngVienForm: ungVienForm,
-      soFiberFormDaQuet: soFiberFormDaQuet,
       soFiberDaQuet: soFiberDaQuet,
       mangGanGiongNhat: khoGanNhat,
       cacMangUngVien: cacUngVien,
@@ -2020,15 +2019,8 @@
   // DUNG DAU TRONG TAI LIEU, khong phai mau dau tien. De chung mot cau thi
   // no vo phai the <form> bao ngoai — the do khong mang moc React nen tim
   // hoai khong ra. Phai thu TUNG MAU MOT, va thu ca cac the cung mau.
-  // BAY DA SUP MOT LAN: chi di NGUOC LEN tu o nhap. File do cho thay ca 7
-  // ung vien gap duoc deu la CUNG MOT form cu (mon nhan truoc do), con form
-  // dung cua mon dang mo thi khong nam tren duong di nguoc len chut nao —
-  // trang giu nhieu ban nhap cung luc.
-  // => Quet CA CAY tu goc nhu luc di tim danh muc. Di nguoc len van giu lam
-  //    duong nhanh, thu truoc cho re.
   function timFormTrang() {
     ungVienForm = [];
-
     const mau = ['input[aria-label="Affix value"]',
                  'input[inputmode="decimal"]',
                  'button[title="Remove attribute"]',
@@ -2039,35 +2031,8 @@
         const bo = boFormTu(neo);
         if (bo) return bo;
       }
-
-    const goc = fiberGoc();
-    if (!goc) return null;
-    const ngan = [goc];
-    let n = 0;
-    while (ngan.length && n < 30000) {
-      const f = ngan.pop();
-      if (!f) continue;
-      n++;
-      const p = f.memoizedProps;
-      if (p && dungFormNay(p.value)) { soFiberFormDaQuet = n; return p.value; }
-      if (dungFormNay(p)) { soFiberFormDaQuet = n; return p; }
-      let h = f.memoizedState, i = 0;
-      while (h && typeof h === 'object' && i < 80) {
-        const x = h.memoizedState;
-        if (dungFormNay(x)) { soFiberFormDaQuet = n; return x; }
-        if (x && typeof x === 'object' && !Array.isArray(x))
-          for (const t of Object.keys(x))
-            if (dungFormNay(x[t])) { soFiberFormDaQuet = n; return x[t]; }
-        h = h.next; i++;
-      }
-      if (f.child) ngan.push(f.child);
-      if (f.sibling) ngan.push(f.sibling);
-    }
-    soFiberFormDaQuet = n;
     return null;
   }
-
-  let soFiberFormDaQuet = 0;
 
   document.addEventListener('keydown', e => {
     if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
