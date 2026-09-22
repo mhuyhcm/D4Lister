@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.2';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.3';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -712,11 +712,11 @@
     const dong = [...khung.querySelectorAll('label,li,[role="option"]')]
       .map(e => (cl ? nhanDongClassic(e) : (e.textContent || '')).trim())
       .filter(t => t && t.length < 80);
-    const soTich = khung.querySelectorAll('input[type="checkbox"],[role="checkbox"]').length;
-    return 'gõ "' + tk + '" | ô tìm ghi "' + (o.getAttribute('placeholder') || '?') +
-      '", gõ xong ô chứa "' + o.value + '" | trong khung thấy ' + soTich +
-      ' ô tích, ' + dong.length + ' dòng' +
-      (dong.length ? ': ' + dong.slice(0, 4).join(' / ') : ' nào cả');
+    // Chi tiet de do loi thi day ra Console — dung bat user doc chuoi DOM tho.
+    console.log('[D4Lister] tim khong ra:', { go: tk, o: o.value, dong: dong });
+    return dong.length
+      ? 'gõ "' + tk + '" ra ' + dong.length + ' dòng, không dòng nào khớp'
+      : 'gõ "' + tk + '" không ra dòng nào';
   }
 
   // Bam nhu chuot THAT. el.click() chi phat mot su kien "click"; cac component
@@ -1029,11 +1029,12 @@
       o('tuDang', 'Tự đăng', 'Điền xong, mọi thứ sạch thì tự bấm SUBMIT.') +
       o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo',
         'Nguy hiểm: số sai vẫn lên sàn mà bạn không biết.') +
+      o('tuQuet', 'Tự bấm Scan', 'Đợi ảnh nạp xong rồi mới bấm.') +
       o('tuThemAffix', 'Tự thêm affix thiếu',
-        'Trang không dựng ra dòng nào thì tự mở danh sách thêm vào.') +
+        'Dòng nào trang thiếu thì tự mở danh sách thêm vào.') +
       o('tuDauSao', 'Tự bật dấu sao', 'Greater Affix — đo bằng pixel từ ảnh chụp.') +
       o('tuChonBase', 'Tự chọn base',
-        'Bước chọn hình món đồ sau khi quét — tự lấy base trơn rồi bấm Next.') +
+        'Sau khi quét: lấy base trơn rồi bấm Next.') +
       '<div style="margin-top:12px;display:flex;align-items:center;gap:8px">' +
       '<span>Đếm ngược</span>' +
       '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
@@ -1089,6 +1090,7 @@
     demNguoc:         5,      // giây đếm ngược trước khi bấm đăng
     tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
+    tuQuet:           true,   // ảnh nạp xong thì tự bấm Scan
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
   };
   const KHOA_LUU = 'd4lister-cai-dat';
@@ -1200,8 +1202,8 @@
       h += '<div style="margin-top:8px;color:#e8c05a">Cao hơn khoảng thường của trang</div>';
       h += ngoai.map(x => '&nbsp;&nbsp;' + thoat(x.dong.ten) + ' = <b>' + x.v + '</b> ' +
         '<span style="color:#888">(trang ghi ' + x.dong.min + '–' + x.dong.max + ')</span>').join('<br>');
-      h += '<div style="color:#888;font-size:11px;margin-top:3px">Đồ masterwork thì bình thường. ' +
-        'Trang vẫn nhận, chỉ tô viền vàng.</div>';
+      h += '<div style="color:#888;font-size:11px;margin-top:3px">Đồ masterwork thì bình thường, ' +
+        'trang vẫn nhận.</div>';
     }
     if (nghiNgo && nghiNgo.length) {
       h += '<div style="margin-top:8px;color:#e8c05a">Không chắc — bạn xem giúp</div>';
@@ -1210,8 +1212,8 @@
         '<br>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#888">giống nhất: ' +
         thoat(x.dong ? x.dong.ten : '?') + ' (' + Math.round(x.diem * 100) + '%)</span>'
       ).join('<br>');
-      h += '<div style="color:#888;font-size:11px;margin-top:3px">Chưa điền mấy dòng này. ' +
-        'Đoán bừa ở đây là đăng nhầm chỉ số.</div>';
+      h += '<div style="color:#888;font-size:11px;margin-top:3px">Chưa điền — đoán bừa ' +
+        'là đăng nhầm chỉ số.</div>';
     }
     if (thieu.length) {
       const coThat = thieu.filter(x => x.coThat);
@@ -1225,8 +1227,8 @@
         h += '<div style="margin-top:8px;color:#e06a5a">Không có affix nào tên như vậy</div>';
         h += laRac.map(x => '&nbsp;&nbsp;' + thoat(x.ten) + ' = <b>' + x.so +
           (x.phanTram ? '%' : '') + '</b>').join('<br>');
-        h += '<div style="color:#888;font-size:11px;margin-top:3px">Nhiều khả năng ' +
-          'chụp thiếu hoặc OCR đọc sai. Chụp lại món này xem sao.</div>';
+        h += '<div style="color:#888;font-size:11px;margin-top:3px">Có thể chụp thiếu ' +
+          'hoặc đọc sai. Chụp lại xem sao.</div>';
       }
       h += '<div style="margin-top:8px"><button id="d4l-them" style="background:#23402a;' +
         'color:#cfe8cf;border:1px solid #4a7a52;border-radius:5px;padding:5px 10px;cursor:pointer;' +
@@ -1373,6 +1375,46 @@
     if (n) { bamThat(n); await doi(450); }
   }
 
+  // ====================================================================
+  //  TU BAM SCAN
+  //
+  //  Dan xong, trang nhan anh roi van doi user bam SCAN. Bam ho — nhung
+  //  chi khi ANH DA NAP XONG THAT, khong phai chi vua thay the <img>:
+  //     complete = true      trinh duyet da tai xong
+  //     naturalWidth > 0     tai duoc that, khong phai anh hong
+  //     do HAI NHIP lien     kich thuoc dung yen -> khong con dang doi anh
+  //  Thieu ba chot nay thi co luc bam SCAN vao mot khung anh rong, trang
+  //  quet ra so lieu cua mon TRUOC do.
+  // ====================================================================
+  const anhDaNap = () =>
+    [...document.querySelectorAll('img')].find(im =>
+      /^(blob:|data:image)/.test(im.currentSrc || im.src || '') &&
+      im.complete && im.naturalWidth > 0 && im.getClientRects().length);
+
+  const nutQuet = () =>
+    [...document.querySelectorAll('button')].find(b =>
+      /^scan$/i.test((b.textContent || '').trim()) &&
+      !b.disabled && b.getClientRects().length);
+
+  const dangQuet = () => /Scanning screenshot/i.test(document.body.textContent || '');
+
+  let anhTruoc = '', daBamQuet = false;
+
+  // Tra ve true khi vua bam SCAN, de vong cho bo qua nhip nay.
+  function thuBamQuet() {
+    if (daBamQuet || dangQuet()) return false;
+    const im = anhDaNap();
+    if (!im) { anhTruoc = ''; return false; }
+    const dau = (im.currentSrc || im.src) + '|' + im.naturalWidth + 'x' + im.naturalHeight;
+    if (dau !== anhTruoc) { anhTruoc = dau; return false; }   // doi them mot nhip
+    const nut = nutQuet();
+    if (!nut) return false;
+    daBamQuet = true;
+    nhac('Ảnh đã nạp xong — bấm Scan.');
+    bamThat(nut);
+    return true;
+  }
+
   function choFormDungXong(text) {
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
@@ -1380,7 +1422,9 @@
     const tenChu = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
     dangChonBase = false;
     soLanChonBase = 0;
-    nhac('Đã nhận chữ. Đang đợi form… (chưa bấm SCAN thì bấm đi)');
+    daBamQuet = false;
+    anhTruoc = '';
+    nhac('Đã nhận chữ. Đang đợi form…');
     dongHo = setInterval(() => {
       // Dang o buoc chon base thi chon giup roi bam Next, dung bat user ngoi
       // chon cai hinh. Thu toi da hai lan cho khoi bam mai.
@@ -1390,6 +1434,7 @@
         return;
       }
       if (dangChonBase) return;
+      if (CD.tuQuet && thuBamQuet()) return;
       const n = timCacDong().length;
       if (n > 0 && n === truoc) {
         if (++yen >= 2) { clearInterval(dongHo); dongHo = null; apDung(text); return; }
@@ -1399,7 +1444,7 @@
       truoc = n;
       if (Date.now() - batDau > CHO_TOI_DA) {
         clearInterval(dongHo); dongHo = null;
-        bao([], [], [], 'Đợi lâu quá vẫn chưa thấy dòng affix nào. Bấm SCAN rồi bấm Ctrl+Shift+D.');
+        bao([], [], [], 'Đợi lâu quá chưa thấy dòng affix nào. Bấm SCAN rồi Ctrl+Shift+D.');
       }
     }, NHIP_DO);
   }
@@ -1437,7 +1482,7 @@
     const c = document.createElement('div');
     c.id = 'd4l-chip';
     c.textContent = 'D4Lister ' + BAN;
-    c.title = 'D4Lister đang chạy. Bấm để mở thiết lập.';
+    c.title = 'D4Lister — bấm để mở thiết lập.';
     c.onmouseenter = () => c.style.opacity = '1';
     c.onmouseleave = () => c.style.opacity = '.55';
     c.onclick = moThietLap;
