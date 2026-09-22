@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '2.0';          // doi cung luc voi version trong manifest.json
+  const BAN = '2.1';          // doi cung luc voi version trong manifest.json
   const NHIP_DO   = 500;     // ms giua hai lan ngo xem form da dung xong chua
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
   let chuDaDan = '';
@@ -588,13 +588,33 @@
   //          <span>Affix <img alt=GENERIC></span></div></div>
   // Chu cua ca the gom ca "View attribute description" lan "Affix" -> khong
   // khop duoc. Ten that nam o the DIV RONG dau tien (khong con the con).
+  // Lay chu, BO nhung thu khong phai ten: nut hoi, hinh, va chu danh rieng
+  // cho trinh doc man hinh ("View attribute description").
+  function chuThuan(el) {
+    let t = '';
+    for (const n of el.childNodes) {
+      if (n.nodeType === 3) { t += n.nodeValue; continue; }
+      if (n.nodeType !== 1) continue;
+      if (/^(BUTTON|IMG|SVG)$/i.test(n.tagName)) continue;
+      if (String(n.className || '').indexOf('sr-only') >= 0) continue;
+      t += chuThuan(n);
+    }
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  // BAY DA SUP MOT LAN: trang TO SANG doan chu vua go ("Vuln" trong
+  // "Vulnerable"), tuc no boc doan do vao mot the rieng — o chua ten khong
+  // con la the RONG nua. Ban truoc chi nhan the rong nen tut xuong duong du
+  // phong, lay ca chu cua nut hoi lan chu "Affix" o cuoi -> khong khop noi.
+  // => Nhan o chua ten bang cach KHAC: la the div dau tien KHONG chua nut,
+  //    khong chua hinh. Cai do thi to sang bao nhieu cung khong anh huong.
   function nhanDongClassic(el) {
     for (const d of el.querySelectorAll('div')) {
-      if (d.children.length) continue;
-      const t = (d.textContent || '').trim();
+      if (d.querySelector('button,img,svg')) continue;
+      const t = chuThuan(d);
       if (t && /[A-Za-z]{3}/.test(t)) return t;
     }
-    return (el.textContent || '').trim();
+    return chuThuan(el);
   }
 
   function dongGoiYClassic(khung, ten) {
