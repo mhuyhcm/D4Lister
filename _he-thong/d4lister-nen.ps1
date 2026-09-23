@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 #   D4Lister - nen he thong: CAI DAT va CAP NHAT chung mot cho
 #
 #   Hai viec nay truoc day nam o hai file, ma phan loi giong het nhau
@@ -214,13 +214,13 @@ try {
 Write-Host '   Xong.'
 
 Write-Host ''
-Write-Host '[ 2/4 ] Kiem tra Tesseract (doc chu trong anh)...' -ForegroundColor Cyan
-if (CaiTesseract) { Write-Host '   Xong.' }
-else {
-    Write-Host '   [ ! ] Khong cai duoc - tool van chay, chi la khong co phan' -ForegroundColor Yellow
-    Write-Host '         doc chu (phai bam SCAN roi tu sua so bang tay).' -ForegroundColor Yellow
-    Write-Host "         Muon cai tay: $TAI_TESS"
-}
+Write-Host '[ 2/4 ] Duong ong TTS...' -ForegroundColor Cyan
+# V3 KHONG dung Tesseract nua. Thay vao do la duong ong TTS: cam them mot
+# file saapi64.dll vao thu muc Diablo 4, game doc chu item ra thang cho tool.
+# Buoc do phai chay rieng (no can tao chung chi tu ky de ky file), nen chi
+# nhac o day chu khong tu lam.
+Write-Host '   Buoc nay chay rieng - xem muc CON PHAI LAM TAY o cuoi.'
+Write-Host '   (V3 bo han Tesseract: khong chup anh, khong doc chu tu anh.)' -ForegroundColor DarkGray
 
 Write-Host ''
 Write-Host '[ 3/4 ] Kiem tra AutoHotkey...' -ForegroundColor Cyan
@@ -256,6 +256,18 @@ Write-Host '     3. Bam  Load unpacked'
 Write-Host '     4. Trong o File name bam Ctrl+V roi bam Select Folder'
 Write-Host ''
 Write-Host '   Chrome bat buoc chinh ban bam - khong chuong trinh nao lach duoc.'
+Write-Host ''
+Write-Host '   VIEC THU HAI - DUONG ONG TTS (chi lam MOT lan):' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '     1. Thoat han Diablo 4'
+Write-Host '     2. Chay  _he-thong\CAI-TTS.cmd'
+Write-Host '     3. Bat game len, vao Options bat ba cong tac:'
+Write-Host '          Accessibility : Use Screen Reader'
+Write-Host '                          3rd Party Screen Reader'
+Write-Host '          Gameplay      : Advanced Tooltip Information'
+Write-Host ''
+Write-Host '   Day la cach D4Lister doc item: game doc chu ra thang cho tool,'
+Write-Host '   khong chup anh, khong doan chu - nen khong bao gio doc nham so.'
 Write-Host ''
 Write-Host '   TU GIO CHI CAN: bam dup  D4Lister.ahk' -ForegroundColor Green
 Write-Host '   No tu kiem tra ban moi moi lan chay.'

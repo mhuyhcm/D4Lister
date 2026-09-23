@@ -29,3 +29,12 @@ _he-thong/bo-cai/
 # Khong day len: may khac tai ve chi can file de CHAY.
 _ban-giao.md
 _bai-thu/
+_bo-nho/
+_thu-tts.ahk
+_thu-tts.log
+
+# --- Rac cua bai thu (file .ahk do script Python sinh ra roi chay) ---
+_thu-loc*.ahk
+_thu-loc*.txt
+_thu-unique.ahk
+_thu-unique.txt

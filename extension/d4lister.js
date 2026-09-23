@@ -11,11 +11,45 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '4.7';          // doi cung luc voi version trong manifest.json
+  const BAN = '7.0';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
   // luc trang dang dung form do dang.
+  // ====================================================================
+  //  NHAT KY TRONG MAY
+  //
+  //  Moi dong ext ghi ra Console deu duoc giu lai o day. Bam banh rang >
+  //  "Chép nhật ký" la ca xap vao clipboard — khoi phai mo Console roi ngoi
+  //  loc tung dong giua hang tram dong quang cao cua trang.
+  // ====================================================================
+  // ------------------------------------------------------------------
+  //  DONG HO DO TUNG BUOC
+  //  Moi moc ghi ra: tong thoi gian tu luc dan, va rieng buoc do ton bao
+  //  lau. Cho nao khung se lo ngay trong nhat ky.
+  // ------------------------------------------------------------------
+  let mocGoc = 0;
+  const gioNay = () => (mocGoc ? Math.round(performance.now() - mocGoc) : 0);
+  const batGio = () => { mocGoc = performance.now(); };
+  const dem = () => performance.now();
+  const nhip = (ten, tu) =>
+    ghi('[D4Lister] ⏱ ' + String(gioNay()).padStart(6) + 'ms'
+      + (tu === undefined ? '' : '  (bước này ' + Math.round(performance.now() - tu) + 'ms)')
+      + '  ' + ten);
+
+  const nhatKy = [];
+  function ghi() {
+    try {
+      const d = [].slice.call(arguments).map(x => {
+        if (typeof x === 'string') return x;
+        try { return JSON.stringify(x); } catch (e) { return String(x); }
+      }).join(' ');
+      nhatKy.push(new Date().toLocaleTimeString('vi-VN') + '  ' + d);
+      if (nhatKy.length > 500) nhatKy.shift();
+    } catch (e) { /* ghi nhat ky hong thi cung khong duoc chan viec chinh */ }
+    console.log.apply(console, arguments);
+  }
+
   const NHIP_DO   = 150;     // ms giua hai lan ngo
   const YEN_TOI_DA = 400;    // form khong doi suot ngan nay = dung xong
   const CHO_TOI_DA = 120000; // ms bo cuoc neu mai khong thay dong affix nao
@@ -386,6 +420,13 @@
     return ra.length ? ra : null;
   }
 
+  // So dong affix THAT SU HIEN RA TREN MAN HINH (dem o nhap, khong dem so
+  // sach cua form). Day moi la thuoc do dung cho cau hoi "trang ve xong
+  // chua" va "day dong vao co an thua khong" — so sach cua form thay doi
+  // ngay khi ext ghi, con man hinh thi chua chac.
+  const soDongManHinh = () =>
+    (cheDo() === 'classic' ? dongClassic() : dongBeta()).length;
+
   // --- tim cac dong affix dang co tren form ---------------------------
   function timCacDong() {
     if (CD.ghiThangForm) {
@@ -395,19 +436,48 @@
     return cheDo() === 'classic' ? dongClassic() : dongBeta();
   }
 
+  // BAY DA SUP MOT LAN (23/09/2026, mon Galvanic Azurite):
+  // ban truoc tim khoi cua mot dong bang cach di nguoc len cho den khi gap
+  // nut "Remove ...", khong gap thi BO QUA dong do. Nhung affix CO DINH cua
+  // do Unique thi trang khong cho xoa -> dong do khong co nut Remove -> ext
+  // khong nhin thay no, tuong la con thieu, roi them vao mot dong thu hai y
+  // het. Man hinh hien "Shock Skills" hai lan, con dong that thi khong ai
+  // dien so cho.
+  // => Khoi cua mot dong = to tien gan nhat ma BEN TRONG chi co DUNG MOT o
+  //    "Affix value". Cach nhan nay khong phu thuoc nut Remove co hay khong.
+  function khoiDongBeta(inp) {
+    let khoi = inp;
+    for (let i = 0; i < 10; i++) {
+      const cha = khoi.parentElement;
+      if (!cha) break;
+      if (cha.querySelectorAll('input[aria-label="Affix value"]').length > 1) break;
+      khoi = cha;
+      if (khoi.querySelector('button[aria-label^="Remove "],[aria-label^="Reorder "]')) break;
+    }
+    return khoi;
+  }
+
+  function tenDongBeta(khoi) {
+    const b = khoi.querySelector('button[aria-label^="Remove "]')
+           || khoi.querySelector('[aria-label^="Reorder "]');
+    if (b) return b.getAttribute('aria-label').replace(/^(Remove|Reorder)\s+/, '').trim();
+    // Khong co ca hai nut: lay chu hien ra canh o nhap. Chi nhan the KHONG
+    // chua nut/o nhap/hinh, de doan chu trang to sang khong lam lech.
+    for (const e of khoi.querySelectorAll('span,div,label,p')) {
+      if (e.querySelector('button,input,img,svg')) continue;
+      const t = (e.textContent || '').replace(/\s+/g, ' ').trim();
+      if (t.length >= 3 && /[A-Za-z]{3}/.test(t) && !/^[\d.,%+–—\-x\s]+$/.test(t))
+        return t;
+    }
+    return '';
+  }
+
   function dongBeta() {
     const ra = [];
     for (const inp of document.querySelectorAll('input[aria-label="Affix value"]')) {
-      // di nguoc len tim khoi chua ca nut Remove -> do la mot dong affix
-      let khoi = inp, nutXoa = null;
-      for (let i = 0; i < 8 && khoi; i++) {
-        khoi = khoi.parentElement;
-        if (!khoi) break;
-        nutXoa = khoi.querySelector('button[aria-label^="Remove "]');
-        if (nutXoa) break;
-      }
-      if (!nutXoa) continue;
-      const ten = nutXoa.getAttribute('aria-label').replace(/^Remove\s+/, '').trim();
+      const khoi = khoiDongBeta(inp);
+      const ten = tenDongBeta(khoi);
+      if (!ten) continue;
 
       // khoang hop le nam trong tooltip an canh o nhap
       let min = null, max = null;
@@ -427,6 +497,81 @@
   }
 
   const saoDangBat = n => n && n.getAttribute('aria-checked') === 'true';
+
+  // ====================================================================
+  //  MUC UNIQUE POWER
+  //
+  //  Suc manh rieng cua do Unique (va Aspect cua do Legendary) khong phai
+  //  affix — trang xep no o muc rieng, co mot o so va mot cong tac
+  //  "Maxxed out Unique Power".
+  //
+  //  Trang MAC DINH dat kich tran luc dung mon: Galvanic Azurite ra 60%
+  //  trong khi mon that chi 44%. Khong sua thi moi mon Unique deu bi khai
+  //  khong dung — ma cho nay nguoi mua nhin rat ky.
+  //
+  //  D4Lister gui kem dong  #D4L-UNIQUE:44.0|40.0|60.0
+  //  (gia tri | tran duoi | tran tren), doc ra tu chinh chu cua game.
+  // ====================================================================
+  const oHieuUngRieng = () =>
+    [...document.querySelectorAll('input[aria-label="Effect value"]')].find(dangHien);
+
+  const nutKichTran = () =>
+    [...document.querySelectorAll('button[role="checkbox"]')]
+      .find(b => dangHien(b) && b.getAttribute('aria-label') === 'Maxxed out Unique Power');
+
+  // ====================================================================
+  //  MUC SOCKETS
+  //
+  //  Trang de moi so o mot nut rieng, hinh luc giac:
+  //     button[aria-label="1 socket"]  aria-pressed="true|false"
+  //     button[aria-label="2 sockets"] aria-pressed="true|false"
+  //  Doc duoc aria-pressed nen biet dang bat hay tat, khong bam thua.
+  //
+  //  D4Lister chi gui  #D4L-SOCKET:n  khi n > 0 (xem chu thich ben AHK).
+  // ====================================================================
+  const nutOngoc = n => {
+    const a1 = n + ' socket', a2 = n + ' sockets';
+    return [...document.querySelectorAll('button[aria-label]')].find(b => {
+      if (!dangHien(b)) return false;
+      const a = (b.getAttribute('aria-label') || '').trim().toLowerCase();
+      return a === a1 || a === a2;
+    });
+  };
+
+  function datOngoc(text) {
+    const m = text.match(/^#D4L-SOCKET:(\d+)\s*$/m);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    if (!n) return null;
+    const b = nutOngoc(n);
+    if (!b) return { loi: 'không thấy nút ' + n + ' socket' };
+    if (b.getAttribute('aria-pressed') === 'true') return { n, daCo: true };
+    bamThat(b);
+    return { n };
+  }
+
+  function datSucManhRieng(text) {
+    const m = text.match(/^#D4L-UNIQUE:([\d.]+)(?:\|([\d.]+)\|([\d.]+))?\s*$/m);
+    if (!m) return null;
+    const o = oHieuUngRieng();
+    if (!o) return { loi: 'không thấy ô Effect value' };
+
+    const gt  = parseFloat(m[1]);
+    const tran = m[3] ? parseFloat(m[3]) : null;
+    if (!isFinite(gt)) return null;
+    const kichTran = tran !== null && Math.abs(gt - tran) < 0.001;
+
+    // Cong tac truoc, o so sau — giong het chuyen dau sao cua affix: dang
+    // kich tran thi o so bi khoa cung, ghi vao khong an.
+    const nut = nutKichTran();
+    if (nut && saoDangBat(nut) !== kichTran) bamThat(nut);
+
+    setTimeout(() => {
+      const o2 = oHieuUngRieng();
+      if (o2) datGiaTri(o2, gt);
+    }, 150);
+    return { gt, tran, kichTran };
+  }
 
   // --- dat gia tri cho o input cua React ------------------------------
   function datGiaTri(inp, giaTri) {
@@ -464,8 +609,11 @@
     chuDaDoc = muon.map(m => m.ten + ' = ' + m.so + (m.phanTram ? '%' : '') +
       (m.sao ? ' *' : ''));
     const dang = timCacDong();
-    if (!dang.length) {
-      bao([], [], [], 'Form chưa có món đồ nào. Bấm nút SCAN trước đã.');
+    // V3 tu dung ra mon, nen form vua tao xong CHUA CO dong affix nao la
+    // chuyen binh thuong — cac dong se do chinh ext them vao. Chi coi la
+    // "chua co mon" khi ca o ADD STANDARD AFFIXES cung khong co.
+    if (!dang.length && !nutMoDs()) {
+      bao([], [], [], 'Trang chưa có món đồ nào để điền.');
       return;
     }
 
@@ -484,6 +632,12 @@
     const daDung = new Set();
     const ok = [], ngoaiKhoang = [], khongThay = [], doiSao = [], nghiNgo = [];
 
+    nhip('apDung ' + (epBuoc ? '(gọi lại)' : '(lần đầu)'));
+    ghi('[D4Lister] apDung(' + (epBuoc ? 'gọi lại' : 'lần đầu') + '): muốn '
+      + muon.length + ' dòng [' + muon.map(x => x.ten).join(' | ') + ']'
+      + '  ·  form đang có ' + dang.length + ' dòng [' + dang.map(x => x.ten).join(' | ') + ']'
+      + '  ·  màn hình ' + soDongManHinh() + ' ô nhập');
+
     for (const m of muon) {
       // Khop theo TU. Ten cua DONG TREN FORM chinh la ten cua trang (doc tu
       // nut xoa "Remove ..."), nen day da la doi chieu voi chuan roi.
@@ -493,7 +647,12 @@
         // Co ten nay trong thu vien khong? Neu co -> affix that, chi la trang
         // chua dung dong do ra. Neu khong -> nhieu kha nang OCR doc bay.
         const tv = THU_VIEN.length ? timKhopNhat(m.ten, THU_VIEN) : { diem: 0, muc: null };
-        khongThay.push({ ...m, coThat: tv.diem >= DIEM_CHAC ? tv.muc : null });
+        const that = tv.diem >= DIEM_CHAC ? tv.muc : null;
+        ghi('[D4Lister]   form chưa có "' + m.ten + '" (giống dòng sẵn có nhất '
+          + Math.round(kq.diem * 100) + '%)  ·  thư viện ' + THU_VIEN.length + ' tên: "'
+          + (tv.muc || '—') + '" ' + Math.round(tv.diem * 100) + '%  ->  '
+          + (that ? 'sẽ tự thêm' : 'KHÔNG tự thêm'));
+        khongThay.push({ ...m, coThat: that });
         continue;
       }
 
@@ -506,22 +665,41 @@
       const dong = kq.muc;
       daDung.add(dong);
 
+      // DAU SAO PHAI BAT TRUOC KHI GHI SO.
+      //
+      // Trang chan gia tri trong khoang binh thuong cua affix, va CHI khi
+      // cong tac Greater Affix dang BAT no moi cho vuot tran. Poison
+      // Resistance khoang 1-2800: ghi 3500 luc sao con tat thi trang cat
+      // ngay con 2800, roi bat sao sau do cung khong keo lai duoc.
+      // Dung thu tu nay thi tran duoc noi ra truoc, so moi vao tron.
+      if (CD.tuDauSao && coDoSao && dong.coSao && dong.laySao() !== !!m.sao) {
+        dong.datSao(!!m.sao);
+        doiSao.push({ ten: dong.ten, bat: !!m.sao });
+      }
+
       // o nhap chi cho so nguyen thi lam tron
       const v = dong.nguyen ? Math.round(m.so) : m.so;
 
       const cu = dong.lay();
       dong.dat(v);
 
-      // Dau sao: bat/tat cho khop voi cai do duoc tren anh.
-      if (CD.tuDauSao && coDoSao && dong.coSao && dong.laySao() !== !!m.sao) {
-        dong.datSao(!!m.sao);
-        doiSao.push({ ten: dong.ten, bat: !!m.sao });
-      }
-
       const reRange = (dong.min !== null && (m.so < dong.min || m.so > dong.max));
       if (reRange) ngoaiKhoang.push({ ...m, dong, v, cu });
       else ok.push({ ...m, dong, v, cu });
     }
+
+    // Hai muc nam NGOAI khoi affix nen lam rieng: UNIQUE POWER va SOCKETS.
+    const ngoai = [];
+    const kqRieng = datSucManhRieng(text);
+    if (kqRieng && kqRieng.loi) ngoai.push('Unique Power: ' + kqRieng.loi);
+    else if (kqRieng)
+      ngoai.push('Unique Power ' + kqRieng.gt + (kqRieng.kichTran ? ' (kịch trần)' : ''));
+
+    const kqO = datOngoc(text);
+    if (kqO && kqO.loi) ngoai.push('Ổ ngọc: ' + kqO.loi);
+    else if (kqO) ngoai.push(kqO.n + ' ổ ngọc' + (kqO.daCo ? ' (trang đã chọn sẵn)' : ''));
+
+    if (ngoai.length) nhac(ngoai.join('  ·  '));
 
     // Viet xong roi phai DOC LAI O. Trang co quyen khong nhan so minh viet
     // — no tu cat ve muc toi da chang han. Khong doc lai thi bang bao "da
@@ -546,23 +724,48 @@
       bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
     };
 
-    if (ok.length || ngoaiKhoang.length) {
-      setTimeout(() => {
-        // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot
-        // cau chu sau khi da nhan so. Doc nguoc tu cau do.
-        if (cheDo() === 'classic') {
-          for (const c of docCanhBaoNgoai()) {
-            const i = ok.findIndex(o => diemKhop(c.ten, o.dong.ten) >= DIEM_CHAC);
-            if (i < 0) continue;
-            ok[i].dong.min = c.min;
-            ok[i].dong.max = c.max;
-            ngoaiKhoang.push(ok[i]);
-            ok.splice(i, 1);
-          }
+    let daXepLaiClassic = false, daVietLaiSao = false;
+    const kiemLai = () => {
+      // CLASSIC khong ghi san khoang hop le vao trang, chi bao bang mot
+      // cau chu sau khi da nhan so. Doc nguoc tu cau do.
+      if (cheDo() === 'classic' && !daXepLaiClassic) {
+        daXepLaiClassic = true;
+        for (const c of docCanhBaoNgoai()) {
+          const i = ok.findIndex(o => diemKhop(c.ten, o.dong.ten) >= DIEM_CHAC);
+          if (i < 0) continue;
+          ok[i].dong.min = c.min;
+          ok[i].dong.max = c.max;
+          ngoaiKhoang.push(ok[i]);
+          ok.splice(i, 1);
         }
-        chot();
-        tuDo();          // tu di do, im lang neu on
-      }, 350);
+      }
+
+      // Cong tac Greater Affix vua bat thi trang can mot nhip moi noi tran
+      // ra, nen so ghi ngay sau do van co the bi cat. Ghi lai DUNG MOT lan
+      // cho nhung dong co dau sao ma so chua vao dung.
+      if (!daVietLaiSao) {
+        const lam = [];
+        for (const d of ok.concat(ngoaiKhoang)) {
+          if (!d.sao) continue;
+          const thuc = parseFloat(String(d.dong.lay()).replace(/,/g, ''));
+          if (isFinite(thuc) && Math.abs(thuc - d.v) > 0.001) { d.dong.dat(d.v); lam.push(d); }
+        }
+        if (lam.length) {
+          daVietLaiSao = true;
+          ghi('[D4Lister] ghi lại ' + lam.length +
+            ' dòng có dấu sao sau khi trần đã được nới:',
+            lam.map(x => x.dong.ten + ' = ' + x.v).join(', '));
+          setTimeout(kiemLai, 300);
+          return;
+        }
+      }
+
+      chot();
+      tuDo();          // tu di do, im lang neu on
+    };
+
+    if (ok.length || ngoaiKhoang.length) {
+      setTimeout(kiemLai, 350);
       return;
     }
     bao(ok, ngoaiKhoang, khongThay, '', doiSao, banTrenDia, nghiNgo, lech);
@@ -809,7 +1012,7 @@
       .map(e => (cl ? nhanDongClassic(e) : (e.textContent || '')).trim())
       .filter(t => t && t.length < 80);
     // Chi tiet de do loi thi day ra Console — dung bat user doc chuoi DOM tho.
-    console.log('[D4Lister] tim khong ra:', { go: tk, o: o.value, dong: dong });
+    ghi('[D4Lister] tim khong ra:', { go: tk, o: o.value, dong: dong });
     return dong.length
       ? 'gõ "' + tk + '" ra ' + dong.length + ' dòng, không dòng nào khớp'
       : 'gõ "' + tk + '" không ra dòng nào';
@@ -932,13 +1135,13 @@
     if (k) {
       khoAffix = k;
       nhoKho(k.ds);
-      console.log('[D4Lister] danh mục affix: ' + k.ds.length + ' mục (' + k.tu + ')');
+      ghi('[D4Lister] danh mục affix: ' + k.ds.length + ' mục (' + k.tu + ')');
       return khoAffix;
     }
     const cu = docKhoDaNho();
     if (cu) {
       khoAffix = { ds: cu, tu: 'nhớ sẵn trong máy' };
-      console.log('[D4Lister] danh mục affix: ' + cu.length + ' mục (nhớ sẵn)');
+      ghi('[D4Lister] danh mục affix: ' + cu.length + ' mục (nhớ sẵn)');
     }
     return khoAffix;
   }
@@ -962,6 +1165,78 @@
     if (!cu.length) return false;            // ca hai rong thi khong phan biet noi
     return !!o.fields[0] && !!cu[0] && o.fields[0].id === cu[0].id;
   };
+
+  // ====================================================================
+  //  BAY DA SUP MOT LAN — va no lam CHAM moi lan dan cua V3
+  //
+  //  Phep nhan dang tren doi chieu id cua muc dau tien, nen mang RONG thi
+  //  chiu. Viet hoi V2 thi khong sao: luc do trang tu quet anh roi dung san
+  //  cac dong, mang chua bao gio rong.
+  //  V3 thi NGUOC LAI: ext tu dung mon, mon moi LUON co mang affixes rong.
+  //  Vay la lan nao cung khong tim ra bo quan ly mang -> khong goi duoc
+  //  append() -> ma setValue() len mot mang dong thi react-hook-form KHONG
+  //  ve lai man hinh -> lan nao cung phai lui ve duong go chu tung dong.
+  //  Do la cai "cham, giong kieu nguoi lam" ma user thay.
+  //
+  //  Mang rong thi doi chieu bang VI TRI thay vi bang ma: di nguoc len tu
+  //  nut "ADD STANDARD AFFIXES", bo quan ly mang dong gan nhat tren duong
+  //  di chinh la cua khoi affix. Khong ra thi quet ca cay lay moi bo dang
+  //  rong lam ung vien, roi thu tung cai — thu bang chinh viec day that,
+  //  khong an thi tra lai nguyen trang roi sang cai ke.
+  // ====================================================================
+  function boMangTuNut() {
+    const nut = nutMoDs();
+    if (!nut) return [];
+    const k = Object.keys(nut).find(x => x.indexOf('__reactFiber$') === 0);
+    if (!k) return [];
+    const ra = [];
+    for (let f = nut[k], i = 0; f && i < 60; f = f.return, i++) {
+      let h = f.memoizedState, j = 0;
+      while (h && typeof h === 'object' && j < 80) {
+        const x = h.memoizedState;
+        if (laBoMang(x)) ra.push(x);
+        else if (x && typeof x === 'object' && !Array.isArray(x))
+          for (const t of Object.keys(x)) if (laBoMang(x[t])) ra.push(x[t]);
+        h = h.next; j++;
+      }
+    }
+    return ra;
+  }
+
+  function quetBoMangRong() {
+    const goc = fiberGoc();
+    if (!goc) return [];
+    const ra = [], ngan = [goc];
+    let n = 0;
+    const xet = x => { if (laBoMang(x) && !x.fields.length && ra.indexOf(x) < 0) ra.push(x); };
+    while (ngan.length && n < 30000) {
+      const f = ngan.pop();
+      if (!f) continue;
+      n++;
+      let h = f.memoizedState, i = 0;
+      while (h && typeof h === 'object' && i < 80) {
+        const x = h.memoizedState;
+        xet(x);
+        if (x && typeof x === 'object' && !Array.isArray(x))
+          for (const t of Object.keys(x)) xet(x[t]);
+        h = h.next; i++;
+      }
+      if (f.child) ngan.push(f.child);
+      if (f.sibling) ngan.push(f.sibling);
+    }
+    return ra;
+  }
+
+  //  Danh sach ung vien, cai nhieu kha nang nhat dung truoc.
+  function cacBoMangAffix(cu) {
+    const co = timBoMangAffix(cu);
+    if (co) return [co];
+    if (!Array.isArray(cu) || cu.length) return [];
+    const ra = [];
+    for (const x of boMangTuNut().filter(b => !b.fields.length).concat(quetBoMangRong()))
+      if (ra.indexOf(x) < 0) ra.push(x);
+    return ra;
+  }
 
   function timBoMangAffix(cu) {
     const goc = fiberGoc();
@@ -1031,30 +1306,98 @@
   // tuong khong co bo mang -> quay ve ghi de ca mang -> NUOT MAT dong vua
   // them o lan truoc. Da gap that: mon 4 affix ma form chi hien 3.
   // => Gom het roi day MOT LAN.
-  function dayCaLoat(ds) {
+  async function dayCaLoat(ds) {
     if (!ds.length) return false;
     const fm = timFormTrang();
     if (!fm) { viSaoTruot = 'khong voi toi duoc bo dieu khien form'; return false; }
 
     let cu;
     try { cu = fm.getValues('affixes'); } catch (e) { cu = null; }
+    // undefined = mang chua duoc dang ky (mon moi tinh) -> coi nhu rong
+    if (cu === undefined) cu = [];
     if (!Array.isArray(cu)) { viSaoTruot = 'khong doc duoc mang affixes'; return false; }
 
-    const bo = timBoMangAffix(cu);
-    if (bo) {
-      try { bo.append(ds, { shouldFocus: false }); } catch (e) {
-        try { bo.append(ds); } catch (e2) {}
+    const domTruoc = soDongManHinh();
+    const dsBo = cacBoMangAffix(cu);
+
+    // BAY DA SUP MOT LAN (23/09/2026, mon Galvanic Azurite):
+    // mang cua form di tu 1 len 4 dung y nhu mong doi, NHUNG man hinh van
+    // chi ve MOT dong. Ba dong kia khong co o nhap nao ca, nen moi con so
+    // ext ghi vao chung deu roi vao cho khong ai nhin thay — ma ham nay lai
+    // bao thanh cong, nen duong du phong khong he chay.
+    // => Mang phinh ra CHUA DU. Phai thay MAN HINH ve them dung bay nhieu o.
+    const moi = cu.concat(ds);
+    const an = cach => {
+      ghi('[D4Lister] đẩy thẳng ' + ds.length + ' dòng một phát bằng ' + cach);
+      return true;
+    };
+    const dat = async (ten, lam) => {
+      const t = dem();
+      try { lam(); } catch (e) { nhip('đẩy thẳng · ' + ten + ' · ném lỗi', t); return false; }
+      let sau;
+      try { sau = fm.getValues('affixes'); } catch (e) { sau = null; }
+      if (sau === undefined) sau = [];
+      if (!Array.isArray(sau) || sau.length !== moi.length) {
+        nhip('đẩy thẳng · ' + ten + ' · sổ sách không đổi', t);
+        return false;
       }
-    } else {
-      fm.setValue('affixes', cu.concat(ds),
-        { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      // 450ms la du rong: React ve lai sau mot lan doi trang thai thi xong
+      // trong vong mot khung hinh. De 1200ms thi thu bon duong ma hut ca
+      // bon la dung im gan 5 giay truoc khi duong du phong bat dau — chinh
+      // la cu khung truoc dong dau tien.
+      const ve = !!(await cho(
+        () => (soDongManHinh() >= domTruoc + ds.length ? true : null), 450));
+      nhip('đẩy thẳng · ' + ten + ' · ' + (ve ? 'ĂN' : 'màn hình không vẽ'), t);
+      return ve;
+    };
+    // Tra lai nguyen trang. Khong tra thi duong go chu them lan thu hai,
+    // thanh ra moi dong nhan doi.
+    const hoanTac = bo => {
+      try {
+        if (bo && typeof bo.replace === 'function') bo.replace(cu);
+        else fm.setValue('affixes', cu, { shouldDirty: true });
+      } catch (e) {}
+    };
+
+    // Duong 1: replace() cua useFieldArray — DAT CA MANG mot lan roi ve lai
+    // ngay. Muot hon append(): khong cong don tung dot, khong phu thuoc so
+    // sach cu, va la MOT lan ve thay vi nhieu lan.
+    // Duong 1b: append(). Co ban react-hook-form cu khong co replace().
+    // Mang dang rong thi co the co vai ung vien (affixes, inherents,
+    // priceGroups... deu rong) — thu tung cai bang chinh viec day that.
+    for (const bo of dsBo) {
+      if (typeof bo.replace === 'function' && await dat('replace()', () => bo.replace(moi)))
+        return an('replace() của useFieldArray');
+      hoanTac(bo);
+      if (await dat('append()', () => {
+        try { bo.append(ds, { shouldFocus: false }); } catch (e) { bo.append(ds); }
+      })) return an('append() của useFieldArray');
+      hoanTac(bo);
     }
 
-    let sau;
-    try { sau = fm.getValues('affixes'); } catch (e) { sau = null; }
-    if (Array.isArray(sau) && sau.length === cu.length + ds.length) return true;
-    viSaoTruot = 'day ' + ds.length + ' dong vao ma mang di tu ' + cu.length +
-      ' den ' + (Array.isArray(sau) ? sau.length : '?') + ', co bo mang: ' + !!bo;
+    // Duong 2: reset() CA FORM.
+    // Day la cho khac han setValue(): setValue len mot mang dong chi doi so
+    // sach, useFieldArray giu ban rieng nen man hinh dung im. Con reset()
+    // dung lai TOAN BO form, ke ca cac mang dong — tuc cham toi duoc
+    // useFieldArray ma khong can cam duoc chinh no.
+    // Chep lai moi o hien co roi chi thay mang affixes, de khong xoa mat
+    // gia, o ngoc, do hiem... nguoi dung da dat.
+    if (typeof fm.reset === 'function' && await dat('reset() cả form', () => {
+      const tatCa = fm.getValues() || {};
+      fm.reset(Object.assign({}, tatCa, { affixes: moi }),
+        { keepDefaultValues: true, keepErrors: true, keepDirty: true });
+    })) return an('reset() cả form');
+    hoanTac(null);
+
+    // Duong 3: ghi de mang. It khi ve lai duoc, nhung khong mat gi ma thu.
+    if (await dat('setValue cả mảng', () => fm.setValue('affixes', moi,
+        { shouldDirty: true, shouldTouch: true, shouldValidate: true })))
+      return an('setValue cả mảng');
+    hoanTac(null);
+
+    viSaoTruot = 'đẩy ' + ds.length + ' dòng mà màn hình vẫn '
+      + soDongManHinh() + ' ô nhập, trước khi đẩy là ' + domTruoc
+      + ', số ứng viên bộ quản lý mảng: ' + dsBo.length;
     return false;
   }
 
@@ -1062,17 +1405,27 @@
     loiThem = [];
     nhac('Đang thêm ' + thieu.length + ' dòng còn thiếu…');
 
+    let tB = dem();
     await layKhoAffixCoMo();
+    nhip('lấy danh mục affix', tB);
 
     // Thu duong THANG truoc cho ca loat. Duoc het thi khong bam gi ca.
-    const conLai = [], themVao = [];
+    const conLai = [], themVao = [], loiKho = [];
     for (const m of thieu) {
       const muc = timMucTrongKho(m.coThat || m.ten, m.so, m.sao);
-      if (muc) themVao.push(muc);
-      else conLai.push(m);
+      if (muc) { themVao.push(muc); continue; }
+      conLai.push(m);
+      // viSaoTruot bi ghi de sau moi lan tra, nen phai nhat ngay tai cho.
+      loiKho.push((m.coThat || m.ten) + ' — ' + viSaoTruot);
     }
+    const kho0 = layKhoAffix();
+    ghi('[D4Lister] tra danh mục trang: ' + themVao.length + '/' + thieu.length +
+      ' dòng tìm được. Danh mục ' + (kho0 ? kho0.ds.length + ' mục, ' +
+        kho0.ds.filter(x => x && x.type === 'AFFIX').length + ' cái là AFFIX, lấy từ ' + kho0.tu
+        : 'CHƯA ĐỌC ĐƯỢC') +
+      (loiKho.length ? '\n   không tìm được: ' + loiKho.join('\n   ') : ''));
     if (themVao.length) {
-      if (dayCaLoat(themVao)) soDayThang += themVao.length;
+      if (await dayCaLoat(themVao)) soDayThang += themVao.length;
       else for (const m of thieu) if (conLai.indexOf(m) < 0) conLai.push(m);
     }
     if (!conLai.length) {
@@ -1081,7 +1434,7 @@
     }
     // Phai quay ve duong go chu = co cai gi do sai. Ghi lai ngay, kem ly do,
     // de khoi phai bat user ta lai bang loi.
-    console.log('[D4Lister] đẩy thẳng được ' + (thieu.length - conLai.length) +
+    ghi('[D4Lister] đẩy thẳng được ' + (thieu.length - conLai.length) +
       '/' + thieu.length + ' dòng, còn lại đi đường gõ chữ. Vì:', viSaoTruot);
     ghiNhatKy('phai-go-chu', {
       viSao: viSaoTruot,
@@ -1093,8 +1446,14 @@
       soMucTrongDanhMuc: khoAffix ? khoAffix.ds.length : 0,
       soMucLaAFFIX: khoAffix ? khoAffix.ds.filter(x => x && x.type === 'AFFIX').length : 0,
       layDanhMucTu: khoAffix ? khoAffix.tu : null,
-      mauMotMucDanhMuc: khoAffix && khoAffix.ds[0] ? khoAffix.ds[0] : null,
-      coBoMangDong: !!timBoMangAffix(timFormTrang() ? timFormTrang().getValues('affixes') : null),
+      // CHI lay vai o. Muc danh muc that co kem rollTiers hang tram dong —
+      // dump ca cuc thi nhat ky phinh len vai chuc nghin ky tu, dan khong noi.
+      mauMotMucDanhMuc: (khoAffix && khoAffix.ds[0]) ? {
+        id: khoAffix.ds[0].id, name: khoAffix.ds[0].name,
+        type: khoAffix.ds[0].type, description: khoAffix.ds[0].description,
+      } : null,
+      soUngVienBoMangDong: cacBoMangAffix(
+        timFormTrang() ? timFormTrang().getValues('affixes') : null).length,
       cacUngVienForm: ungVienForm,
       soFiberDaQuet: soFiberDaQuet,
       mangGanGiongNhat: khoGanNhat,
@@ -1103,7 +1462,9 @@
     });
     thieu = conLai;
 
+    let soXong = 0;
     for (const m of thieu) {
+      const tDong = dem();
       // Tim bang TEN CHUAN CUA TRANG (thu vien da xac nhan), khong phai ten
       // OCR doc ra. "Life On Kill" de tim hon "LifeonKill".
       const tenTim = m.coThat || m.ten;
@@ -1114,7 +1475,10 @@
       const nut = nutMoDs();
       if (!nut) { loiThem.push([m.ten, 'không thấy ô ' + tenNut]); break; }
 
-      let khung = await moDropdown(nut);
+      // GIU DANH SACH MO SUOT ca luot. Ban truoc moi dong deu dong roi mo
+      // lai — ton gan mot giay moi dong, va nhin cu nhap nhay nhu nguoi
+      // dang mo tay tung cai.
+      let khung = dangMo(nut) ? khungPopover(nut) : await moDropdown(nut);
 
       // Chua mo duoc cung dung bo cuoc ngay: o CLASSIC chinh o go chu la
       // nut mo, co ban chi xo danh sach khi trong o DA CO CHU. Cu go vao
@@ -1127,15 +1491,20 @@
         continue;
       }
 
-      let g = null, tk = '';
-      for (const k of dsTuKhoa(tenTim)) {
+      // Danh sach dang mo san co khi DA co dong minh can (chua loc gi) —
+      // thu tim truoc, trung thi khoi go chu luon.
+      let g = (khung && dangHien(khung)) ? dongGoiY(khung, tenTim) : null;
+      let tk = '';
+      if (!g) for (const k of dsTuKhoa(tenTim)) {
         tk = k;
         if (cl && !dangMo(nut)) { bamThat(o); o.focus(); }
         goChu(o, k);
-        await doi(k ? 550 : 700);
-        if (!dangHien(khung)) khung = await cho(() => khungPopover(nut), 1500);
+        if (!dangHien(khung)) khung = await cho(() => khungPopover(nut), 1200);
         if (!khung) continue;
-        g = dongGoiY(khung, tenTim) || await doCuonTim(khung, tenTim);
+        // NGO cho den khi danh sach that su co dong khop, thay vi ngu mot
+        // khoang co dinh. Trang loc xong trong 80ms thi di tiep ngay 80ms.
+        g = await cho(() => dongGoiY(khung, tenTim), 900)
+          || await doCuonTim(khung, tenTim);
         if (g) break;
       }
       if (!khung) {
@@ -1147,11 +1516,8 @@
       // CLASSIC lam mo di nhung dong DA CO tren form (aria-disabled). Gap
       // dong mo la affix von da nam tren form roi, bam cung khong an gi —
       // coi nhu xong, luot dien lai o cuoi se tim ra no.
-      if (g.getAttribute && g.getAttribute('aria-disabled') === 'true') {
-        if (dangMo(nut)) dongDs(nut);
-        await doi(300);
+      if (g.getAttribute && g.getAttribute('aria-disabled') === 'true')
         continue;
-      }
 
       // Thu 3 duong, duong nao an thi dung. Sau moi duong deu KIEM LAI form
       // chu khong tin la da xong.
@@ -1185,9 +1551,15 @@
       if (!xong)
         loiThem.push([m.ten, 'thấy dòng rồi nhưng không chọn được. Đã thử: ' + daThu.join(', ')]);
 
-      if (dangMo(nut)) dongDs(nut);   // dong danh sach lai cho gon
-      await doi(400);
+      nhip('thêm dòng ' + (++soXong) + '/' + thieu.length + ' — '
+        + (m.coThat || m.ten) + (xong ? '' : ' (KHÔNG ĐƯỢC)'), tDong);
+      // KHONG dong danh sach o day — dong ke tiep dung lai duoc ngay.
+      // Dong roi mo lai moi dong la cho ton thoi gian nhat ca luot.
     }
+    const nutCuoi = nutMoDs();
+    if (nutCuoi && dangMo(nutCuoi)) dongDs(nutCuoi);
+    await doi(250);
+    nhip('xong phần thêm dòng');
     if (chuDaDan) apDung(chuDaDan, true);   // dien lai, lan nay co dong moi
   }
 
@@ -1233,8 +1605,10 @@
       o('nhayVaoGia', 'Nhảy vào ô giá') +
       o('ghiFileDo', 'Ghi file dò') +
       o('tuChonBase', 'Tự chọn base') +
+      o('tuTaoItem', 'Tự dựng món') +
       o('tuThemAffix', 'Tự thêm affix thiếu') +
       o('tuDauSao', 'Tự bật dấu sao') +
+      o('doDOM', 'Ghi cấu trúc ra Console') +
       '<div style="margin-top:9px;display:flex;align-items:center;gap:6px">' +
       '<span>Đếm ngược</span>' +
       '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
@@ -1244,7 +1618,35 @@
       '<div style="margin-top:10px;display:flex;align-items:center;gap:8px">' +
       '<button id="d4l-tl-goc" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
       'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Về mặc định</button>' +
+      '<button id="d4l-tl-do" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
+      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Dò lớp phủ</button>' +
+      '<button id="d4l-tl-nk" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
+      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Chép nhật ký</button>' +
       '<span style="color:#666;font-size:11px">Ctrl+Shift+D chạy lại</span></div>';
+
+    // Chep ca xap nhat ky vao clipboard. Bam nut la mot cu cham cua nguoi
+    // dung nen clipboard cho ghi; hong thi lui ve cach cu bang textarea.
+    d.querySelector('#d4l-tl-nk').onclick = () => {
+      const t = 'D4Lister ' + BAN + ' — nhật ký ' + nhatKy.length + ' dòng\n'
+        + '='.repeat(60) + '\n' + nhatKy.join('\n');
+      const xong = () => nhac('Đã chép ' + nhatKy.length + ' dòng nhật ký — dán cho Claude');
+      try {
+        navigator.clipboard.writeText(t).then(xong, () => {
+          const ta = document.createElement('textarea');
+          ta.value = t;
+          ta.style.cssText = 'position:fixed;left:-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          xong();
+        });
+      } catch (e) { nhac('Không chép được nhật ký — xem Console'); }
+    };
+
+    // Do lop phu: mo lan luot cac o chon o dau form roi ghi cai xo ra vao
+    // Console. Ban luu Ctrl+S khong chup duoc may lop phu nay.
+    d.querySelector('#d4l-tl-do').onclick = () => { d.remove(); doDOM('trước khi dò'); doLopPhu(); };
 
     d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
     d.querySelectorAll('input[type=checkbox]').forEach(i => {
@@ -1283,6 +1685,8 @@
     nhayVaoGia:       true,   // điền xong thì đặt con trỏ vào ô giá
     ghiFileDo:        false,  // tải file dò về máy (chỉ bật khi cần gửi cho Claude)
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
+    tuTaoItem:        true,   // V3: tự dựng món từ đầu (không còn ảnh để trang quét)
+    doDOM:            false,  // ghi cấu trúc trang ra Console sau khi dựng món
   };
   const KHOA_LUU = 'd4lister-cai-dat';
 
@@ -1474,7 +1878,7 @@
     }
     if (loiThem.length) {
       // Ly do that bai la chu ky thuat dai — day sang Console, o day chi bao TEN.
-      console.log('[D4Lister] thêm không được:', loiThem);
+      ghi('[D4Lister] thêm không được:', loiThem);
       h += '<div style="margin-top:8px;color:#e06a5a">Thêm không được: ' +
         loiThem.map(x => thoat(x[0])).join(', ') + '</div>';
     }
@@ -1532,10 +1936,431 @@
       setTimeout(() => { if (!dongHoDang || CD.demNguoc > 1) nhayVaoOGia(); }, 60);
   }
 
+  // ====================================================================
+  //  TAO ITEM TU DAU   (V3 — khong con anh de trang tu quet)
+  //
+  //  V2: dan ANH -> bam SCAN -> TRANG tu dung ra mon (loai do, do hiem,
+  //      ten) -> ext chi dien con so vao cac dong san co.
+  //  V3: khong co anh nua, nen EXT phai tu dung ra mon.
+  //
+  //  Hop thoai ADD ITEM cua che do BETA, do tren ban luu 23/09/2026:
+  //
+  //    div[cmdk-root]
+  //      input[placeholder="Add item…"]              <- go vao day de loc
+  //      button[aria-label="Clear all"]
+  //      div[role=listbox][aria-label="Suggestions"][cmdk-list]
+  //        div[role=option][cmdk-item][data-value="unique:<uuid>"]
+  //          img[alt="Galvanic Azurite"]
+  //          span "Galvanic Azurite"
+  //          span "Cast Shock Skill damage leaves enemies Magnetized..."
+  //          span "Unique"
+  //
+  //    Khi o nhap CON TRONG thi cho do la luoi 29 loai do, moi cai mot nut
+  //    button.group/item-base  ("Ring", "Two-Handed Mace", "Chest Armor"...)
+  //    Ca 29 nut deu nam san trong DOM, khong ao hoa -> bam thang duoc.
+  //
+  //  HAI DUONG, tuy do hiem doc duoc o dong 2 cua chu D4Lister gui sang:
+  //
+  //    Unique / Mythic  ->  go TEN MON roi bam goi y.
+  //                         Ten unique la ten co dinh, trang co trong danh
+  //                         muc nen go ra ngay.
+  //    Con lai          ->  bam thang nut loai do trong luoi.
+  //                         Ten do rare kieu "HACK SERPENT" la ten sinh
+  //                         ngau nhien, khong danh muc nao co ca — go vao
+  //                         chi to khong ra gi.
+  // ====================================================================
+  const CHU_DO_HIEM = 'mythic unique|mythic|unique|legendary|set|rare|magic|common';
+
+  //  "Ancestral Unique Ring"      -> {toTien:true,  doHiem:'unique',    loai:'Ring'}
+  //  "Legendary Two-Handed Mace"  -> {toTien:false, doHiem:'legendary', loai:'Two-Handed Mace'}
+  //  "Magic Axe"                  -> {toTien:false, doHiem:'magic',     loai:'Axe'}
+  function tachDongLoai(d) {
+    let t = ' ' + String(d || '').trim() + ' ';
+    const toTien = /\bancestral\b/i.test(t);
+    t = t.replace(/\b(ancestral|sacred)\b/ig, ' ');
+    let doHiem = '';
+    t = t.replace(new RegExp('\\b(' + CHU_DO_HIEM + ')\\b', 'i'), m => {
+      doHiem = m.toLowerCase();
+      return ' ';
+    });
+    return { toTien, doHiem, loai: t.replace(/\s+/g, ' ').trim() };
+  }
+
+  const laDoRieng = dh => dh === 'unique' || dh === 'mythic' || dh === 'mythic unique';
+
+  const oThemItem = () =>
+    [...document.querySelectorAll('[cmdk-root] input[type="text"]')]
+      .find(i => dangHien(i) && /add item|item base/i.test(i.placeholder || ''));
+
+  const luoiBase = () =>
+    [...document.querySelectorAll('button[class*="group/item-base"]')].filter(dangHien);
+
+  const goiYItem = () =>
+    [...document.querySelectorAll('[cmdk-list] [role="option"][data-value]')]
+      .filter(dangHien);
+
+  // Bam xong nut loai do, trang KHONG dung mon ra ngay: no nhay sang buoc
+  // chon Aspect va MAC DINH coi mon la Legendary. Muon do hiem khac thi bam
+  // "Change rarity" (nut co mui ten lui) de quay lai buoc chon do hiem.
+  const oTimAspect = () =>
+    [...document.querySelectorAll('input[type="text"]')]
+      .find(i => dangHien(i) && /search aspects/i.test(i.placeholder || ''));
+
+  const nutDoiDoHiem = () =>
+    [...document.querySelectorAll('button')]
+      .find(b => dangHien(b) && /^change rarity$/i.test((b.textContent || '').trim()));
+
+  // Luoi DO HIEM dung chung kieu the voi luoi loai do. Phan biet: the do
+  // hiem ghi "<DO HIEM> <LOAI DO>" nen chu co chua mot tu chi do hiem, con
+  // the loai do chi ghi "Ring" / "Two-Handed Mace".
+  const RE_DO_HIEM = /\b(common|magic|rare|legendary|unique|mythic|set)\b/i;
+  const luoiDoHiem = () => {
+    const tu = luoiBase().filter(b => RE_DO_HIEM.test((b.textContent || '').trim()));
+    if (tu.length) return tu;
+    // Phong khi luoi do hiem khong dung chung kieu the voi luoi loai do:
+    // do rong ra moi nut dang hien co chu dang "<do hiem> <loai do>".
+    return [...document.querySelectorAll('button')].filter(b => {
+      if (!dangHien(b)) return false;
+      const t = (b.textContent || '').replace(/\s+/g, ' ').trim();
+      return t.length > 0 && t.length < 44 && RE_DO_HIEM.test(t) && /\s/.test(t);
+    });
+  };
+
+  // ====================================================================
+  //  CHON ASPECT  (do Legendary)
+  //
+  //  Trang bat chon Aspect thi moi dung ra mon. Chu TTS cua game KHONG noi
+  //  ten Aspect — chi in mo ta:
+  //     "Thorns damage dealt has a 80% [80 - 110]% chance to deal damage..."
+  //
+  //  Danh sach Aspect tren trang CO AO HOA: ve 12 the mot luc trong khi co
+  //  hang tram cai. Cuon do vua cham vua mong manh.
+  //
+  //  Duong chac hon: danh muc cua trang la MOT MANG TRON (affix, aspect,
+  //  unique chung cho) ma ext da biet cach moi ra tu bo nho React tu ban
+  //  V2. Loc rieng type === 'ASPECT', khop MO TA ngoai tuyen de ra TEN,
+  //  roi go ten do vao o tim — danh sach thu con mot the, bam la xong.
+  //
+  //  Mo ta trong danh muc dung "#" thay cho con so ("has a # [#-#]% chance"),
+  //  con chu cua game thi co so that. Nen truoc khi so, bo het so va ngoac.
+  // ====================================================================
+  const thuanMoTa = s => String(s || '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[#\d.,%+]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // BAY DA SUP MOT LAN: trang VE DANH SACH THEO HAI KIEU.
+  //   o tim con trong -> luoi the, moi the la mot <button>
+  //   da go chu vao   -> danh sach cmdk, moi the la div[role=option][cmdk-item],
+  //                      va KHONG con <button> nao ca
+  // Ban truoc chi tim <button>, nen cang loc dung ten thi cang khong thay gi.
+  const theAspect = () => {
+    const kh = document.querySelector('[data-slot="data-picker-results"]');
+    if (!kh) return [];
+    const ds = [...kh.querySelectorAll('button,[role="option"],[cmdk-item]')]
+      .filter(dangHien);
+    // giu the trong cung, khoi dem mot the thanh hai
+    return ds.filter(e => !ds.some(x => x !== e && e.contains(x)));
+  };
+
+  const tenTheAspect = b => {
+    const sp = b.querySelector('[class*="font-game-tooltip"]');
+    if (sp && (sp.textContent || '').trim())
+      return (sp.textContent || '').replace(/\s+/g, ' ').trim();
+    // Du phong: chu cua the la "<Ten Aspect><mo ta>" dinh lien nhau, khong
+    // co dau cach o giua — cat den het tu "Aspect" la ra ten.
+    const t = (b.textContent || '').replace(/\s+/g, ' ').trim();
+    const m = t.match(/^(.*?\bAspect\b)/i);
+    return m ? m[1] : t.slice(0, 40);
+  };
+
+  const gonChu = t => String(t || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  async function chonAspect(cau) {
+    const o = oTimAspect();
+    if (!o) return { ok: false, viSao: 'không thấy ô Search aspects' };
+    if (!cau) return { ok: false, viSao: 'D4Lister không gửi kèm mô tả Aspect' };
+
+    const kho = layKhoAffix();
+    if (!kho) return { ok: false, viSao: 'chưa đọc được danh mục của trang' };
+    const ds = kho.ds.filter(x =>
+      x && x.type === 'ASPECT' && typeof x.description === 'string' && x.name);
+    if (!ds.length)
+      return { ok: false, viSao: 'danh mục ' + kho.ds.length + ' mục nhưng không có ASPECT nào' };
+
+    const tk = timKhopNhat(thuanMoTa(cau), ds, x => thuanMoTa(x.description));
+    if (!tk.muc || tk.diem < DIEM_CHAC)
+      return {
+        ok: false,
+        viSao: 'không khớp chắc Aspect nào (gần nhất "' +
+          (tk.muc ? tk.muc.name : '—') + '" ' + Math.round(tk.diem * 100) + '%)',
+      };
+    const ten = String(tk.muc.name).trim();
+
+    goChu(o, ten);
+
+    // BAY DA SUP MOT LAN: cho nay tung hoi "da co the nao chua". Cau tra loi
+    // la CO ngay lap tuc — 12 the CU van con day trong luc trang chua loc
+    // xong. Cham diem tren 12 the cu, khong thay "Needleflare Aspect", the
+    // la bo cuoc dung luc the that sap hien ra.
+    // => Phai cho den khi co the DUNG TEN, chu khong phai co the nao.
+    const the = await cho(() => {
+      const ds = theAspect();
+      if (!ds.length) return null;
+      // Chu cua the la "<Ten Aspect><mo ta>" dinh lien, nen so bang "bat dau bang"
+      const dung = ds.find(b => gonChu(b.textContent).indexOf(gonChu(ten)) === 0);
+      if (dung) return dung;
+      const tk2 = timKhopNhat(ten, ds, tenTheAspect);
+      return (tk2.muc && tk2.diem >= DIEM_CHAC) ? tk2.muc : null;
+    }, 4000);
+
+    if (!the)
+      return {
+        ok: false,
+        viSao: 'gõ "' + ten + '" rồi mà danh sách không ra thẻ đúng tên (đang có: '
+          + theAspect().map(tenTheAspect).slice(0, 4).join(', ') + ')',
+      };
+    bamThat(the);
+    return { ok: true, ten };
+  }
+
+  const TEN_DO_HIEM = {
+    'mythic unique': 'Mythic Unique', mythic: 'Mythic', unique: 'Unique',
+    legendary: 'Legendary', set: 'Set', rare: 'Rare', magic: 'Magic',
+    common: 'Common',
+  };
+
+  // Tim mot thu bam duoc co chu DUNG BANG <chu>, trong so nhung gi dang hien.
+  // Cai lop phu chon do hiem chua ai chup duoc DOM, nen do rong tay thay vi
+  // bam vao mot duong dan cu the roi truot.
+  const nutCoChu = chu => {
+    const c = chu.trim().toLowerCase();
+    return [...document.querySelectorAll(
+      'button,[role="option"],[role="radio"],[role="menuitem"],[cmdk-item]')]
+      .find(e => dangHien(e) &&
+        (e.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase() === c);
+  };
+
+  //  Ten cua mot the goi y. Uu tien alt cua anh: no la ten TRON, khong dinh
+  //  doan mo ta dai phia sau, va khong bi trang to sang doan vua go.
+  function tenGoiY(o) {
+    const im = o.querySelector('img[alt]');
+    if (im && (im.alt || '').trim()) return im.alt.trim();
+    const sp = o.querySelector('span');
+    return sp ? chuThuan(sp) : '';
+  }
+
+  const nutTheoNhan = nhan =>
+    [...document.querySelectorAll('button[aria-label]')]
+      .find(b => dangHien(b) && b.getAttribute('aria-label') === nhan);
+
+  //  Dat suc manh item. Trang chi co vai nac chu khong phai o nhap tu do.
+  //  Do ancestral thi luon 900 — chinh trang cung ghi "Ancestral items
+  //  always have 900 Item Power".
+  function datSucManh(soSM, toTien) {
+    if (toTien) {
+      const n = nutTheoNhan('900 Ancestral');
+      if (n) { bamThat(n); return '900 Ancestral'; }
+    }
+    if (!isFinite(soSM) || soSM <= 0) return '';
+    // Doc THANG cac nac dang co tren trang, dung danh sach cung. Trang bay
+    // nac khac nhau tuy loai do — do thuc te: vu khi 10/100/200/.../850/900,
+    // trang suc 10/120/330/540/750/800/850/900.
+    const nac = [...document.querySelectorAll('button[aria-label]')]
+      .filter(b => dangHien(b) && /^\d+$/.test(b.getAttribute('aria-label')))
+      .map(b => ({ b, v: parseInt(b.getAttribute('aria-label'), 10) }))
+      .sort((x, y) => y.v - x.v);
+    for (const n of nac)
+      if (soSM >= n.v) { bamThat(n.b); return String(n.v); }
+    return '';
+  }
+
+  let dangTaoItem = false, daThuTaoItem = false;
+
+  async function taoItem(tenMon, dongLoai, cauAspect) {
+    const L = tachDongLoai(dongLoai);
+    const o = oThemItem();
+
+    if (laDoRieng(L.doHiem)) {
+      if (!o) return { ok: false, viSao: 'không thấy ô Add item…' };
+      goChu(o, tenMon);
+      const ds = await cho(() => {
+        const g = goiYItem();
+        return g.length ? g : null;
+      }, 3000);
+      if (!ds)
+        return { ok: false, viSao: 'gõ "' + tenMon + '" mà không ra gợi ý nào' };
+      const tk = timKhopNhat(tenMon, ds, tenGoiY);
+      if (!tk.muc || tk.diem < DIEM_NGO)
+        return {
+          ok: false,
+          viSao: 'không gợi ý nào giống "' + tenMon + '" (gần nhất: '
+            + (tk.muc ? tenGoiY(tk.muc) : '—') + ')',
+        };
+      const ten = tenGoiY(tk.muc);
+      bamThat(tk.muc);
+      return { ok: true, cach: 'gõ tên', ten, doHiem: L.doHiem };
+    }
+
+    const luoi = luoiBase();
+    if (!luoi.length) {
+      // O nhap con chu cu thi luoi bi an mat -> xoa di cho luoi hien lai
+      if (o && o.value) {
+        goChu(o, '');
+        const lai = await cho(() => (luoiBase().length ? luoiBase() : null), 1500);
+        if (lai) return taoItem(tenMon, dongLoai, soSM);
+      }
+      return { ok: false, viSao: 'chưa thấy lưới loại đồ' };
+    }
+    const tk = timKhopNhat(L.loai, luoi, b => (b.textContent || '').trim());
+    if (!tk.muc || tk.diem < DIEM_NGO)
+      return { ok: false, viSao: 'lưới không có loại đồ nào tên "' + L.loai + '"' };
+    const tenLoai = (tk.muc.textContent || '').trim();
+    bamThat(tk.muc);
+
+    // BUOC 2: LUOI DO HIEM.
+    // Bam loai do xong, trang KHONG dung mon ra ngay. No thay lua luoi bang
+    // nam the do hiem, moi the ghi "<DO HIEM> <LOAI DO>":
+    //     COMMON Two-Handed Mace   MAGIC ...   RARE ...
+    //     LEGENDARY ...            UNIQUE ...
+    // Cung mot kieu the nhu luoi loai do, phan biet bang cho chu the CO
+    // chua tu chi do hiem.
+    const nhan = TEN_DO_HIEM[L.doHiem] || L.doHiem;
+    const buoc = await cho(() => {
+      if (luoiDoHiem().length) return 'dohiem';
+      if (nutMoDs()) return 'xong';
+      if (oTimAspect()) return 'aspect';
+      return null;
+    }, 5000);
+
+    if (buoc === 'dohiem') {
+      const luoi2 = luoiDoHiem();
+      const tk2 = timKhopNhat(nhan + ' ' + tenLoai, luoi2,
+        b => (b.textContent || '').replace(/\s+/g, ' ').trim());
+      if (!tk2.muc || tk2.diem < DIEM_NGO)
+        return {
+          ok: false,
+          viSao: 'lưới độ hiếm không có thẻ "' + nhan + ' ' + tenLoai + '" (có: '
+            + luoi2.map(b => (b.textContent || '').trim()).join(', ') + ')',
+        };
+      bamThat(tk2.muc);
+    }
+
+    const buoc2 = (buoc === 'dohiem')
+      ? await cho(() => {
+          if (nutMoDs()) return 'xong';
+          if (oTimAspect()) return 'aspect';
+          return null;
+        }, 5000)
+      : buoc;
+
+    if (buoc2 === 'xong')
+      return { ok: true, cach: 'bấm lưới', ten: nhan + ' ' + tenLoai, doHiem: L.doHiem };
+
+    // BUOC 3 (chi do Legendary): trang bat chon Aspect thi moi dung ra mon.
+    if (buoc2 === 'aspect') {
+      const kqA = await chonAspect(cauAspect);
+      if (!kqA.ok)
+        return {
+          ok: false, choAspect: true, ten: tenLoai,
+          viSao: 'chưa tự chọn được Aspect (' + kqA.viSao +
+            ') — chọn giúp một cái, ext điền tiếp ngay',
+        };
+      const xong2 = await cho(() => (nutMoDs() ? true : null), 6000);
+      if (!xong2)
+        return {
+          ok: false, choAspect: true, ten: tenLoai,
+          viSao: 'đã chọn Aspect "' + kqA.ten + '" nhưng form món chưa dựng ra',
+        };
+      return {
+        ok: true, cach: 'bấm lưới + Aspect',
+        ten: nhan + ' ' + tenLoai + ' · ' + kqA.ten, doHiem: L.doHiem,
+      };
+    }
+
+    return { ok: false, viSao: 'bấm "' + nhan + ' ' + tenLoai + '" rồi mà trang không hiện gì tiếp' };
+  }
+
+  // ====================================================================
+  //  DO DOM  -  ghi cau truc that ra Console
+  //
+  //  Ban luu Ctrl+S chi chup duoc trang thai DUNG LUC LUU. Cac lop phu mo
+  //  ra khi bam (chon do hiem, chon ten mon) khong co trong do. Doan nay
+  //  ghi lai cai DANG CO tren trang that, de khoi phai doan.
+  //
+  //  Khong tu bam gi ca — chi doc. Muon xem lop phu thi bam nut "Dò DOM"
+  //  trong bang thiet lap, no moi mo ra rieng.
+  // ====================================================================
+  function doDOM(nhan) {
+    const g = (t, ds) => {
+      if (!ds.length) return;
+      console.log('%c' + t, 'font-weight:bold;color:#0a8');
+      console.table(ds);
+    };
+    console.group('%cD4Lister · dò DOM · ' + nhan, 'font-weight:bold');
+
+    g('nút có aria-label', [...document.querySelectorAll('button[aria-label]')]
+      .filter(dangHien)
+      .map(b => ({ nhan: b.getAttribute('aria-label'), chu: (b.textContent || '').trim().slice(0, 40), trangThai: b.getAttribute('data-state') || '', danhDau: b.getAttribute('aria-checked') || '' })));
+
+    g('nút KHÔNG có aria-label', [...document.querySelectorAll('button:not([aria-label])')]
+      .filter(dangHien)
+      .map(b => ({ chu: (b.textContent || '').trim().slice(0, 46), vaiTro: b.getAttribute('role') || '', trangThai: b.getAttribute('data-state') || '', moRong: b.getAttribute('aria-expanded') || '' }))
+      .filter(x => x.chu));
+
+    g('ô nhập', [...document.querySelectorAll('input,textarea')]
+      .filter(dangHien)
+      .map(i => ({ loai: i.type || i.tagName, goiY: i.placeholder || '', nhan: i.getAttribute('aria-label') || '', giaTri: String(i.value).slice(0, 30) })));
+
+    g('phần tử có vai trò', [...document.querySelectorAll('[role]')]
+      .filter(dangHien)
+      .filter(e => !/^(button|presentation|none)$/i.test(e.getAttribute('role')))
+      .map(e => ({ vaiTro: e.getAttribute('role'), nhan: e.getAttribute('aria-label') || '', giaTri: e.getAttribute('data-value') || '', chu: (e.textContent || '').trim().slice(0, 46) })));
+
+    console.groupEnd();
+  }
+
+  //  Mo lan luot ba o chon o dau form (loai do / do hiem / ten mon) roi ghi
+  //  lai cai xo ra. Day la thu DUY NHAT ban luu Ctrl+S khong chup duoc.
+  async function doLopPhu() {
+    const dau = [...document.querySelectorAll('button')].filter(b =>
+      dangHien(b) && !b.getAttribute('aria-label') && (b.textContent || '').trim()
+      && b.closest('[cmdk-root]') === null);
+    console.group('%cD4Lister · dò lớp phủ', 'font-weight:bold;color:#c60');
+    for (const b of dau.slice(0, 12)) {
+      const chu = (b.textContent || '').trim().slice(0, 30);
+      const truoc = document.querySelectorAll('[role="option"],[role="radio"],[cmdk-list]').length;
+      bamThat(b);
+      await doi(320);
+      const sau = [...document.querySelectorAll('[role="option"],[role="radio"]')].filter(dangHien);
+      if (sau.length > truoc) {
+        console.log('%cbấm "' + chu + '" → xổ ra:', 'color:#0a8;font-weight:bold');
+        console.table(sau.map(e => ({
+          vaiTro: e.getAttribute('role'),
+          chu: (e.textContent || '').trim().slice(0, 50),
+          giaTri: e.getAttribute('data-value') || '',
+          danhDau: e.getAttribute('aria-checked') || e.getAttribute('aria-selected') || '',
+        })));
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await doi(200);
+      }
+    }
+    console.groupEnd();
+    nhac('Đã dò xong — mở Console (F12) rồi gửi tôi phần D4Lister · dò lớp phủ');
+  }
+
   // --- bat su kien dan --------------------------------------------------
   document.addEventListener('paste', e => {
-    const t = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
+    // Don ky tu vo hinh truoc da. BOM (U+FEFF) tung dinh lien vao TEN MON o
+    // dong dau, va game thi chen khoang trang khong ngat (U+00A0) vao ten.
+    // Ca hai deu khong nhin thay duoc nhung du lam hong phep doi chieu ten.
+    const t = ((e.clipboardData || window.clipboardData)?.getData('text/plain') || '')
+      .replace(/[﻿​-‍⁠]/g, '')
+      .replace(/ /g, ' ');
     if (!t.trim()) return;
+    batGio();
+    nhip('nhận chữ dán');
     chuDaDan = t;
     loiThem = [];          // lan dan moi -> xoa loi cu
     daTuThem = false;
@@ -1561,7 +2386,14 @@
   //  (Do tren trang da luu: trong 24 the ring, dung MOT the khong co dong
   //  do, va no ten "Band" — dung ten base pho thong cua nhan trong game.)
   // ====================================================================
-  const khungBase = () => document.querySelector('[data-slot="data-picker-results"]');
+  // BAY: danh sach ASPECT cung mang data-slot="data-picker-results". Dung
+  // nham vao do la ext bam bua mot Aspect nao do len mon. Nhan ra bang o
+  // "Search aspects" ben canh, va bang luoi loai do neu dang o buoc do.
+  const khungBase = () => {
+    if (typeof oTimAspect === 'function' && oTimAspect()) return null;
+    if (typeof luoiBase === 'function' && luoiBase().length) return null;
+    return document.querySelector('[data-slot="data-picker-results"]');
+  };
 
   const theBase = khung =>
     [...khung.querySelectorAll('button')].filter(b => b.querySelector('img'));
@@ -1674,14 +2506,60 @@
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
     let truoc = -1, mocYen = 0;
-    const tenChu = (text.split(/\r?\n/).find(l => l.trim()) || '').trim();
+    // Ba dong dau cua chu D4Lister gui sang:
+    //   [0] TEN MON          "GALVANIC AZURITE"
+    //   [1] do hiem + loai   "Ancestral Unique Ring"
+    //   [2] suc manh         "900 Item Power"   (co the khong co)
+    const dong = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const tenChu   = dong[0] || '';
+    const dongLoai = dong[1] || '';
+    const mSM = text.match(/^\s*([\d,]+)\s+Item Power\b/mi);
+    const soSM = mSM ? parseFloat(mSM[1].replace(/,/g, '')) : 0;
+    // Mo ta Aspect / suc manh rieng, de dung mon Legendary
+    const mAs = text.match(/^#D4L-ASPECT:(.*)$/m);
+    const cauAspect = mAs ? mAs[1].trim() : '';
     dangChonBase = false;
     soLanChonBase = 0;
+    dangTaoItem = false;
+    daThuTaoItem = false;
     daBamQuet = false;
     anhTruoc = '';
     soDayThang = 0;
     nhac('Đã nhận chữ. Đang đợi form…');
     dongHo = setInterval(() => {
+      // V3 KHONG CON ANH, nen khong co ai dung ra mon ca -> ext phai tu lam.
+      // Chi lam khi tren trang CHUA co dong affix nao va dang thay hop thoai
+      // ADD ITEM. Dan de lai mon cu thi khong dung nham mon moi.
+      if (dangTaoItem) return;
+      if (CD.tuTaoItem && !daThuTaoItem && !timCacDong().length
+          && (oThemItem() || luoiBase().length)) {
+        daThuTaoItem = true;
+        dangTaoItem = true;
+        taoItem(tenChu, dongLoai, cauAspect).then(kq => {
+          if (kq.ok) {
+            nhac('Đã dựng món (' + kq.cach + '): ' + kq.ten);
+            // Doi trang ve xong form roi moi dat suc manh
+            setTimeout(() => {
+              const nac = datSucManh(soSM, tachDongLoai(dongLoai).toTien);
+              if (nac) nhac('Sức mạnh: ' + nac);
+              if (CD.doDOM) doDOM('ngay sau khi dựng món');
+              dangTaoItem = false;
+            }, 700);
+            return;
+          }
+          // Do Legendary: trang bat chon Aspect truoc, ma ten Aspect thi
+          // chu cua game khong noi ro. Dung lai cho ban chon — chon xong
+          // vong cho nay tu nhan ra form da dung va dien tiep, khong phai
+          // dan lai.
+          if (kq.choAspect) nhac(kq.viSao);
+          else {
+            loiThem.push('Không dựng được món: ' + kq.viSao);
+            nhac('Không dựng được món: ' + kq.viSao);
+          }
+          dangTaoItem = false;
+        });
+        return;
+      }
       // Dang o buoc chon base thi chon giup roi bam Next, dung bat user ngoi
       // chon cai hinh. Thu toi da hai lan cho khoi bam mai.
       if (CD.tuChonBase && !dangChonBase && soLanChonBase < 2 && khungBase()) {
@@ -1691,10 +2569,18 @@
       }
       if (dangChonBase) return;
       if (CD.tuQuet && thuBamQuet()) return;
-      const n = timCacDong().length;
-      if (n > 0 && n === truoc) {
+      // Dem theo MAN HINH chu khong theo so sach cua form. Hai le do:
+      //   1. so sach doi ngay khi ext ghi, nen dem theo no la tu ru minh
+      //   2. V3 co the tao ra mon KHONG CO dong affix nao (do rare bam tu
+      //      luoi loai do) — cho "n > 0" thi doi mai khong bao gio toi.
+      //      Mon da dung xong nhan ra bang o "ADD STANDARD AFFIXES".
+      const n = soDongManHinh();
+      const coForm = n > 0 || !!nutMoDs();
+      if (coForm && n === truoc) {
         if (Date.now() - mocYen >= YEN_TOI_DA) {
-          clearInterval(dongHo); dongHo = null; apDung(text); return;
+          clearInterval(dongHo); dongHo = null;
+          nhip('form món dựng xong, bắt đầu điền');
+          apDung(text); return;
         }
       } else {
         mocYen = Date.now();
@@ -1760,9 +2646,50 @@
     if (!laBoForm(bo)) return false;
     let v;
     try { v = bo.getValues('affixes'); } catch (e) { ghiUngVien2(null, null, 'getValues nem loi'); return false; }
+    if (v === undefined) {
+      // BAY DA SUP MOT LAN: mon VUA DUNG XONG chua co dong affix nao, nen
+      // react-hook-form chua dang ky mang do — getValues('affixes') tra ve
+      // UNDEFINED chu khong phai mang rong. Ban truoc loai thang, thanh ra
+      // khong form nao duoc nhan, va ext lot xuong form CU (form cu co mang
+      // vi da dung roi) -> ghi vao cho khong ai nhin thay.
+      // Nhan ra form dang song bang cac o KHAC cua chinh no.
+      let tong;
+      try { tong = bo.getValues(); } catch (e) { return false; }
+      if (!tong || typeof tong !== 'object' || Array.isArray(tong)) return false;
+      const k = Object.keys(tong);
+      const co = t => k.indexOf(t) >= 0;
+      if (co('affixes') || co('sockets') || co('itemPower') || co('rarity')
+          || co('aspect') || co('uniquePower')) {
+        // Va phai dung song: man hinh cung phai chua co dong affix nao.
+        const domNay = cheDo() === 'classic' ? dongClassic() : dongBeta();
+        if (!domNay.length) return true;
+      }
+      ghiUngVien2(null, null, 'affixes undefined, cac o cua form: ' + k.slice(0, 12).join(','));
+      return false;
+    }
     if (!Array.isArray(v)) { ghiUngVien2(null, null, 'affixes khong phai mang'); return false; }
     const dsDom = cheDo() === 'classic' ? dongClassic() : dongBeta();
-    if (!dsDom.length) return true;        // chua co dong nao, khong doi chieu duoc
+    if (!dsDom.length) {
+      // BAY DA SUP MOT LAN — va no lam hong ca luot dan cua V3.
+      //
+      // Ban truoc: man hinh chua co dong nao thi GAT DAU voi moi form. Hoi
+      // V2 khong sao, vi trang tu quet anh roi dung san dong, man hinh
+      // khong bao gio rong.
+      // V3 thi ext tu dung mon, va moi lan dung mon moi la trang thay MOT
+      // FORM MOI — form cu bi thao khoi man hinh nhung VAN CON VET trong
+      // cay React. Dan lan thu hai tro di la vo phai cai cu: no con giu
+      // cac muc cua lan truoc, nen ext tuong "form da co 2 dong" roi chi
+      // di them 2 dong con lai; ma ghi vao form chet thi man hinh dung im.
+      //
+      // Form DANG SONG phai khop voi man hinh: man hinh 0 o affix thi mang
+      // affixes cung phai rong.
+      if (v.length) {
+        ghiUngVien2(v, dsDom,
+          'man hinh 0 o affix ma form co ' + v.length + ' muc -> form cu, da chet');
+        return false;
+      }
+      return true;
+    }
     // So THEO TEN, khong theo thu tu: trang co the xep khac, va form co the
     // giu them muc khong ve ra man hinh. Chi doi mot dieu — MOI DONG DANG
     // HIEN deu phai co mot muc tuong ung trong form.
@@ -1792,6 +2719,55 @@
       if (p && dungFormNay(p.value)) return p.value;
       if (dungFormNay(p)) return p;
       if (dungFormNay(f.stateNode)) return f.stateNode;
+
+      // BAY DA SUP MOT LAN: ban truoc chi soi memoizedProps va stateNode,
+      // KHONG soi chuoi hook. Ma useForm() tra ve mot doi tuong nam trong
+      // HOOK STATE cua chinh thanh phan goi no — dung cho khong nhin toi.
+      // Ket qua: chi vo duoc cai form nam trong props cua mot Provider cu
+      // (form cua mon dung truoc do, chua bi don), roi ghi vao do.
+      // Nhat ky 23/09/2026 bat duoc: form giu [Willpower, Maximum Life,
+      // Critical Strike Damage Multiplier, Cooldown Reduction] — dung bon
+      // chi so cua mon Legendary lan truoc — trong khi man hinh la chiec
+      // nhan Unique.
+      let h = f.memoizedState, j = 0;
+      while (h && typeof h === 'object' && j < 80) {
+        const x = h.memoizedState;
+        if (dungFormNay(x)) return x;
+        if (x && typeof x === 'object' && !Array.isArray(x))
+          for (const t of Object.keys(x))
+            if (dungFormNay(x[t])) return x[t];
+        h = h.next; j++;
+      }
+    }
+    return null;
+  }
+
+  //  Het duong neo thi QUET CA CAY. Cham hon nhung chac an: cai form dang
+  //  song thi bao gio cung co o day, con form cu se bi dungFormNay() loai
+  //  vi so dong cua no khong khop man hinh.
+  function quetCaCayTimForm() {
+    const goc = fiberGoc();
+    if (!goc) return null;
+    const ngan = [goc];
+    let n = 0;
+    while (ngan.length && n < 30000) {
+      const f = ngan.pop();
+      if (!f) continue;
+      n++;
+      const p = f.memoizedProps;
+      if (p && dungFormNay(p.value)) return p.value;
+      if (dungFormNay(p)) return p;
+      let h = f.memoizedState, j = 0;
+      while (h && typeof h === 'object' && j < 80) {
+        const x = h.memoizedState;
+        if (dungFormNay(x)) return x;
+        if (x && typeof x === 'object' && !Array.isArray(x))
+          for (const t of Object.keys(x))
+            if (dungFormNay(x[t])) return x[t];
+        h = h.next; j++;
+      }
+      if (f.child) ngan.push(f.child);
+      if (f.sibling) ngan.push(f.sibling);
     }
     return null;
   }
@@ -1814,7 +2790,7 @@
     // Mac dinh CHI ghi ra Console. Tai han mot file ve may moi lan chay la
     // phien, va phan lon truong hop no chi xac nhan lai cai da biet.
     // Can file that thi bat cong tac "Ghi file dò" trong thiet lap.
-    console.log('[D4Lister] dò — ' + loai + ':', du);
+    ghi('[D4Lister] dò — ' + loai + ':', du);
     if (!CD.ghiFileDo) return;
     try {
       const chu = JSON.stringify(du, (k, v) => {
@@ -1830,9 +2806,9 @@
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      console.log('[D4Lister] đã ghi file dò: ' + a.download);
+      ghi('[D4Lister] đã ghi file dò: ' + a.download);
     } catch (e) {
-      console.log('[D4Lister] không ghi được file dò:', e);
+      ghi('[D4Lister] không ghi được file dò:', e);
     }
   }
 
@@ -2027,18 +3003,49 @@
   // DUNG DAU TRONG TAI LIEU, khong phai mau dau tien. De chung mot cau thi
   // no vo phai the <form> bao ngoai — the do khong mang moc React nen tim
   // hoai khong ra. Phai thu TUNG MAU MOT, va thu ca cac the cung mau.
+  let lucBaoHutForm = 0;
+
   function timFormTrang() {
     ungVienForm = [];
+    // NEO TOT NHAT: chinh nut "ADD STANDARD AFFIXES". No nam trong khoi
+    // affix cua form DANG SONG, va co mat ngay ca khi chua co dong nao —
+    // dung cai ext can cho mon vua dung xong.
+    const nutKhoi = nutMoDs();
+    if (nutKhoi) {
+      const bo0 = boFormTu(nutKhoi);
+      if (bo0) return bo0;
+    }
     const mau = ['input[aria-label="Affix value"]',
                  'input[inputmode="decimal"]',
                  'button[title="Remove attribute"]',
                  'button[aria-label^="Remove "]',
+                 // MON VUA DUNG XONG CHUA CO DONG AFFIX NAO, nen bon neo
+                 // tren deu khong ton tai, va phep kiem dungFormNay() cung
+                 // bi vo hieu (khong co dong nao de doi chieu) -> neo "form"
+                 // chung chung de vo phai form khac, ghi vao khong hien ra
+                 // gi, roi phai lui ve duong go chu tung dong mot.
+                 // Ba neo duoi day CHAC CHAN thuoc dung cai form dang mo:
+                 'input[placeholder="Price"]',
+                 'input[aria-label="Effect value"]',
+                 'button[aria-label$="socket"]',
+                 'button[aria-label$="sockets"]',
                  'form'];
     for (const m of mau)
       for (const neo of document.querySelectorAll(m)) {
         const bo = boFormTu(neo);
         if (bo) return bo;
       }
+    // Het duong neo: quet ca cay. Ton hon nhung chi chay khi da bi ket.
+    const boQuet = quetCaCayTimForm();
+    if (boQuet) return boQuet;
+
+    // Van khong ra thi ghi lai LY DO cua tung ung vien — nhung dung ghi
+    // lien tuc, ham nay duoc goi rat nhieu lan trong mot luot dan.
+    if (Date.now() - lucBaoHutForm > 3000) {
+      lucBaoHutForm = Date.now();
+      ghi('[D4Lister] KHÔNG với tới form. Ứng viên đã xét: '
+        + (ungVienForm.length ? JSON.stringify(ungVienForm) : '(không có ứng viên nào)'));
+    }
     return null;
   }
 
@@ -2047,25 +3054,25 @@
       e.preventDefault();
       const fm = timFormTrang();
       if (!fm) {
-        console.log('[D4Lister] KHÔNG với tới được form của trang.');
+        ghi('[D4Lister] KHÔNG với tới được form của trang.');
         nhac('Không với tới form của trang — xem Console.');
         return;
       }
       const v = fm.getValues();
-      console.log('[D4Lister] VỚI TỚI ĐƯỢC form. Các ô trong form:', Object.keys(v));
-      console.log('[D4Lister] Toàn bộ giá trị:', v);
+      ghi('[D4Lister] VỚI TỚI ĐƯỢC form. Các ô trong form:', Object.keys(v));
+      ghi('[D4Lister] Toàn bộ giá trị:', v);
 
       // San DANH MUC AFFIX. Co no thi them affix cung khoi bam chuot: chi
       // viec day mot muc moi vao mang affixes la xong.
       const kho = timKhoAffix();
       if (kho) {
-        console.log('[D4Lister] THẤY danh mục affix: ' + kho.ds.length +
+        ghi('[D4Lister] THẤY danh mục affix: ' + kho.ds.length +
           ' mục, lấy từ ' + kho.tu);
-        console.log('[D4Lister] Ba mục đầu:', kho.ds.slice(0, 3));
-        console.log('[D4Lister] Dán khối này cho Claude:',
+        ghi('[D4Lister] Ba mục đầu:', kho.ds.slice(0, 3));
+        ghi('[D4Lister] Dán khối này cho Claude:',
           JSON.stringify(kho.ds.slice(0, 3), null, 1).slice(0, 4000));
       } else {
-        console.log('[D4Lister] KHÔNG thấy danh mục affix. ' +
+        ghi('[D4Lister] KHÔNG thấy danh mục affix. ' +
           'Thử mở danh sách + ADD AFFIX ra rồi bấm lại Ctrl+Shift+K.');
       }
       nhac('Với tới được form — mở Console (F12) xem.');
@@ -2088,7 +3095,7 @@
   //  (no gan vao document), nhung thu nhin thay duoc thi mat -> trong nhu
   //  la tien ich chet. Nen phai tu gan lai khi bi xoa.
   // ------------------------------------------------------------------
-  console.log('[D4Lister] da nap - ban ' + BAN);
+  ghi('[D4Lister] da nap - ban ' + BAN);
 
   let chip = null;
   function dungChip() {

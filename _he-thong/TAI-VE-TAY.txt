@@ -18,28 +18,38 @@ LUU Y: phai la ban 1.1, KHONG phai ban 2. Hai ban viet khac cu phap,
 D4Lister.ahk viet bang 1.1.
 
 
-2. Tesseract   (~55 MB)   -- khong bat buoc
+2. Duong ong TTS   (~110 KB)   -- BAT BUOC cho ban v3
 -------------------------------------------------------------------------
-Thieu Tesseract thi tool van chay, chi la khong doc duoc chu trong anh:
-ban phai bam SCAN tren trang roi tu sua so bang tay.
+V3 KHONG dung Tesseract nua. Thay vao do, game Diablo 4 doc chu item ra
+thang cho tool qua mot duong ong.
 
-Cach de nhat - ban xach tay, khong phai cai:
+Binh thuong: thoat han game roi chay  _he-thong\CAI-TTS.cmd  la xong.
 
-   https://raw.githubusercontent.com/mhuyhcm/D4Lister/acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f/_he-thong/bo-cai/tesseract-portable.zip
+Muon lam tay:
 
-Tai ve, bung thang vao thu muc D4Lister. Bung xong phai co:
+   a) Tai file nay:
+      https://raw.githubusercontent.com/d4lfteam/d4lf/main/tts/saapi64.dll
+      (cua du an D4LF, giay phep MIT)
 
-   D4Lister\tesseract\tesseract.exe
+   b) Ky no bang mot chung chi tu ky - game chi nap DLL CO chu ky.
+      Mo PowerShell roi chay:
 
-Hoac cai ban chinh thuc (trang cua dai hoc Mannheim, ban Windows chinh chu):
+        $c = New-SelfSignedCertificate -Type CodeSigningCert `
+               -Subject 'CN=D4Lister TTS' -CertStoreLocation 'Cert:\CurrentUser\My'
+        Set-AuthenticodeSignature -FilePath '<duong dan saapi64.dll>' -Certificate $c
 
-   https://github.com/UB-Mannheim/tesseract/wiki
+   c) Chep file da ky vao thu muc cai Diablo 4 (canh Diablo IV.exe).
 
-Cai o dau cung duoc, D4Lister tu do o ba cho:
+   d) Bat game, vao Options bat ba cong tac:
+        Accessibility : Use Screen Reader
+                        3rd Party Screen Reader
+        Gameplay      : Advanced Tooltip Information
 
-   D4Lister\tesseract\tesseract.exe
-   C:\Program Files\Tesseract-OCR\tesseract.exe
-   C:\Program Files (x86)\Tesseract-OCR\tesseract.exe
+Chung chi nam trong kho CA NHAN cua tai khoan Windows, KHONG vao kho tin cay
+he thong. Chi THEM mot file vao thu muc game, khong sua file nao cua game.
+
+Muon huy: xoa saapi64.dll trong thu muc game, va xoa chung chi trong
+certmgr.msc > Personal > Certificates.
 
 
 Cai xong roi lam gi
