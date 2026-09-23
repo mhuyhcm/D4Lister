@@ -24,3 +24,8 @@ phien-ban.txt
 # KHONG day len nua: ban tai ve tu 59 MB xuong con ~200 KB.
 # Van con o mac v1 (commit acd1f63), bo cai tu tai ve tu do khi may thieu.
 _he-thong/bo-cai/
+
+# --- Tai lieu va bai thu cua rieng may dang phat trien ---
+# Khong day len: may khac tai ve chi can file de CHAY.
+_ban-giao.md
+_bai-thu/
