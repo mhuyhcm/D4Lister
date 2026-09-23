@@ -58,7 +58,8 @@ Chrome bắt buộc chính người dùng bấm — không chương trình nào 
 Đây là cách D4Lister đọc item: **game đọc chữ ra thẳng cho tool**.
 
 1. **Thoát hẳn Diablo 4**
-2. Chạy `_he-thong\CAI-TTS.cmd`
+2. Chạy `_he-thong\CAI-TTS.cmd` — nó tự tìm thư mục game qua tiến trình đang
+   chạy, Registry, Battle.net rồi quét ổ đĩa; không ra mới hỏi bạn gõ tay
 3. Bật game, vào Options bật ba công tắc:
 
    | Mục | Công tắc |

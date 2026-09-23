@@ -147,7 +147,7 @@ danh mục : Thorns damage dealt has a chance to deal damage to all enemies…
 
 ## BẢNG BẪY — đọc trước khi sửa
 
-*(20 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
+*(21 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
 
 ### 1. Sinh mã có regex qua heredoc thì mất dấu gạch chéo
 
@@ -283,6 +283,26 @@ dung khác hẳn. Thấy còn `.png`/`.tsv` là biết hàng đợi bản cũ �
 
 BOM trong `manifest.json` có thể làm Chrome từ chối nạp tiện ích. Sửa phiên
 bản bằng Python/`utf-8` không BOM, và kiểm lại sau mỗi lần sửa.
+
+---
+
+### 21. Đường dẫn game khác nhau trên mỗi máy
+
+Bản đầu của `CAI-TTS.ps1` dò đúng 6 đường dẫn đoán mò rồi bắt gõ tay — trên
+máy khác là hỏng. Giờ dò sáu nguồn, chắc nhất trước:
+
+| # | Nguồn | Ghi chú |
+|---|---|---|
+| 1 | tiến trình game đang chạy | chắc nhất, hỏi thẳng Windows |
+| 2 | Registry *Uninstall* | Battle.net ghi `InstallLocation`; cả ba kho 64/32/HKCU |
+| 3 | Registry khoá Blizzard | `InstallPath` |
+| 4 | `Battle.net.config` | JSON, đường dẫn dạng `F:\Diablo IV` |
+| 5 | quét ổ đĩa | 7 chỗ quen thuộc × mọi ổ, không quét sâu |
+| 6 | hỏi người dùng | thử tối đa ba lần, có chỉ đường lấy từ Battle.net |
+
+Đo trên máy thật: **180 ms**. Hàm kiểm nhận cả đường dẫn trỏ thẳng vào
+`Diablo IV.exe` lẫn đường dẫn còn nguyên ngoặc kép (người dùng hay chép cả
+ngoặc từ Explorer).
 
 ---
 

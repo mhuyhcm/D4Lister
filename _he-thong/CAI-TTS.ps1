@@ -25,18 +25,108 @@ Write-Host "  ================================================================"
 Write-Host "    CAI DUONG ONG TTS CHO D4LISTER" -ForegroundColor Cyan
 Write-Host "  ================================================================"
 
+# =====================================================================
+#   TIM THU MUC DIABLO 4
+#
+#   Chay tren may khac thi khong biet game cai o dau. Do lan luot sau
+#   nguon, nguon chac chan nhat truoc, dung ngay khi tim ra:
+#
+#     1. Game DANG CHAY        -> hoi thang Windows duong dan tien trinh
+#     2. Registry Uninstall    -> Battle.net ghi InstallLocation vao day
+#     3. Registry Blizzard     -> khoa rieng cua Blizzard
+#     4. Battle.net.config     -> file cau hinh JSON cua Battle.net
+#     5. Quet o dia            -> vai cho quen thuoc tren MOI o, khong
+#                                 quet sau nen chi ton vai phan tram giay
+#     6. Hoi nguoi dung        -> cho go tay, thu toi ba lan
+# =====================================================================
+
+# Tra ve duong dan da chuan hoa neu la thu muc game that, khong thi $null.
+# Nhan ca truong hop nguoi dung chi thang vao file Diablo IV.exe.
+function HopLe($p) {
+    if (-not $p) { return $null }
+    $p = ([string]$p).Trim().Trim('"')
+    if ($p -match '(?i)Diablo IV\.exe$') { $p = Split-Path $p -Parent }
+    if (-not $p) { return $null }
+    try {
+        if (Test-Path (Join-Path $p 'Diablo IV.exe')) { return (Resolve-Path $p).Path }
+    } catch { }
+    return $null
+}
+
+function TimThuMucGame {
+    # 1. Game dang chay - chac chan nhat
+    $tt = Get-Process -Name 'Diablo IV' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($tt -and $tt.Path) {
+        $r = HopLe (Split-Path $tt.Path -Parent)
+        if ($r) { Xong 'tim thay qua tien trinh game dang chay'; return $r }
+    }
+
+    # 2. Registry Uninstall - Battle.net ghi InstallLocation vao day
+    $kho = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+             'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+             'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')
+    foreach ($k in $kho) {
+        $muc = Get-ItemProperty $k -ErrorAction SilentlyContinue |
+               Where-Object { $_.DisplayName -match 'Diablo\s*(IV|4)' -and $_.InstallLocation }
+        foreach ($m in $muc) {
+            $r = HopLe $m.InstallLocation
+            if ($r) { Xong 'tim thay qua Registry (muc go cai dat)'; return $r }
+        }
+    }
+
+    # 3. Khoa rieng cua Blizzard
+    foreach ($k in @('HKLM:\SOFTWARE\Blizzard Entertainment\Diablo IV',
+                     'HKLM:\SOFTWARE\WOW6432Node\Blizzard Entertainment\Diablo IV')) {
+        $v = (Get-ItemProperty $k -ErrorAction SilentlyContinue).InstallPath
+        $r = HopLe $v
+        if ($r) { Xong 'tim thay qua Registry (khoa Blizzard)'; return $r }
+    }
+
+    # 4. Battle.net.config - JSON, duong dan trong do co dang "F:\\Diablo IV"
+    $cfg = Join-Path $env:APPDATA 'Battle.net\Battle.net.config'
+    if (Test-Path $cfg) {
+        try {
+            $noi = Get-Content $cfg -Raw -ErrorAction Stop
+            foreach ($m in [regex]::Matches($noi, '"([A-Za-z]:[^"]*?)"')) {
+                $r = HopLe ($m.Groups[1].Value -replace '\\\\', '\')
+                if ($r) { Xong 'tim thay qua Battle.net.config'; return $r }
+            }
+        } catch { }
+    }
+
+    # 5. Quet vai cho quen thuoc tren MOI o dia (khong quet sau)
+    $cho = @('Diablo IV', 'Games\Diablo IV', 'Program Files (x86)\Diablo IV',
+             'Program Files\Diablo IV', 'Battle.net\Diablo IV', 'Blizzard\Diablo IV',
+             'SteamLibrary\Diablo IV')
+    foreach ($o in (Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+        if (-not $o.Root) { continue }
+        foreach ($c in $cho) {
+            $r = HopLe (Join-Path $o.Root $c)
+            if ($r) { Xong ('tim thay bang cach quet o ' + $o.Name); return $r }
+        }
+    }
+
+    return $null
+}
+
 try {
     # --- 1. Tim thu muc game -----------------------------------------
     Buoc 1 "Tim thu muc Diablo 4"
-    $ungVien = @('F:\Diablo IV', 'C:\Program Files (x86)\Diablo IV', 'D:\Diablo IV',
-                 'E:\Diablo IV', 'C:\Diablo IV', 'G:\Diablo IV')
-    $d4 = $ungVien | Where-Object { Test-Path (Join-Path $_ 'Diablo IV.exe') } | Select-Object -First 1
+    $d4 = TimThuMucGame
     if (-not $d4) {
-        $d4 = (Read-Host "      Khong tu tim duoc. Go duong dan thu muc Diablo IV").Trim().Trim('"')
+        Write-Host ""
+        Loi "Khong tu tim duoc thu muc Diablo 4."
+        Write-Host "      Mo Battle.net > Diablo IV > banh rang > Show in Explorer," -ForegroundColor Yellow
+        Write-Host "      roi chep duong dan o thanh dia chi cua cua so vua mo ra." -ForegroundColor Yellow
+        Write-Host ""
+        for ($lan = 1; $lan -le 3 -and -not $d4; $lan++) {
+            $go = Read-Host "      Duong dan thu muc Diablo IV (Enter de bo qua)"
+            if (-not $go) { break }
+            $d4 = HopLe $go
+            if (-not $d4) { Loi "Khong thay 'Diablo IV.exe' trong: $go" }
+        }
     }
-    if (-not (Test-Path (Join-Path $d4 'Diablo IV.exe'))) {
-        throw "Khong thay 'Diablo IV.exe' trong: $d4"
-    }
+    if (-not $d4) { throw "Chua xac dinh duoc thu muc Diablo 4." }
     Xong $d4
 
     # Tolk.dll la thu Blizzard dong san. Khong co no thi ca huong nay vo nghia.

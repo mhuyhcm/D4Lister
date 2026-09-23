@@ -28,30 +28,22 @@ $REPO = 'mhuyhcm/D4Lister'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # Cua NGUOI DUNG - ban tren mang khong duoc ghi de
-$GIU_LAI = @('queue', 'phien-ban.txt', 'tesseract', 'create-listing',
+$GIU_LAI = @('queue', 'phien-ban.txt', 'create-listing',
              '.git', 'CAI-DAT.bat')
 
 # ---------------------------------------------------------------------
-#   HAI CHUONG TRINH PHU: khong nam trong ban tai ve nua
+#   AUTOHOTKEY: khong nam trong ban tai ve
 #
-#   Truoc day ban tai ve keo theo ca bo cai Tesseract (55 MB) va
-#   AutoHotkey (3 MB) -> moi lan cap nhat deu tai lai 59 MB cho mot vai
-#   dong code doi. Gio ban tai ve con khoang 100 KB, hai cai kia chi tai
-#   khi may THUC SU thieu.
+#   Ban tai ve chi khoang 250 KB; AutoHotkey chi tai khi may THUC SU thieu,
+#   lay tu trang chu - da do that, 200 OK, 3.426.108 byte.
 #
-#   Tesseract lay tu chinh repo nay, GHIM VAO MA COMMIT chu khong phai ten
-#   nhanh, cung khong phai ten tag. Commit thi nam yen mai mai; tag thi co
-#   the bi doi cho (tag v1 da bi doi mot lan roi), nhanh main thi da xoa
-#   hai file nay di.
-#   Commit duoi day cung duoc danh dau bang tag "bo-cai" cho de tim.
-#   Da do that: raw.githubusercontent tra ve du file 55 MB, con do duoc
-#   tung doan, va noi dung trung hash voi ban tren dia.
-#   AutoHotkey lay tu trang chu - cung da do, 200 OK, 3.426.108 byte.
+#   V3 KHONG con dung Tesseract (bo han OCR, doc chu qua duong ong TTS),
+#   nen ham CaiTesseract va bo cai 55 MB da go khoi day. Ban cu van con o
+#   the "bo-cai" / commit acd1f63 neu can dao lai.
 #
 #   Muon tai tay thi xem  _he-thong\TAI-VE-TAY.txt
 # ---------------------------------------------------------------------
 $COMMIT_BO_CAI = 'acd1f63a41fe4c64c9a0b5d6d829cbe3217e2b0f'   # = tag bo-cai
-$TAI_TESS  = "https://raw.githubusercontent.com/$REPO/$COMMIT_BO_CAI/_he-thong/bo-cai/tesseract-portable.zip"
 $TAI_AHK   = 'https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02_setup.exe'
 $TRANG_AHK = 'https://www.autohotkey.com/download/1.1'
 
@@ -110,21 +102,6 @@ function TaiFile([string]$url, [string]$dich, [string]$nhan) {
     }
 }
 
-# Tesseract xach tay: co san thi thoi, khong thi tai ve roi bung
-function CaiTesseract {
-    if (Test-Path (Join-Path $ThuMuc 'tesseract\tesseract.exe')) {
-        Write-Host '   Da co san.'
-        return $true
-    }
-    # May nao con giu ban nen trong thu muc thi dung luon, khoi tai lai
-    $zip = Join-Path $ThuMuc '_he-thong\bo-cai\tesseract-portable.zip'
-    if (-not (Test-Path $zip)) {
-        $zip = Join-Path $env:TEMP 'd4l-tesseract.zip'
-        if (-not (TaiFile $TAI_TESS $zip 'Tesseract (~55 MB, chi lan dau)')) { return $false }
-    }
-    try { Expand-Archive -Path $zip -DestinationPath $ThuMuc -Force } catch { return $false }
-    Test-Path (Join-Path $ThuMuc 'tesseract\tesseract.exe')
-}
 
 function TimAHK {
     @('C:\Program Files\AutoHotkey\AutoHotkey.exe',
