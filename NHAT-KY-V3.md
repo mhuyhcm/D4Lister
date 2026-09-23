@@ -1,7 +1,7 @@
 # D4Lister v3 — nhật ký và các bẫy đã gỡ
 
 Ngày chốt: **23/09/2026**
-AutoHotkey `D4Lister.ahk` **v3** · tiện ích Chrome `d4lister.js` **7.0**
+AutoHotkey `D4Lister.ahk` **v3** · tiện ích Chrome `d4lister.js` **7.1**
 
 ---
 
@@ -106,7 +106,7 @@ Legendary Two-Handed Mace
 #D4L-ASPECT:Thorns damage dealt…   ← mô tả, để dò ngược ra tên Aspect
 #D4L-SOCKET:2
 #D4L-SAO-OK                        ← cờ "phần dò dấu sao đã chạy"
-#D4L-EXT:7.0
+#D4L-EXT:7.1
 ```
 
 `#D4L-SAO-OK` **bắt buộc phải có**. Thiếu nó thì tiện ích **tắt ngầm** toàn
@@ -146,6 +146,8 @@ danh mục : Thorns damage dealt has a chance to deal damage to all enemies…
 ---
 
 ## BẢNG BẪY — đọc trước khi sửa
+
+*(20 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
 
 ### 1. Sinh mã có regex qua heredoc thì mất dấu gạch chéo
 
@@ -295,11 +297,36 @@ bản bằng Python/`utf-8` không BOM, và kiểm lại sau mỗi lần sửa.
 
 ---
 
+## Kết luận về đường "đẩy một phát" — ngõ cụt, đã dừng
+
+Đo thật ngày 23/09/2026, 5 lượt dán trong 16 phút, 5 món khác nhau. Form mà
+tiện ích với tới được **luôn luôn** chứa đúng bốn chỉ số:
+
+```
+Willpower · Maximum Life · Critical Strike Damage Multiplier · Cooldown Reduction
+```
+
+Không đổi lần nào, dù món đang dựng là gì. Đó là một form đã chết, và **nó là
+form duy nhất tồn tại trong cây React** — lưới vét quét cả cây cũng không tìm
+ra cái thứ hai. `số ứng viên bộ quản lý mảng: 0` ở mọi lượt.
+
+**Kết luận:** form đang sống của chế độ BETA không phơi ra `getValues` /
+`setValue`, nên `replace()` / `append()` / `reset()` đều không với tới được.
+Toàn bộ bộ máy "ghi thẳng vào form" là di sản của chế độ CLASSIC.
+
+Đã **thôi đuổi theo**. Đường đang dùng — mở danh sách `ADD STANDARD AFFIXES`
+một lần rồi thêm từng dòng — chạy ổn định ở **160–300 ms mỗi dòng**.
+
+### Bẫy 20 — form chết vẫn lọt vì trùng tên
+
+Phép đối chiếu cũ chỉ đòi *"mọi dòng đang hiện đều có trong form"*. Form chết
+giữ 4 mục, màn hình 1 dòng, tình cờ trùng một tên (`Critical Strike Damage
+Multiplier` — món nào chẳng có) là **lọt**. Ext ghi vào đó rồi ngồi chờ
+2 × 450 ms vô ích.
+→ Đòi thêm: **số dòng phải bằng nhau**. (Sửa ở 7.1.)
+
 ## Còn bỏ ngỏ
 
-- Đường **đẩy một phát** (`replace()` / `reset()`) đến 7.0 vẫn chưa ăn; bản
-  7.0 vừa sửa chỗ với tới form (bẫy 13, 14) nhưng **chưa được kiểm chứng**.
-  Ăn rồi thì 1,2 s thêm dòng cũng biến mất.
 - Ổ ngọc: chỉ đếm được **ổ trống**. Ổ đã nhét ngọc thì game in tác dụng của
   viên ngọc, không in chữ `Empty Socket`.
 - Đồ **Magic / Common**: mã dùng chung đường với Rare nên chạy được, nhưng

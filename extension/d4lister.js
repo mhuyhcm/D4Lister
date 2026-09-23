@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '7.0';          // doi cung luc voi version trong manifest.json
+  const BAN = '7.1';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -2690,6 +2690,19 @@
       }
       return true;
     }
+    // BAY DA SUP MOT LAN: phep doi chieu duoi day chi doi "moi dong dang
+    // hien deu co trong form", nen mot form DA CHET van lot neu no tinh co
+    // chua ten cua dong dang hien — ma nhung ten pho bien (Cooldown
+    // Reduction, Critical Strike Damage Multiplier) thi mon nao chang co.
+    // Nhat ky 23/09/2026: form chet giu 4 muc, man hinh 1 dong, ten trung
+    // mot cai -> lot. Roi ext ghi vao do va ngoi cho 2 x 450ms vo ich.
+    // => Doi them: SO DONG phai bang nhau.
+    if (v.length !== dsDom.length) {
+      ghiUngVien2(v, dsDom,
+        'form ' + v.length + ' muc nhung man hinh ' + dsDom.length + ' dong');
+      return false;
+    }
+
     // So THEO TEN, khong theo thu tu: trang co the xep khac, va form co the
     // giu them muc khong ve ra man hinh. Chi doi mot dieu — MOI DONG DANG
     // HIEN deu phai co mot muc tuong ung trong form.

@@ -2,7 +2,7 @@
 
 Đăng item Diablo 4 lên **diablo.trade** nhanh hơn. Chạy trên **một máy**.
 
-> **v3** — AutoHotkey **v3**, tiện ích Chrome **7.0**.
+> **v3** — AutoHotkey **v3**, tiện ích Chrome **7.1**.
 >
 > **Bỏ hoàn toàn chụp ảnh và OCR.** Diablo 4 có sẵn chức năng đọc item thành
 > lời cho người khiếm thị; D4Lister cắm vào đó và lấy **thẳng chữ của game**.
