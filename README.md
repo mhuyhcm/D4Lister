@@ -100,8 +100,11 @@ Chrome **không bao giờ** tự nạp lại tiện ích cài kiểu *Load unpac
 Nên D4Lister gửi kèm số hiệu bản trên đĩa mỗi lần bạn dán. Tiện ích so với bản
 nó đang chạy, lệch thì **hiện băng đỏ ngay trên trang**:
 
-> **Tiện ích đang chạy bản cũ** — đang chạy 0.7, trên đĩa đã là 0.8.
+> **Tiện ích đang chạy bản cũ** — đang chạy 7.2, trên đĩa đã là 7.3.
 > Vào chrome://extensions bấm nút xoay vòng, rồi F5 trang này.
+
+Chỉ báo khi **trên đĩa mới hơn**. Dán lại một món chụp từ trước khi nâng bản
+thì nó mang số cũ — chuyện bình thường, không báo gì.
 
 Không thể bỏ sót được.
 
