@@ -3,6 +3,7 @@
 ;   AutoHotkey v1  |  File độc lập, không #Include gì, chạy được trên máy khác
 ;
 ;   TRONG GAME:
+;     F2          Quét hàng loạt cả rương và túi đồ (mở hộp thoại chọn trước)
 ;     F3          Lấy món đang rê chuột  (đọc thẳng chữ của game, KHÔNG chụp)
 ;
 ;   TRÊN TRÌNH DUYỆT:
@@ -11,7 +12,7 @@
 ;     F6          Lùi về item trước đó
 ;
 ;   KHÁC:
-;     F9               Xóa sạch hàng đợi
+;     F9               Xóa sạch danh sách đang chờ đăng
 ;     Ctrl+Shift+F11   Nạp lại script (và kiểm tra bản mới)
 ;     Ctrl+Shift+F12   Thoát script (hoặc chuột phải vào icon khay hệ thống)
 ;=====================================================================
@@ -35,8 +36,10 @@
 ;                                    3rd Party Screen Reader
 ;          Options > Gameplay      : Advanced Tooltip Information
 ;
-;   Không cần Borderless Windowed nữa — không chụp màn hình thì chế độ
-;   Fullscreen độc quyền cũng chạy được.
+;   F3 chạy ở chế độ màn hình nào cũng được — nó chỉ đọc chữ.
+;   F2 thì KHÁC: nó rê chuột theo toạ độ đo sẵn và đọc điểm ảnh để biết
+;   rương đã mở chưa, nên cần đúng cửa sổ mặc định ở màn hình 1920×1080
+;   (vùng vẽ 1920×1027). Sai cỡ thì F2 tự dừng và báo, không rê bừa.
 ;=====================================================================
 #SingleInstance Force
 #NoEnv
@@ -51,11 +54,10 @@ ListLines, Off
 CoordMode, Mouse, Screen
 
 ; QUAN TRỌNG: phải gọi TRƯỚC mọi thao tác cửa sổ/màn hình.
-; AHK v1 mặc định KHÔNG nhận biết DPI -> khi màn hình để scale > 100%,
-; Windows trả về ảnh màn hình đã bị THU NHỎ (chữ ít pixel đi) -> OCR của
-; diablo.trade đọc thiếu dòng. Bật nhận biết DPI thì chụp đúng pixel thật,
-; sắc nét ngang Win+Shift+S.
-global g_DpiMode := EnableDpiAwareness()
+; AHK v1 mặc định KHÔNG nhận biết DPI. Màn hình để scale > 100% mà không
+; bật cái này thì Windows trả về toạ độ và điểm ảnh của một màn hình ảo đã
+; thu nhỏ — F2 rê trượt ô, và phép kiểm rương đọc nhầm điểm ảnh.
+EnableDpiAwareness()
 
 ;=====================================================================
 ;   CẤU HÌNH  -  sửa ở đây
@@ -97,17 +99,17 @@ global COL_WARN := "C06000"
 ;   Khác D4LF một chỗ: họ chụp màn hình để biết ô nào có đồ; V3 đã bỏ hết
 ;   bộ xử lý ảnh nên ta rê hết mọi ô, ô nào im thì bỏ qua.
 ;
-;   TOẠ ĐỘ — ĐO THẬT trên ảnh chụp ngày 24/09/2026, không dùng công thức
-;   quy đổi của D4LF. Đo bằng cách dò các đường kẻ của lưới:
+;   TOẠ ĐỘ — ĐO THẬT trên ảnh chụp, không dùng công thức quy đổi của D4LF.
+;   Đo bằng cách dò các đường kẻ của lưới:
 ;
 ;       RƯƠNG   11 đường dọc  x = 42 .. 623   cách đều 58,1
 ;                6 đường ngang y = 279 .. 740  cách đều 92,2
 ;       TÚI ĐỒ  x = 1301, ô rộng 52,4  ·  y = 709, ô cao 77,0
-;       TAB     dải căn giữa quanh x = 332,5, mỗi ô rộng 59,1, y = 185
 ;
-;   Riêng dải tab thì công thức của D4LF SAI: họ giãn 63 px trong khi
-;   thực tế 59,1 — tab ở hai đầu lệch tới 12-13 px mà ô tab chỉ rộng 53.
-;   Bấm hụt ra ngoài panel là bấm vào thế giới, nhân vật chạy đi.
+;   Dải tab KHÔNG theo công thức nào cả — xem TAB_X6 / TAB_X7 bên dưới.
+;   Công thức của D4LF thì sai hẳn: họ giãn 63 px, đo thật là 58-59, tab ở
+;   hai đầu lệch tới 12-13 px mà ô tab chỉ rộng 53. Bấm hụt ra ngoài panel
+;   là bấm vào thế giới, nhân vật chạy đi.
 ;
 ;   Mọi số dưới đây là TOẠ ĐỘ TRONG VÙNG VẼ của cửa sổ game, không phải
 ;   toạ độ màn hình. Góc của vùng vẽ đọc lúc chạy — kéo cửa sổ đi chỗ
@@ -130,7 +132,7 @@ global TUI_OH   := 77.0
 global TUI_COT  := 11
 global TUI_HANG := 3
 
-; --- dải tab: căn giữa, số tab đổi được ở menu khay ---
+; --- dải tab: số tab chọn trong hộp thoại F2 ---
 ; Tâm từng ô tab, ĐO THẬT từ ảnh chụp, cho từng trường hợp số tab.
 ;
 ; Không dùng công thức nữa. Trước đây tôi tưởng dải tab là một dãy đều
@@ -225,7 +227,7 @@ if !FileExist(QUEUE_DIR)
 
 daDonQueueCu := DonQueueCu()
 
-LoadQueue()
+RefreshQueue(true)
 
 NapCauHinhQuet()
 
@@ -552,11 +554,6 @@ return
 ;   NẠP LẠI HÀNG ĐỢI CỦA PHIÊN TRƯỚC
 ;   Lỡ tắt nhầm script thì không mất công chụp lại.
 ;=====================================================================
-LoadQueue()
-{
-    RefreshQueue(true)
-}
-
 ;=====================================================================
 ;   DỌN HÀNG ĐỢI CÒN SÓT CỦA BẢN CHỤP ẢNH
 ;
@@ -1968,10 +1965,10 @@ ThemVaoHangDoi(chu, monGoc, noi, r, c)
 
 
 ;=====================================================================
-;   MENU KHAY: CHỌN QUÉT GÌ
+;   LỰA CHỌN QUÉT GÌ  —  đọc/ghi quet.ini
 ;
-;   Đặt ở menu khay chứ không phải sửa mã: mỗi buổi bạn muốn quét tab
-;   khác nhau. Lưu vào quet.ini cạnh script nên lần sau mở vẫn nhớ.
+;   Hỏi trong hộp thoại F2 chứ không bắt sửa mã: mỗi buổi bạn muốn quét
+;   tab khác nhau. Lưu vào quet.ini cạnh script nên lần sau mở vẫn nhớ.
 ;=====================================================================
 DocDsTab()
 {

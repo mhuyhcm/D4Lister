@@ -299,7 +299,6 @@ _he-thong\        ← không cần đụng vào
      CHAY.bat                  dự phòng nếu không bấm đúp .ahk được
      TAT-HET.bat
      CAI-TIEN-ICH-CHROME.bat
-     TatThongBaoSnip.bat  (+ file hoàn tác)
 ```
 
 Bản tải về khoảng **250 KB**. V2 còn kéo theo Tesseract 164 MB; V3 bỏ hẳn.
