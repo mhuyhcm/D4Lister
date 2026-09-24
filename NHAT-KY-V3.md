@@ -147,7 +147,7 @@ danh mục : Thorns damage dealt has a chance to deal damage to all enemies…
 
 ## BẢNG BẪY — đọc trước khi sửa
 
-*(21 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
+*(22 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
 
 ### 1. Sinh mã có regex qua heredoc thì mất dấu gạch chéo
 
@@ -303,6 +303,28 @@ máy khác là hỏng. Giờ dò sáu nguồn, chắc nhất trước:
 Đo trên máy thật: **180 ms**. Hàm kiểm nhận cả đường dẫn trỏ thẳng vào
 `Diablo IV.exe` lẫn đường dẫn còn nguyên ngoặc kép (người dùng hay chép cả
 ngoặc từ Explorer).
+
+---
+
+### 22. Luật nhận dấu sao phụ thuộc một công tắc trong game
+
+Luật *"không in `[min - max]` ⇒ Greater Affix"* dựa vào chuyện game **có in
+khoảng hay không**. Mà thứ in ra cái khoảng đó chính là
+**Options → Gameplay → Advanced Tooltip Information**.
+
+Tắt công tắc ⇒ không dòng nào có khoảng ⇒ đóng dấu sao lên **toàn bộ** affix
+⇒ đăng sai hàng loạt, im lặng.
+
+D4LF chặn bằng phép đếm 80% (`src/loot/filter.py`). Ta làm chặt hơn: đếm số
+món **liên tiếp** mà mọi dòng có số đều không ngoặc. Một món như vậy vẫn có
+thể thật (đồ 4 sao); **ba món liên tiếp** thì không còn là may mắn.
+
+Chạm ngưỡng thì **không phát cờ `#D4L-SAO-OK`** — tiện ích để nguyên dấu sao
+thay vì đóng bừa, đúng công dụng cờ đó sinh ra để làm. Và F3 báo đỏ cho
+người dùng.
+
+Đã thử: bật → đếm 0, có cờ. Tắt → 1, 2, 3 rồi ngừng phát cờ. Bật lại → về 0
+ngay.
 
 ---
 

@@ -11,7 +11,7 @@ nguồn của họ. Hiện chốt ở **v3** (AHK v3 + tiện ích 7.1).
 
 # A. LÀM NGAY — nhỏ, nằm gọn trong v3
 
-## A1. Chốt kiểm *Advanced Tooltip Information* — ƯU TIÊN
+## A1. Chốt kiểm *Advanced Tooltip Information* — ✅ ĐÃ LÀM (24/09/2026)
 
 **Đây là lỗ hổng có thể làm đăng sai hàng loạt mà không ai biết.**
 

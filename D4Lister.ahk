@@ -108,6 +108,12 @@ global g_MonDaLay := ""     ; món vừa bấm F3 — chặn bấm hai lần ra 
 global g_DaNoi   := false   ; game đã nối vào đường ống chưa
 global g_LanThuOng := 0     ; lần gần nhất thử dựng đường ống (A_TickCount)
 
+; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
+; Chạm ngưỡng là gần như chắc chắn công tắc Advanced Tooltip Information
+; đang tắt — xem khối CHỐT KIỂM trong LocMonTTS().
+global g_NghiTatTooltip := 0
+global NGHI_TOI_DA      := 3
+
 ; --- hằng số Win32 cho đường ống ---
 global PIPE_ACCESS_DUPLEX    := 0x00000003
 global PIPE_TYPE_MESSAGE     := 0x00000004
@@ -260,6 +266,18 @@ DoCapture:
     }
 
     g_Busy := false
+
+    ; Nghi công tắc Advanced Tooltip Information đang tắt thì nói ngay, và
+    ; nói TO. Lúc này chữ vẫn lấy được bình thường, chỉ riêng dấu sao là
+    ; không đáng tin — nên tiện ích đã được bảo là đừng đụng vào dấu sao.
+    if (g_NghiTatTooltip >= NGHI_TOI_DA)
+    {
+        ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi
+            . "`n⚠ " . g_NghiTatTooltip . " món liên tiếp không có khoảng [min - max]"
+            . "`nBật Options > Gameplay > Advanced Tooltip Information"
+            . "`nDấu sao đang KHÔNG được đặt — dễ khai sai khi bán", "err")
+        return
+    }
     ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi, "ok")
 return
 
@@ -886,8 +904,10 @@ LocMonTTS(mon)
         ra .= "`n" . Trim(RegExReplace(RegExReplace(ds[vtSM], "\([^)]*\)", ""), "\s+", " "))
 
     i := ChoBatDauChiSo(ds, loai)
-    soDong   := 0
-    cauRieng := ""
+    soDong      := 0
+    soCoSo      := 0
+    soKhongNgoac := 0
+    cauRieng    := ""
     while (i <= ds.Length())
     {
         d := ds[i]
@@ -904,6 +924,14 @@ LocMonTTS(mon)
         {
             ra .= "`n" . d
             soDong++
+            ; Đếm cho phép kiểm công tắc Advanced Tooltip Information ở dưới.
+            ; Chỉ tính dòng CÓ SỐ — dòng chữ suông không nói lên điều gì.
+            if (RegExMatch(d, "\d"))
+            {
+                soCoSo++
+                if (!InStr(d, "["))
+                    soKhongNgoac++
+            }
         }
         i++
     }
@@ -937,12 +965,41 @@ LocMonTTS(mon)
     if (soO > 0)
         ra .= "`n#D4L-SOCKET:" . soO
 
+    ;=================================================================
+    ;   CHỐT KIỂM CÔNG TẮC "Advanced Tooltip Information"
+    ;
+    ;   Luật nhận dấu sao của ta là: dòng nào KHÔNG in [min - max] thì là
+    ;   Greater Affix. Mà thứ in ra cái khoảng đó CHÍNH LÀ công tắc
+    ;   Options > Gameplay > Advanced Tooltip Information.
+    ;
+    ;   Tắt công tắc đi thì game không in khoảng cho dòng nào cả, và luật
+    ;   trên sẽ đóng dấu sao lên TOÀN BỘ affix — rồi đăng lên sàn sai hết,
+    ;   im lặng, không ai biết. Đây là lỗi đắt nhất mà tool này có thể gây ra.
+    ;
+    ;   D4LF chặn bằng một phép đếm rẻ tiền (src/loot/filter.py): trên 80%
+    ;   số món mà dòng nào cũng là Greater thì chắc chắn có gì đó sai.
+    ;
+    ;   Ta làm chặt hơn một chút: đếm số món LIÊN TIẾP mà mọi dòng có số đều
+    ;   không ngoặc. Một món như vậy vẫn có thể là thật (đồ 4 sao). Nhưng ba
+    ;   món liên tiếp thì không còn là may mắn nữa.
+    ;
+    ;   Chỉ xét món có TỪ HAI dòng chỉ số trở lên — món một dòng không nói
+    ;   lên điều gì.
+    ;=================================================================
+    if (soCoSo >= 2 && soKhongNgoac = soCoSo)
+        g_NghiTatTooltip++
+    else
+        g_NghiTatTooltip := 0
+
     ; CỜ BÁO "PHẦN DÒ DẤU SAO ĐÃ CHẠY XONG".
     ; Thiếu cờ này thì tiện ích TẮT NGẦM toàn bộ việc bật/tắt dấu sao — nó
     ; thà không đụng còn hơn xoá nhầm dấu sao trang đã nhận đúng. Bản V2 phát
-    ; cờ từ hàm đo pixel; V3 bỏ hàm đó nên phải phát ở đây, mà V3 thì luôn
-    ; biết chắc dấu sao (có ngoặc hay không), nên luôn phát.
-    ra .= "`n#D4L-SAO-OK"
+    ; cờ từ hàm đo pixel; V3 bỏ hàm đó nên phải phát ở đây.
+    ;
+    ; ĐANG NGHI công tắc tắt thì KHÔNG phát cờ. Tiện ích sẽ để nguyên dấu sao
+    ; thay vì đóng bừa lên mọi dòng — đúng công dụng cờ này sinh ra để làm.
+    if (g_NghiTatTooltip < NGHI_TOI_DA)
+        ra .= "`n#D4L-SAO-OK"
 
     ; Gửi kèm số hiệu bản tiện ích ĐANG NẰM TRÊN ĐĨA. Chrome không tự nạp
     ; lại tiện ích cài kiểu Load unpacked, nên sau khi cập nhật thì file
