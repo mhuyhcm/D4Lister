@@ -188,6 +188,9 @@ global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / que
 global g_DoLai   := true    ; có dò lại các ô im lặng không
 global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
 global g_TK      := {}      ; sổ thống kê của lượt quét đang chạy
+global g_GhimX   := -1      ; ghim tooltip vào chỗ cố định; -1 = bám con trỏ
+global g_GhimY   := -1
+global MSG_BAOCAO := 10000  ; báo cáo cuối lượt quét giữ trên màn bao lâu (ms)
 global FILE_LOG_QUET := A_ScriptDir . "\nhat-ky-quet.txt"
 
 ; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
@@ -696,9 +699,11 @@ GoToBatchStart()
 ;   TOOLTIP: nền trắng, chữ xanh lá (lỗi = đỏ, cảnh báo = cam)
 ;   Không cướp focus (WS_EX_NOACTIVATE) -> đang gõ giá vẫn gõ tiếp được.
 ;=====================================================================
-ShowMsg(text, kind := "ok")
+;   msHien = 0  -> dùng MSG_TIME. Đặt số khác để giữ lâu hơn (báo cáo cuối lượt).
+ShowMsg(text, kind := "ok", msHien := 0)
 {
     global g_MsgHwnd, MSG_TIME, COL_BG, COL_OK, COL_ERR, COL_WARN
+    global g_GhimX, g_GhimY
 
     if (kind = "err")
     {
@@ -732,24 +737,38 @@ ShowMsg(text, kind := "ok")
     Gui, Msg:Show, NA AutoSize x-32000 y-32000
     WinGetPos, , , gw, gh, ahk_id %g_MsgHwnd%
 
-    MouseGetPos, mx, my
     SysGet, vx, 76
     SysGet, vy, 77
     SysGet, vw, 78
     SysGet, vh, 79
-    px := mx + 18
-    py := my + 22
+
+    ; Bình thường thì bám con trỏ — tiện, vì mắt đang ở đó.
+    ; Nhưng lúc quét hàng loạt con trỏ chạy khắp rương, chữ nhảy theo thì
+    ; không đọc kịp. Khi ấy F2 ghim một chỗ cố định, căn giữa theo g_GhimX.
+    if (g_GhimX >= 0)
+    {
+        px := g_GhimX - gw // 2
+        py := g_GhimY
+    }
+    else
+    {
+        MouseGetPos, mx, my
+        px := mx + 18
+        py := my + 22
+    }
     if (px + gw > vx + vw)
         px := vx + vw - gw - 4
     if (py + gh > vy + vh)
-        py := my - gh - 12
+        py := (g_GhimX >= 0) ? (vy + vh - gh - 4) : (my - gh - 12)
     if (px < vx)
         px := vx + 4
     if (py < vy)
         py := vy + 4
 
+    ; Lúc đang ghim (tức đang quét) thì giữ lâu hơn: một hàng ô mất vài giây,
+    ; để 1,1 giây thì bảng tiến độ cứ tắt rồi bật, nhìn như bị treo.
     WinMove, ahk_id %g_MsgHwnd%, , %px%, %py%
-    SetTimer, HideMsgTimer, % -MSG_TIME
+    SetTimer, HideMsgTimer, % -(msHien > 0 ? msHien : (g_GhimX >= 0 ? 4000 : MSG_TIME))
 }
 
 HideMsgTimer:
@@ -1577,6 +1596,13 @@ DoQuet:
     g_Busy := true
     MouseGetPos, chuotX, chuotY
     RefreshForCapture()
+
+    ; Ghim tooltip lên đỉnh cửa sổ game, căn giữa. Con trỏ lúc quét chạy
+    ; khắp rương nên chữ bám theo là không đọc kịp. Chỗ này nằm trên dải
+    ; tab (y 185) nên không che ô nào đang rê qua.
+    g_GhimX := gx + cw // 2
+    g_GhimY := gy + 36
+
     huy := ""
     ngoTab := ""                   ; tab nào ngờ là bấm hụt
     g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
@@ -1646,35 +1672,64 @@ DoQuet:
     if (huy != "")
         GhiLog("      DỪNG GIỮA CHỪNG: " . huy)
 
-    ; Báo cáo trên màn hình. Nói rõ cái đáng ngờ trước, con số đẹp sau —
-    ; đăng nhầm vì sót một món thì tốn hơn nhiều so với đọc thêm một dòng.
-    dong := g_TK.moi . " món mới  ·  " . g_TK.coDo . "/" . g_TK.oRe . " ô có đồ"
-    if (g_TK.trung > 0)
-        dong .= "  ·  " . g_TK.trung . " trùng"
-    dong .= "`nHàng đợi: " . g_Items.Length() . " món  ·  sổ: nhat-ky-quet.txt"
-
-    canhBaoQuet := ""
-    if (ngoTab != "")
-        canhBaoQuet .= "`n⚠ Tab " . ngoTab . " không ra món mới nào — ngờ bấm hụt tab."
-             . " Mở hộp thoại F2 bấm “Rê thử tab” xem con trỏ có trúng không."
-    if (g_TK.khongHieu > 0)
-        canhBaoQuet .= "`n⚠ " . g_TK.khongHieu . " món đọc được nhưng không hiểu — xem sổ."
-    if (g_TK.loi > 0)
-        canhBaoQuet .= "`n⚠ " . g_TK.loi . " món ghi file hỏng — xem sổ."
-    if (g_TK.cuuDuoc > 0)
-        canhBaoQuet .= "`nℹ Lượt dò lại cứu được " . g_TK.cuuDuoc . " món."
-    if (!g_DoLai)
-        canhBaoQuet .= "`nℹ Chưa bật “dò lại ô im lặng” — ô có tooltip về chậm sẽ bị tính là trống."
-
+    ; BÁO CÁO CUỐI LƯỢT. Giữ 10 giây chứ không phải 1,1 giây như các tooltip
+    ; khác — đây là thứ duy nhất cho biết có sót món nào không, đọc không kịp
+    ; thì coi như không có. Vẫn ghim tại chỗ, không bám con trỏ.
+    tieuDe := "QUÉT XONG"
+    loai   := "ok"
     if (huy != "")
-        ShowMsg("Dừng giữa chừng (" . huy . ")`n" . dong . canhBaoQuet, "warn")
+    {
+        tieuDe := "DỪNG GIỮA CHỪNG — " . huy
+        loai   := "warn"
+    }
     else if (g_TK.coDo = 0)
-        ShowMsg("Quét xong, không ô nào có đồ"
-            . "`nRương đã mở chưa? Bấm F2 khi đang mở rương." . canhBaoQuet, "warn")
-    else if (canhBaoQuet != "")
-        ShowMsg("Quét xong — " . dong . canhBaoQuet, "warn")
-    else
-        ShowMsg("Quét xong — " . dong, "ok")
+    {
+        tieuDe := "QUÉT XONG — KHÔNG Ô NÀO CÓ ĐỒ"
+        loai   := "warn"
+    }
+
+    bc := tieuDe . "   (tự tắt sau " . Round(MSG_BAOCAO / 1000) . " giây)"
+    bc .= "`n───────────────────────────────────────────"
+    bc .= "`nRê " . g_TK.oRe . " ô  ·  " . g_TK.coDo . " ô có đồ  ·  "
+        . g_TK.oTrong . " ô trống"
+    bc .= "`n" . g_TK.moi . " món mới vào hàng đợi"
+    if (g_TK.trung > 0)
+        bc .= "  ·  " . g_TK.trung . " món trùng"
+    bc .= "`nHàng đợi giờ có " . g_Items.Length() . " món"
+    bc .= "`nTooltip chậm nhất " . g_TK.msMax . "ms / ngưỡng chờ " . CHO_O_MS . "ms"
+    bc .= "`nSổ từng ô: nhat-ky-quet.txt"
+
+    ; Cái đáng ngờ để sau cùng, ngay trên mắt người đọc lúc họ dừng lại.
+    if (g_TK.cuuDuoc > 0)
+        bc .= "`n`nℹ Lượt dò lại cứu được " . g_TK.cuuDuoc . " món"
+            . " mà lượt đầu tưởng là ô trống."
+    if (!g_DoLai)
+        bc .= "`n`nℹ Chưa bật “dò lại ô im lặng” — ô nào tooltip về chậm"
+            . " sẽ bị tính là ô trống."
+    if (g_TK.coDo = 0 && huy = "")
+        bc .= "`n`n⚠ Rương đã mở chưa? Bấm F2 khi đang mở rương."
+    if (ngoTab != "")
+    {
+        bc .= "`n`n⚠ Tab " . ngoTab . " có đồ mà không ra món mới nào — ngờ là"
+            . " bấm hụt tab, quét lại đúng tab cũ."
+            . "`n   Mở hộp thoại F2, bấm “Rê thử tab” xem con trỏ có vào giữa ô không."
+        loai := "warn"
+    }
+    if (g_TK.khongHieu > 0)
+    {
+        bc .= "`n`n⚠ " . g_TK.khongHieu . " món đọc được nhưng không hiểu"
+            . " — nguyên văn nằm trong sổ."
+        loai := "warn"
+    }
+    if (g_TK.loi > 0)
+    {
+        bc .= "`n`n⚠ " . g_TK.loi . " món ghi file hỏng — xem sổ."
+        loai := "err"
+    }
+
+    ShowMsg(bc, loai, MSG_BAOCAO)
+    g_GhimX := -1          ; hết lượt, tooltip bám con trỏ lại như thường
+    g_GhimY := -1
 return
 
 ;=====================================================================
