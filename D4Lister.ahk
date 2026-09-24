@@ -131,9 +131,18 @@ global TUI_COT  := 11
 global TUI_HANG := 3
 
 ; --- dải tab: căn giữa, số tab đổi được ở menu khay ---
-global TAB_GIUA := 332.5
-global TAB_RONG := 59.1
-global TAB_Y    := 162          ; 185 − 23
+; Tâm từng ô tab, ĐO THẬT từ ảnh chụp, cho từng trường hợp số tab.
+;
+; Không dùng công thức nữa. Trước đây tôi tưởng dải tab là một dãy đều
+; căn giữa, đo bản 6 tab rồi suy ra bản 7 tab. Đo nốt bản 7 tab thì hỏng
+; giả thiết: CẢ bước nhảy LẪN tâm dải đều đổi theo số tab —
+;     6 tab: bước 59,10  tâm dải 332,75
+;     7 tab: bước 58,33  tâm dải 329,43
+; Công thức cũ lệch dồn tới 5 px ở tab ngoài cùng. Ô tab rộng 53 px nên
+; chưa đến mức bấm hụt, nhưng đã đủ để thấy con trỏ không vào giữa ô.
+global TAB_X6 := [185, 244, 303, 363, 422, 481]
+global TAB_X7 := [155, 213, 271, 330, 388, 447, 505]
+global TAB_Y  := 162            ; 185 trên màn hình − 23 của thanh tiêu đề
 
 ; --- nhịp ---
 global CHO_O_MS   := 160        ; chờ tooltip tối đa bao lâu mỗi ô
@@ -1271,6 +1280,18 @@ SoTiepTheo()
 ;   GÓC VÀ CỠ CỦA VÙNG VẼ
 ;   Trả về false nếu không thấy cửa sổ game.
 ;=====================================================================
+;   Tâm ô tab thứ i khi rương có n tab, theo toạ độ vùng vẽ.
+TamTab(i, n)
+{
+    global
+    local ds
+    ds := (n = 6) ? TAB_X6 : TAB_X7
+    if (i < 1 || i > ds.Length())
+        return -1
+    return ds[i] + g_LechTab
+}
+
+
 VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
 {
     WinGet, hwnd, ID, Diablo IV
@@ -1576,7 +1597,10 @@ DoQuet:
         if (huy != "")
             break
         i := A_LoopField + 0
-        tabX := gx + Round(TAB_GIUA + g_LechTab + TAB_RONG * (i - 1 - (g_SoTab - 1) / 2))
+        tabX := TamTab(i, g_SoTab)
+        if (tabX < 0)
+            continue
+        tabX += gx
         tabY := gy + TAB_Y
         ShowMsg("Đổi sang tab " . i . "…", "warn")
         MouseMove, %tabX%, %tabY%, 0
@@ -1826,16 +1850,18 @@ ReThuTab:
         return
     }
     nT := (oSoTab = 1) ? 7 : 6
-    lechT := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
+    lechCu := g_LechTab
+    g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     MouseGetPos, oxT, oyT
     Loop, %nT%
     {
-        txT := gxT + Round(TAB_GIUA + lechT + TAB_RONG * (A_Index - 1 - (nT - 1) / 2))
+        txT := gxT + TamTab(A_Index, nT)
         tyT := gyT + TAB_Y
         MouseMove, %txT%, %tyT%, 0
         Sleep, 650
     }
     MouseMove, %oxT%, %oyT%, 0
+    g_LechTab := lechCu     ; chỉ mượn để xem trước, chốt lại lúc bấm Quét
 return
 
 ; Đổi 7↔6 tab: tab 7 phải tắt hẳn, không chỉ bỏ dấu tick — để bấm nhầm

@@ -386,26 +386,42 @@ Chỗ này phải ghi rõ, vì trộn hai loại vào nhau là tự lừa mình.
 |---|---|
 | Rương 5×10 | x 42 → 623, cách đều 58,1 · y 279 → 740, cách đều 92,2 |
 | Túi đồ 3×11 | x từ 1301, ô rộng 52,4 · y từ 709, ô cao 77,0 |
-| Dải tab, **6 tab** | tâm 185 244 303 362 421 480 · y 185 · ô rộng 53 |
+| Dải tab, **6 tab** | tâm 185 244 303 362,5 421,5 480,5 · ô rộng 53 |
+| Dải tab, **7 tab** | tâm 154,5 212,5 271 329,5 387,5 446,5 504,5 · ô rộng 53 |
 
-**Suy ra, CHƯA ĐO:** dải tab khi rương có **7 tab**. Dải tab căn giữa nên
-công thức là
+Cả hai ảnh cùng gốc toạ độ — kiểm bằng mép trái lưới rương, cả hai đều nhảy
+vọt đúng tại `x = 42`.
 
-```
-tâm tab i = 332,5 + 59,1 × ( i − 1 − (n−1)/2 )
-```
+### Dải tab KHÔNG phải một dãy đều căn giữa
 
-Công thức này khớp đúng số đo ở trường hợp 6 tab, nhưng trường hợp 7 tab thì
-chỉ là ngoại suy — chưa có ảnh 7 tab nào để đối chiếu. Ô tab rộng 53 px mà
-bước nhảy 59,1 px, nên sai quá ~26 px là bấm ra ngoài panel, và bấm ra ngoài
-panel trong Diablo 4 nghĩa là **nhân vật chạy đi**.
+Đây là chỗ tôi đã đoán sai và nói chắc như đã đo. Có mỗi ảnh 6 tab, tôi dựng
+công thức `tâm_i = 332,5 + 59,1 × (i − 1 − (n−1)/2)`, thấy khớp đẹp bản 6 tab
+rồi đem suy ra bản 7 tab và ghi là "chuẩn". Đo nốt bản 7 tab thì hỏng giả
+thiết: **cả bước nhảy lẫn tâm dải đều đổi theo số tab.**
 
-Vì vậy hộp thoại F2 có nút **Rê thử tab**: rê con trỏ qua từng tâm tab mà
-không bấm, để mắt người xác nhận trước. Lệch thì chỉnh ô **Lệch ngang**, lưu
-luôn vào `quet.ini`.
+| | bước nhảy | tâm dải |
+|---|---|---|
+| 6 tab | 59,10 | 332,75 |
+| 7 tab | **58,33** | **329,43** |
+
+Công thức cũ cho 7 tab ra `155 214 273 332 392 451 510`, đo thật là
+`155 213 271 330 388 447 505` — lệch dồn tới **5 px** ở tab ngoài cùng. Ô tab
+rộng 53 px nên chưa đến mức bấm hụt, nhưng đủ để thấy con trỏ không vào giữa ô.
+
+Nên bỏ công thức, **thay bằng hai bảng số đo** `TAB_X6` / `TAB_X7`. Muốn thêm
+trường hợp khác thì đo thêm một bảng, đừng nội suy.
+
+Bài học chung: một phép đo khớp với một công thức **không** chứng minh công
+thức đúng — nó chỉ chưa bác bỏ. Hai tham số tự do thì một dãy 6 điểm khớp
+được là chuyện đương nhiên.
+
+Ô tab rộng 53 px, sai quá ~26 px là bấm ra ngoài panel, mà bấm ra ngoài panel
+trong Diablo 4 nghĩa là **nhân vật chạy đi**. Nên hộp thoại F2 vẫn giữ nút
+**Rê thử tab** (rê qua từng tâm tab, không bấm) và ô **Lệch ngang** lưu vào
+`quet.ini` — phòng khi máy khác, cỡ cửa sổ khác.
 
 Công thức của D4LF cho dải tab thì **sai hẳn** — họ giãn 63 px, đo thật là
-59,1. Tab ở hai đầu lệch tới 12–13 px.
+58–59. Tab ở hai đầu lệch tới 12–13 px.
 
 ---
 
