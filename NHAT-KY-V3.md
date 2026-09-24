@@ -375,6 +375,38 @@ Hai bẫy phụ đi kèm, cũng đáng nhớ:
 | Thêm một dòng affix qua danh sách | 150–283 ms |
 | Tổng một lượt dán (4 dòng) | ~3,2 s |
 
+### Toạ độ lưới — cái nào ĐO, cái nào SUY RA
+
+Chỗ này phải ghi rõ, vì trộn hai loại vào nhau là tự lừa mình.
+
+**Đo từ ảnh chụp thật** (cửa sổ mặc định 1920×1080, vùng vẽ 1920×1027 tại gốc
+`(0, 23)`):
+
+| Lưới | Số đo |
+|---|---|
+| Rương 5×10 | x 42 → 623, cách đều 58,1 · y 279 → 740, cách đều 92,2 |
+| Túi đồ 3×11 | x từ 1301, ô rộng 52,4 · y từ 709, ô cao 77,0 |
+| Dải tab, **6 tab** | tâm 185 244 303 362 421 480 · y 185 · ô rộng 53 |
+
+**Suy ra, CHƯA ĐO:** dải tab khi rương có **7 tab**. Dải tab căn giữa nên
+công thức là
+
+```
+tâm tab i = 332,5 + 59,1 × ( i − 1 − (n−1)/2 )
+```
+
+Công thức này khớp đúng số đo ở trường hợp 6 tab, nhưng trường hợp 7 tab thì
+chỉ là ngoại suy — chưa có ảnh 7 tab nào để đối chiếu. Ô tab rộng 53 px mà
+bước nhảy 59,1 px, nên sai quá ~26 px là bấm ra ngoài panel, và bấm ra ngoài
+panel trong Diablo 4 nghĩa là **nhân vật chạy đi**.
+
+Vì vậy hộp thoại F2 có nút **Rê thử tab**: rê con trỏ qua từng tâm tab mà
+không bấm, để mắt người xác nhận trước. Lệch thì chỉnh ô **Lệch ngang**, lưu
+luôn vào `quet.ini`.
+
+Công thức của D4LF cho dải tab thì **sai hẳn** — họ giãn 63 px, đo thật là
+59,1. Tab ở hai đầu lệch tới 12–13 px.
+
 ---
 
 ## Kết luận về đường "đẩy một phát" — ngõ cụt, đã dừng

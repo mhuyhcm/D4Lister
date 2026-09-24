@@ -176,6 +176,10 @@ global g_QuetTui := true    ; có quét cả túi đồ nhân vật không
 global g_Tab     := []      ; g_Tab[i] = có quét tab i không
 global g_DaQuet  := []      ; nội dung các món đã lấy trong lượt quét này
 global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / quet / huy
+global g_DoLai   := true    ; có dò lại các ô im lặng không
+global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
+global g_TK      := {}      ; sổ thống kê của lượt quét đang chạy
+global FILE_LOG_QUET := A_ScriptDir . "\nhat-ky-quet.txt"
 
 ; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
 ; Chạm ngưỡng là gần như chắc chắn công tắc Advanced Tooltip Information
@@ -1292,10 +1296,10 @@ VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
 ;
 ;   Trả về: "" nếu ô trống hoặc bị huỷ, ngược lại là chữ của món.
 ;=====================================================================
-QuetMotO(x, y, ByRef huy)
+QuetMotO(x, y, ByRef huy, choMs, ByRef msCho)
 {
     global
-    local het, mon
+    local het, mon, batDau
 
     g_MonCuoi := ""
     g_TenCuoi := ""
@@ -1306,7 +1310,9 @@ QuetMotO(x, y, ByRef huy)
 
     MouseMove, %x%, %y%, 0
 
-    het := A_TickCount + CHO_O_MS
+    msCho   := 0
+    batDau  := A_TickCount
+    het     := batDau + choMs
     Loop
     {
         if (GetKeyState("Escape", "P"))
@@ -1327,6 +1333,9 @@ QuetMotO(x, y, ByRef huy)
             return ""       ; ô trống
         Sleep, 15
     }
+    msCho := A_TickCount - batDau
+    if (msCho > g_TK.msMax)
+        g_TK.msMax := msCho
 
     ; Tooltip có thể còn đang về dở — đợi nốt một nhịp ngắn
     Sleep, 25
@@ -1336,12 +1345,91 @@ QuetMotO(x, y, ByRef huy)
 
 
 ;=====================================================================
-;   QUÉT MỘT LƯỚI
+;   SỔ SÁCH MỘT LƯỢT QUÉT
+;
+;   Quét hàng loạt mà im lặng thì không ai dám tin: ô im lặng là ô trống
+;   thật, hay là tooltip về chậm một nhịp rồi mình ghi nhầm thành trống?
+;   Nên mọi ô đều có dòng trong sổ, và cuối lượt đối chiếu được.
 ;=====================================================================
-QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy, ByRef soMoi)
+GhiLog(chu)
 {
     global
-    local r, c, tx, ty, mon, chu
+    FileAppend, %chu%`n, %FILE_LOG_QUET%, UTF-8-RAW
+}
+
+TenO(r, c)
+{
+    return "h" . (r + 1) . "c" . (c + 1)
+}
+
+TenMonTu(mon)
+{
+    local d
+    Loop, Parse, mon, `n, `r
+    {
+        d := Trim(A_LoopField)
+        if (d != "")
+            return d
+    }
+    return "(không rõ tên)"
+}
+
+
+;=====================================================================
+;   XỬ LÝ MỘT MÓN ĐỌC ĐƯỢC
+;
+;   Ba ngả kết thúc, và cả ba đều phải vào sổ. Trước đây món "đọc được
+;   nhưng không hiểu" bị bỏ im — đúng kiểu sót mà không ai hay.
+;=====================================================================
+XuLyMon(mon, r, c, ms, laDoLai)
+{
+    global
+    local chu, kq, nhan, tenMon
+
+    g_TK.coDo++
+    tenMon := TenMonTu(mon)
+    chu    := LocMonTTS(mon)
+    if (chu = "")
+    {
+        g_TK.khongHieu++
+        GhiLog("  " . TenO(r, c) . "  !! ĐỌC ĐƯỢC NHƯNG KHÔNG HIỂU: " . tenMon)
+        GhiLog("        nguyên văn: " . StrReplace(StrReplace(mon, "`r", ""), "`n", " / "))
+        return
+    }
+
+    kq := ThemVaoHangDoi(chu, mon)
+    if (kq = "moi")
+    {
+        g_TK.moi++
+        nhan := "mới"
+        ShowMsg("✔ " . tenMon . "`nđã lấy " . g_TK.moi . " món   ·   Esc để dừng", "ok")
+    }
+    else if (kq = "trung")
+    {
+        g_TK.trung++
+        nhan := "trùng"
+    }
+    else
+    {
+        g_TK.loi++
+        nhan := "!! GHI FILE HỎNG"
+    }
+    GhiLog("  " . TenO(r, c) . "  " . tenMon . "   [" . nhan . "]  " . ms . "ms"
+         . (laDoLai ? "   (cứu ở lượt dò lại)" : ""))
+}
+
+
+;=====================================================================
+;   QUÉT MỘT LƯỚI
+;=====================================================================
+QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
+{
+    global
+    local r, c, i, o, tx, ty, mon, ms, imLang, cuu
+
+    GhiLog("")
+    GhiLog("--- " . ten . "  (" . soHang . "×" . soCot . " = " . (soHang * soCot) . " ô) ---")
+    imLang := []
 
     r := 0
     while (r < soHang)
@@ -1349,25 +1437,59 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy, ByRef soMoi)
         ; Báo tiến độ MỖI HÀNG, không phải mỗi ô: ShowMsg dựng lại cả cửa
         ; sổ GUI nên gọi 83 lần một lượt thì vừa chậm vừa nhấp nháy.
         ShowMsg(ten . " — hàng " . (r + 1) . "/" . soHang
-            . "`nđã lấy " . soMoi . " món   ·   Esc để dừng", "warn")
+            . "`nđã lấy " . g_TK.moi . " món   ·   Esc để dừng", "warn")
         c := 0
         while (c < soCot)
         {
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
-            mon := QuetMotO(tx, ty, huy)
+            g_TK.oRe++
+            mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms)
             if (huy != "")
                 return
-            if (mon != "")
-            {
-                chu := LocMonTTS(mon)
-                if (chu != "" && ThemVaoHangDoi(chu, mon))
-                    soMoi++
-            }
+            if (mon = "")
+                imLang.Push([r, c, tx, ty])
+            else
+                XuLyMon(mon, r, c, ms, false)
             c++
         }
         r++
     }
+
+    ; LƯỢT HAI. Ô im lặng có thể là ô trống thật, cũng có thể là tooltip về
+    ; chậm hơn ngưỡng chờ — mà cái sau thì mất luôn món đồ, im ru. Hỏi lại
+    ; một lần với ngưỡng gấp đôi: thà chậm còn hơn sót.
+    if (!g_DoLai || imLang.Length() = 0)
+    {
+        for i, o in imLang
+        {
+            g_TK.oTrong++
+            GhiLog("  " . TenO(o[1], o[2]) . "  trống")
+        }
+        return
+    }
+
+    ShowMsg(ten . " — dò lại " . imLang.Length() . " ô im lặng…", "warn")
+    cuu := 0
+    for i, o in imLang
+    {
+        mon := QuetMotO(o[3], o[4], huy, CHO_O_MS * 2, ms)
+        if (huy != "")
+            return
+        if (mon = "")
+        {
+            g_TK.oTrong++
+            GhiLog("  " . TenO(o[1], o[2]) . "  trống")
+        }
+        else
+        {
+            cuu++
+            g_TK.cuuDuoc++
+            XuLyMon(mon, o[1], o[2], ms, true)
+        }
+    }
+    if (cuu > 0)
+        GhiLog("  >> lượt dò lại cứu được " . cuu . " món mà lượt đầu tưởng là ô trống")
 }
 
 
@@ -1434,9 +1556,19 @@ DoQuet:
     g_Busy := true
     MouseGetPos, chuotX, chuotY
     RefreshForCapture()
-    soMoi := 0
     huy := ""
+    ngoTab := ""                   ; tab nào ngờ là bấm hụt
+    g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
+           , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0}
     SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
+
+    FormatTime, gioBatDau,, dd/MM/yyyy HH:mm:ss
+    GhiLog("")
+    GhiLog("========================================================")
+    GhiLog("LƯỢT QUÉT " . gioBatDau)
+    GhiLog("  rương " . g_SoTab . " tab · quét tab [" . dsTab . "]"
+         . (g_QuetTui ? " + túi đồ" : "") . " · lệch ngang " . g_LechTab . "px"
+         . " · dò lại ô im lặng: " . (g_DoLai ? "có" : "không"))
 
     ; --- các tab rương ---
     Loop, Parse, dsTab, `,
@@ -1444,35 +1576,81 @@ DoQuet:
         if (huy != "")
             break
         i := A_LoopField + 0
-        tabX := gx + Round(TAB_GIUA + TAB_RONG * (i - 1 - (g_SoTab - 1) / 2))
+        tabX := gx + Round(TAB_GIUA + g_LechTab + TAB_RONG * (i - 1 - (g_SoTab - 1) / 2))
         tabY := gy + TAB_Y
         ShowMsg("Đổi sang tab " . i . "…", "warn")
         MouseMove, %tabX%, %tabY%, 0
         Sleep, 60
         Click
         Sleep, %CHO_TAB_MS%
+
+        truocCoDo := g_TK.coDo
+        truocMoi  := g_TK.moi
         QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
-               , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy, soMoi)
+               , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy)
+        tabCoDo := g_TK.coDo - truocCoDo
+        tabMoi  := g_TK.moi  - truocMoi
+        GhiLog("  = tab " . i . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
+
+        ; Bấm hụt dải tab thì game vẫn hiện tab cũ, và ta quét lại y nguyên
+        ; tab vừa rồi — mọi món đều "trùng". Không có cách nào nhìn thấy điều
+        ; đó, nhưng dấu vết thì rõ: có đồ mà tuyệt nhiên không món nào mới.
+        if (tabCoDo > 0 && tabMoi = 0)
+        {
+            ngoTab .= (ngoTab = "" ? "" : ", ") . i
+            GhiLog("  !! tab " . i . " không ra món mới nào — ngờ là bấm hụt tab")
+        }
     }
 
     ; --- túi đồ ---
     if (huy = "" && g_QuetTui)
         QuetLuoi(gx, gy, TUI_X, TUI_Y, TUI_OW, TUI_OH
-               , TUI_COT, TUI_HANG, "Túi đồ", huy, soMoi)
+               , TUI_COT, TUI_HANG, "Túi đồ", huy)
 
     MouseMove, %chuotX%, %chuotY%, 0
     SetTimer, DocOng, %NHIP_ONG%
     g_Busy := false
     g_DangQuet := false
 
+    GhiLog("")
+    GhiLog("TỔNG: rê " . g_TK.oRe . " ô · " . g_TK.coDo . " ô có đồ · "
+         . g_TK.oTrong . " ô trống")
+    GhiLog("      " . g_TK.moi . " món mới vào hàng đợi · " . g_TK.trung . " trùng"
+         . " · " . g_TK.khongHieu . " không hiểu · " . g_TK.loi . " ghi hỏng")
+    GhiLog("      lượt dò lại cứu " . g_TK.cuuDuoc . " món"
+         . " · tooltip chậm nhất " . g_TK.msMax . "ms / ngưỡng chờ " . CHO_O_MS . "ms")
     if (huy != "")
-        ShowMsg("Dừng giữa chừng (" . huy . ")`nĐã lấy được " . soMoi . " món", "warn")
-    else if (soMoi = 0)
-        ShowMsg("Quét xong, không tìm thấy món nào mới"
-            . "`nRương đã mở chưa? Bấm F2 khi đang mở rương.", "warn")
+        GhiLog("      DỪNG GIỮA CHỪNG: " . huy)
+
+    ; Báo cáo trên màn hình. Nói rõ cái đáng ngờ trước, con số đẹp sau —
+    ; đăng nhầm vì sót một món thì tốn hơn nhiều so với đọc thêm một dòng.
+    dong := g_TK.moi . " món mới  ·  " . g_TK.coDo . "/" . g_TK.oRe . " ô có đồ"
+    if (g_TK.trung > 0)
+        dong .= "  ·  " . g_TK.trung . " trùng"
+    dong .= "`nHàng đợi: " . g_Items.Length() . " món  ·  sổ: nhat-ky-quet.txt"
+
+    canhBaoQuet := ""
+    if (ngoTab != "")
+        canhBaoQuet .= "`n⚠ Tab " . ngoTab . " không ra món mới nào — ngờ bấm hụt tab."
+             . " Mở hộp thoại F2 bấm “Rê thử tab” xem con trỏ có trúng không."
+    if (g_TK.khongHieu > 0)
+        canhBaoQuet .= "`n⚠ " . g_TK.khongHieu . " món đọc được nhưng không hiểu — xem sổ."
+    if (g_TK.loi > 0)
+        canhBaoQuet .= "`n⚠ " . g_TK.loi . " món ghi file hỏng — xem sổ."
+    if (g_TK.cuuDuoc > 0)
+        canhBaoQuet .= "`nℹ Lượt dò lại cứu được " . g_TK.cuuDuoc . " món."
+    if (!g_DoLai)
+        canhBaoQuet .= "`nℹ Chưa bật “dò lại ô im lặng” — ô có tooltip về chậm sẽ bị tính là trống."
+
+    if (huy != "")
+        ShowMsg("Dừng giữa chừng (" . huy . ")`n" . dong . canhBaoQuet, "warn")
+    else if (g_TK.coDo = 0)
+        ShowMsg("Quét xong, không ô nào có đồ"
+            . "`nRương đã mở chưa? Bấm F2 khi đang mở rương." . canhBaoQuet, "warn")
+    else if (canhBaoQuet != "")
+        ShowMsg("Quét xong — " . dong . canhBaoQuet, "warn")
     else
-        ShowMsg("Quét xong — thêm " . soMoi . " món"
-            . "`nHàng đợi: " . g_Items.Length() . " món", "ok")
+        ShowMsg("Quét xong — " . dong, "ok")
 return
 
 ;=====================================================================
@@ -1488,13 +1666,13 @@ ThemVaoHangDoi(chu, monGoc)
 
     for k, cu in g_DaQuet
         if (cu = monGoc)
-            return false
+            return "trung"
 
     f := QUEUE_DIR . "\" . SoTiepTheo() . ".txt"
     FileDelete, %f%
     FileAppend, %chu%, %f%, UTF-8-RAW
     if !FileExist(f)
-        return false
+        return "loi"
 
     if (!g_FreshCapture)
         g_BatchStart := g_Items.Length() + 1
@@ -1502,7 +1680,7 @@ ThemVaoHangDoi(chu, monGoc)
     g_Cur := g_Items.Length()
     g_FreshCapture := true
     g_DaQuet.Push(monGoc)
-    return true
+    return "moi"
 }
 
 
@@ -1529,6 +1707,10 @@ NapCauHinhQuet()
     g_SoTab := (v = 6) ? 6 : 7
     IniRead, v, %FILE_CAU_HINH%, quet, tui, 1
     g_QuetTui := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, dolai, 1
+    g_DoLai := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, lech, 0
+    g_LechTab := (v + 0 >= -60 && v + 0 <= 60) ? v + 0 : 0
     IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
     g_Tab := []
     Loop, 7
@@ -1547,6 +1729,8 @@ LuuCauHinhQuet()
     IniWrite, % g_SoTab, %FILE_CAU_HINH%, quet, soTab
     IniWrite, % (g_QuetTui ? 1 : 0), %FILE_CAU_HINH%, quet, tui
     IniWrite, % DocDsTab(), %FILE_CAU_HINH%, quet, tab
+    IniWrite, % (g_DoLai ? 1 : 0), %FILE_CAU_HINH%, quet, dolai
+    IniWrite, % g_LechTab, %FILE_CAU_HINH%, quet, lech
 }
 
 ;=====================================================================
@@ -1568,32 +1752,42 @@ HoiQuetGi()
     Gui, hQuet:New, +AlwaysOnTop -MaximizeBox -MinimizeBox, D4Lister — quét hàng loạt
     Gui, hQuet:Font, s9, Segoe UI
 
-    Gui, hQuet:Add, GroupBox, x10 y8 w330 h112, Rương
+    Gui, hQuet:Add, GroupBox, x10 y8 w380 h146, Rương
     Loop, 7
     {
         i  := A_Index
-        cx := 24 + Mod(i - 1, 4) * 78
+        cx := 24 + Mod(i - 1, 4) * 88
         cy := 32 + ((i - 1) // 4) * 28
         Gui, hQuet:Add, Checkbox
-           , % "voTab" . i . " x" . cx . " y" . cy . " w70"
+           , % "voTab" . i . " x" . cx . " y" . cy . " w80"
              . (g_Tab[i] ? " Checked" : "")
              . (i > g_SoTab ? " Disabled" : "")
            , % "Tab " . i
     }
-    Gui, hQuet:Add, Text,  x24 y92 w76 h22 +0x200, Rương có:
-    Gui, hQuet:Add, Radio, % "voSoTab Group x102 y92 w66 h22 gDoiSoTabQuet"
+    Gui, hQuet:Add, Text,  x24 y92 w74 h22 +0x200, Rương có:
+    Gui, hQuet:Add, Radio, % "voSoTab Group x100 y92 w62 h22 gDoiSoTabQuet"
                              . (g_SoTab = 7 ? " Checked" : ""), 7 tab
-    Gui, hQuet:Add, Radio, % "x172 y92 w66 h22 gDoiSoTabQuet"
+    Gui, hQuet:Add, Radio, % "x164 y92 w62 h22 gDoiSoTabQuet"
                              . (g_SoTab = 6 ? " Checked" : ""), 6 tab
+    Gui, hQuet:Add, Button, x240 y90 w136 h26 gReThuTab, Rê thử tab (không bấm)
 
-    Gui, hQuet:Add, Checkbox, % "voTui x16 y132 w170 h22"
+    Gui, hQuet:Add, Text, x24 y124 w74 h22 +0x200, Lệch ngang:
+    Gui, hQuet:Add, Edit, voLech x100 y122 w56 h22 Center
+    Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
+    Gui, hQuet:Add, Text, x162 y124 w214 h22 +0x200, px — chỉnh nếu rê trượt tab
+
+    Gui, hQuet:Add, Checkbox, % "voTui x16 y164 w180 h22"
                                 . (g_QuetTui ? " Checked" : ""), Túi đồ nhân vật
-    Gui, hQuet:Add, Button, x190 y130 w72 h26 gChonHetQuet, Chọn hết
-    Gui, hQuet:Add, Button, x268 y130 w72 h26 gBoHetQuet,   Bỏ hết
+    Gui, hQuet:Add, Button, x236 y162 w72 h26 gChonHetQuet, Chọn hết
+    Gui, hQuet:Add, Button, x314 y162 w72 h26 gBoHetQuet,   Bỏ hết
 
-    Gui, hQuet:Add, Button, x120 y170 w108 h32 +Default gBatDauQuet, Quét
-    Gui, hQuet:Add, Button, x232 y170 w108 h32 gHuyQuet,             Huỷ
-    Gui, hQuet:Show, w350 h214 Center
+    Gui, hQuet:Add, Checkbox, % "voDoLai x16 y194 w370 h22"
+                                . (g_DoLai ? " Checked" : "")
+                              , Dò lại ô im lặng — chắc ăn hơn, quét lâu hơn
+
+    Gui, hQuet:Add, Button, x160 y228 w108 h32 +Default gBatDauQuet, Quét
+    Gui, hQuet:Add, Button, x278 y228 w108 h32 gHuyQuet,             Huỷ
+    Gui, hQuet:Show, w400 h272 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -1606,12 +1800,43 @@ HoiQuetGi()
 
     g_SoTab   := (oSoTab = 1) ? 7 : 6
     g_QuetTui := (oTui != 0)
+    g_DoLai   := (oDoLai != 0)
+    g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
         g_Tab[A_Index] := (oTab%A_Index% != 0 && A_Index <= g_SoTab)
     LuuCauHinhQuet()
     return true
 }
+
+
+;=====================================================================
+;   RÊ THỬ TAB
+;
+;   Vị trí dải tab là thứ DUY NHẤT trong bộ toạ độ mà tôi chưa đo được
+;   tận nơi cho trường hợp 7 tab — số 6 tab đo từ ảnh thật, số 7 tab suy
+;   ra từ cùng một công thức. Nên thay vì bắt tin, cho xem: rê con trỏ
+;   qua từng tab, KHÔNG bấm, để mắt người xác nhận.
+;=====================================================================
+ReThuTab:
+    Gui, hQuet:Submit, NoHide
+    if (!VungVe(gxT, gyT, cwT, chT))
+    {
+        MsgBox, 48, D4Lister, Không thấy cửa sổ Diablo IV. Mở game và mở rương trước đã.
+        return
+    }
+    nT := (oSoTab = 1) ? 7 : 6
+    lechT := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
+    MouseGetPos, oxT, oyT
+    Loop, %nT%
+    {
+        txT := gxT + Round(TAB_GIUA + lechT + TAB_RONG * (A_Index - 1 - (nT - 1) / 2))
+        tyT := gyT + TAB_Y
+        MouseMove, %txT%, %tyT%, 0
+        Sleep, 650
+    }
+    MouseMove, %oxT%, %oyT%, 0
+return
 
 ; Đổi 7↔6 tab: tab 7 phải tắt hẳn, không chỉ bỏ dấu tick — để bấm nhầm
 ; cũng không quét sang một tab không tồn tại.
