@@ -364,6 +364,52 @@ Hai bẫy phụ đi kèm, cũng đáng nhớ:
   lần ném thẳng `DirectoryNotFoundException`. Muốn biết ống có thật hay không
   thì **nối thử** bằng `NamedPipeClientStream.Connect(700)`.
 
+### 24. Lại đúng cái bẫy 23, hai lần nữa
+
+Bẫy 23 nói `Menu ... DeleteAll` trên menu chưa có thì AutoHotkey giết luồng
+mà không báo gì. Hoá ra đó không phải một trường hợp lẻ — đây là **cách
+AutoHotkey v1 phản ứng với nhiều lỗi lúc chạy**. Triệu chứng luôn y hệt:
+`/iLib` báo cú pháp sạch, tiến trình vẫn sống, không hộp lỗi, không stderr,
+và mọi dòng sau chỗ lỗi coi như không tồn tại.
+
+Bản này dính thêm hai lần:
+
+**Đọc kích thước control trước khi `Gui Show`.** `GuiControlGet, p, Msg:Pos`
+gọi lúc cửa sổ chưa hiện thì trả về rỗng, chuỗi toạ độ dựng từ đó thành rác
+(`"x y w Right ..."`), và luồng chết. Phải `Show` trước, đo sau, rồi `Show`
+lại để nới cửa sổ.
+
+**Biến gắn với control GUI phải TOÀN CỤC.** Thêm `vMsgChu` trong một hàm có
+khai báo `global` chọn lọc — tức hàm đang ở phạm vi cục bộ — là chết. Khai
+báo thêm `global MsgChu, MsgDem` là xong.
+
+Cách dò vẫn là cách của bẫy 23: chèn `FileAppend` sau từng dòng rồi xem dòng
+cuối cùng nào kịp ghi. Lần thứ hai còn nhanh hơn — **không mốc nào ghi** thì
+biết ngay lỗi nằm trước cả mốc đầu tiên, tức ở phần khai báo.
+
+---
+
+### 25. Nhận biết rương đang mở bằng một đường kẻ
+
+V3 đã bỏ hết bộ xử lý ảnh, nhưng `PixelGetColor` thì vẫn còn và rất rẻ.
+
+Không so màu tuyệt đối — nền game đổi liên tục. So **tương quan**: mép trái
+lưới rương là một gờ sáng chạy dọc, bên trái nó là dải tối. Lấy 12 điểm dọc
+theo `x = 42`, mỗi điểm so với điểm cách 6 px về bên trái; gờ phải sáng ≥ 35
+và hơn bên trái ≥ 28.
+
+Đo trên ảnh thật: rương 6 tab **12/12**, rương 7 tab **11/12**, ba ảnh không
+phải rương (kể cả một ảnh Path of Exile 2) **0/12**. Ngưỡng 9/12 nằm giữa
+hai cụm rất xa nhau.
+
+Chịu được xê dịch 1 px ngang bằng cách lấy giá trị sáng nhất trong
+`x ∈ {41, 42, 43}`.
+
+Không kiểm lưới túi đồ: thử thì được 7/11 trên một ảnh, 0/11 trên ảnh kia, mà
+lại **báo nhầm 6/11 trên ảnh Path of Exile**. Nhưng bỏ đi cũng không sao, vì
+toạ độ lưới túi đồ vốn đo **trên màn hình rương** — mở túi đồ một mình thì bố
+cục khác. Rương mở là điều kiện cần cho cả hai lưới.
+
 ---
 
 ## Đo được
