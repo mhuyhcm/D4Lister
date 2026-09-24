@@ -126,7 +126,10 @@ global RUONG_COT  := 10
 global RUONG_HANG := 5
 
 ; --- lưới túi đồ: 3 hàng × 11 cột ---
-global TUI_X    := 1301
+; Mép trái đo lại 24/09 trên ảnh chụp thật của máy đang dùng: các đường kẻ
+; dọc nằm ở 1402, 1455, 1507 … 1874 (cách đều 52,4), suy ngược ra mép trái
+; 1297,2. Số cũ 1301 lệch gần 4 px — không đủ để hỏng, nhưng lệch thì sửa.
+global TUI_X    := 1297
 global TUI_Y    := 686
 global TUI_OW   := 52.4
 global TUI_OH   := 77.0
