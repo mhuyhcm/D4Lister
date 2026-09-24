@@ -96,9 +96,34 @@ nội dung đã có sẵn và chạy ổn.
 nên **đừng dựng lại** — cách rẻ hơn: rê hết 33 ô, ô trống thì game không gửi
 tooltip, mình bỏ qua. Chậm hơn chút nhưng không phải nuôi lại GDI+.
 
-**b) Toạ độ lưới.** Phụ thuộc độ phân giải. Cần hiệu chỉnh **một lần**:
-người dùng chỉ vào ô đầu và ô cuối, nội suy ra lưới, lưu lại.
-→ *Cần người dùng cho một ảnh chụp rương ở đúng độ phân giải đang chơi.*
+**b) Toạ độ lưới — BÊ THẲNG ĐƯỢC, không cần hiệu chỉnh.**
+
+Ban đầu tôi tưởng phải để người dùng chỉ vào ô đầu / ô cuối. Đọc mã thì
+không cần: toạ độ của D4LF là **một công thức**, không phải bảng dò
+(`src/settings/coordinates.py`):
+
+```python
+"""Everything is this file is based on UHD resolution (3840x2160)."""
+slots_3x11 = np.array([2536, 1444, 1214, 486])   # x, y, rong, cao
+```
+
+Đúng **một hình chữ nhật** đo ở 3840×2160, rồi chia đều cho 3 hàng × 11 cột
+(`to_grid`). Độ phân giải khác thì nhân tỉ lệ — log D4LF ghi rõ
+`Setting ui resolution to 1920x1027`.
+
+Quy ra **1920×1080**:
+
+```
+khoi o :  x=1268  y=722  rong=607  cao=243
+moi o  :  55,2 x 81,0 px
+tam o dau: (1295, 762)
+```
+
+AutoHotkey tự lấy kích thước cửa sổ game bằng `WinGetPos` rồi nhân tỉ lệ —
+**không cần ảnh chụp, không cần bước hiệu chỉnh nào.**
+
+Vẫn nên có nút hiệu chỉnh tay làm đường lui, phòng khi Blizzard đổi bố cục
+giao diện.
 
 ### Rê chuột phải có nhịp
 
