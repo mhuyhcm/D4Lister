@@ -38,3 +38,7 @@ _thu-loc*.ahk
 _thu-loc*.txt
 _thu-unique.ahk
 _thu-unique.txt
+
+# --- Rieng tung may: lua chon quet va so ghi cua lan quet ---
+quet.ini
+nhat-ky-quet.txt
