@@ -63,6 +63,7 @@ EnableDpiAwareness()
 ;   CẤU HÌNH  -  sửa ở đây
 ;=====================================================================
 global HK_QUET    := "F2"           ; quét hàng loạt rương + túi đồ
+global HK_KIEMTRA := "F10"          ; chụp & đo các tab (chỉ để dò, không quét)
 global HK_CAPTURE := "F3"           ; lấy món đang rê chuột
 global HK_PASTE   := "F4"           ; dán item hiện tại
 global HK_NEXT    := "F5"           ; sang item kế + dán luôn
@@ -243,6 +244,7 @@ RefreshQueue(true)
 NapCauHinhQuet()
 
 Hotkey, %HK_QUET%,    DoQuet
+Hotkey, %HK_KIEMTRA%, DoKiemTra
 Hotkey, %HK_CAPTURE%, DoCapture
 Hotkey, %HK_PASTE%,   DoPaste
 Hotkey, %HK_NEXT%,    DoNext
@@ -2934,6 +2936,266 @@ hQuetGuiClose:
 hQuetGuiEscape:
     g_TraLoi := "huy"
 return
+
+;=====================================================================
+;   CHỤP & ĐO CÁC TAB  —  F10
+;
+;   Không quét, không lấy món, không đụng vào hàng đợi. Chỉ:
+;     1. bấm sang từng tab đã chọn
+;     2. chụp màn hình lại thành ảnh
+;     3. TÌM vị trí lưới bằng cách dò cả dãy đường kẻ
+;     4. đo từng ô rồi ghi hết ra một file chữ
+;
+;   Để làm gì: toạ độ lưới đo trên một máy, còn máy khác có thể lệch —
+;   panel rương neo theo đỉnh cửa sổ, túi đồ neo theo đáy, nên chiều cao
+;   vùng vẽ đổi là túi đồ xê dịch. Đo trên cả hai máy rồi so mới biết.
+;=====================================================================
+
+;   Đếm điểm "gờ" của một cột: sáng hơn hẳn phía bên trái.
+GoDoc(anh, x, y0, y1)
+{
+    local y, s, t, n
+    n := 0
+    y := y0
+    while (y < y1)
+    {
+        s := DocSangTaiDiem(anh, x, y)
+        t := DocSangTaiDiem(anh, x - 5, y)
+        if (s >= 0 && t >= 0 && s - t >= 18 && s >= 28)
+            n++
+        y += 5
+    }
+    return n
+}
+
+GoNgang(anh, y, x0, x1)
+{
+    local x, s, t, n
+    n := 0
+    x := x0
+    while (x < x1)
+    {
+        s := DocSangTaiDiem(anh, x, y)
+        t := DocSangTaiDiem(anh, x, y - 5)
+        if (s >= 0 && t >= 0 && s - t >= 18 && s >= 28)
+            n++
+        x += 5
+    }
+    return n
+}
+
+;   Tìm gốc lưới bằng cách DÒ CẢ DÃY đường kẻ cùng lúc: cộng điểm gờ tại
+;   mọi đường. Một món đồ có thể giả được một đường, không giả được cả dãy
+;   cách đều.  Trả về "gốc|điểm|gốc_nhì|điểm_nhì".
+LuocDoc(anh, xTu, xDen, buoc, soDuong, y0, y1)
+{
+    local x, k, t, tot, totX, nhi, nhiX
+    tot := -1, totX := xTu, nhi := -1, nhiX := xTu
+    x := xTu
+    while (x <= xDen)
+    {
+        t := 0
+        k := 0
+        while (k < soDuong)
+        {
+            t += GoDoc(anh, Round(x + buoc * k), y0, y1)
+            k++
+        }
+        if (t > tot)
+        {
+            nhi := tot, nhiX := totX
+            tot := t, totX := x
+        }
+        else if (t > nhi)
+            nhi := t, nhiX := x
+        x++
+    }
+    return totX . "|" . tot . "|" . nhiX . "|" . nhi
+}
+
+LuocNgang(anh, yTu, yDen, buoc, soDuong, x0, x1)
+{
+    local y, k, t, tot, totY, nhi, nhiY
+    tot := -1, totY := yTu, nhi := -1, nhiY := yTu
+    y := yTu
+    while (y <= yDen)
+    {
+        t := 0
+        k := 0
+        while (k < soDuong)
+        {
+            t += GoNgang(anh, Round(y + buoc * k), x0, x1)
+            k++
+        }
+        if (t > tot)
+        {
+            nhi := tot, nhiY := totY
+            tot := t, totY := y
+        }
+        else if (t > nhi)
+            nhi := t, nhiY := y
+        y++
+    }
+    return totY . "|" . tot . "|" . nhiY . "|" . nhi
+}
+
+;   Đếm điểm lệch trong một ô — cùng luật sẽ dùng để bỏ qua ô trống:
+;   so mọi điểm với ĐIỂM TỐI NHẤT của chính ô đó.
+DemLechO(anh, tx, ty, ow, oh)
+{
+    local x, y, w, h, s, nho, n, ds, k
+    w := ow * 0.34
+    h := oh * 0.34
+    ds := []
+    nho := 999
+    x := tx - w
+    while (x <= tx + w)
+    {
+        y := ty - h
+        while (y <= ty + h)
+        {
+            s := DocSangTaiDiem(anh, Round(x), Round(y))
+            if (s < 0)
+                return -1
+            ds.Push(s)
+            if (s < nho)
+                nho := s
+            y += 4
+        }
+        x += 4
+    }
+    n := 0
+    for k, s in ds
+        if (s - nho > 16)
+            n++
+    return n
+}
+
+DoMotLuoi(f, nhan, gx, gy, x0, y0, ow, oh, soCot, soHang, xTu, xDen, yTu, yDen)
+{
+    global
+    local anh, r, c, tx, ty, n, dong, ket, p, sang, tong
+
+    anh := ChupVung(gx + Round(x0) - 40, gy + Round(y0) - 40
+                  , Round(ow * soCot) + 80, Round(oh * soHang) + 80)
+    if (!anh)
+    {
+        FileAppend, % nhan . ": CHUP HONG`n", %f%, UTF-8-RAW
+        return
+    }
+
+    ; tìm gốc lưới
+    ket := LuocDoc(anh, gx + xTu, gx + xDen, ow, soCot + 1
+                 , gy + Round(y0) + 20, gy + Round(y0 + oh * soHang) - 20)
+    StringSplit, p, ket, |
+    FileAppend, % "`n" . nhan . "`n"
+        . "   mep trai TIM DUOC : x=" . (p1 - gx) . " (diem " . p2 . ")"
+        . "   nhi: x=" . (p3 - gx) . " (diem " . p4 . ")"
+        . "   dang dung: x=" . Round(x0) . "`n", %f%, UTF-8-RAW
+
+    ket := LuocNgang(anh, gy + yTu, gy + yDen, oh, soHang + 1
+                   , gx + Round(x0) + 20, gx + Round(x0 + ow * soCot) - 20)
+    StringSplit, p, ket, |
+    FileAppend, % "   mep tren TIM DUOC : y=" . (p1 - gy) . " (diem " . p2 . ")"
+        . "   nhi: y=" . (p3 - gy) . " (diem " . p4 . ")"
+        . "   dang dung: y=" . Round(y0) . "`n", %f%, UTF-8-RAW
+
+    ; đo từng ô
+    tong := 0
+    r := 0
+    while (r < soHang)
+    {
+        dong := ""
+        c := 0
+        while (c < soCot)
+        {
+            tx := gx + Round(x0 + ow * (c + 0.5))
+            ty := gy + Round(y0 + oh * (r + 0.5))
+            n := DemLechO(anh, tx, ty, ow, oh)
+            dong .= "  " . Format("{:3}", n)
+            if (n >= 10)
+                tong++
+            c++
+        }
+        FileAppend, % "   h" . (r + 1) . dong . "`n", %f%, UTF-8-RAW
+        r++
+    }
+    FileAppend, % "   => nhin thay " . tong . " o co do"
+               . "   (>=10 diem lech = co do)`n", %f%, UTF-8-RAW
+    XoaAnh(anh)
+}
+
+DoKiemTra:
+    if (g_Busy || g_DangQuet)
+        return
+    HideMsgNow()
+    loiKT := KiemCuaSoGame(gxK, gyK, cwK, chK)
+    if (loiKT != "")
+    {
+        ShowMsg(loiKT, "err", 6000)
+        return
+    }
+    if (!RuongDangMo(gxK, gyK))
+    {
+        ShowMsg("CHƯA MỞ RƯƠNG`nMở rương rồi bấm F10 lại.", "err")
+        return
+    }
+
+    g_DangQuet := true
+    thuMuc := A_ScriptDir . "\_kiem-tra"
+    FileCreateDir, %thuMuc%
+    fKT := thuMuc . "\ket-qua.txt"
+    FileDelete, %fKT%
+    FormatTime, gioKT,, dd/MM/yyyy HH:mm:ss
+    FileAppend, % "D4Lister — chup & do cac tab`n" . gioKT . "`n"
+        . "vung ve " . cwK . "x" . chK . "   goc " . gxK . "," . gyK . "`n"
+        . "ruong " . g_SoTab . " tab`n"
+        . "============================================================`n"
+        , %fKT%, UTF-8-RAW
+
+    dsKT := DocDsTab()
+    MouseGetPos, cxKT, cyKT
+    Loop, Parse, dsKT, `,
+    {
+        iKT := A_LoopField + 0
+        txKT := TamTab(iKT, g_SoTab)
+        if (txKT < 0)
+            continue
+        ShowMsg("Đang chụp tab " . iKT . "…", "warn")
+        MouseMove, % gxK + txKT, % gyK + TAB_Y, 0
+        Sleep, 60
+        Click
+        Sleep, %CHO_TAB_MS%
+        MouseMove, % gxK + RUONG_X - 20, % gyK + RUONG_Y, 0
+        Sleep, 250
+        ChupManHinh(thuMuc . "\tab-" . iKT . ".png")
+        DoMotLuoi(fKT, "TAB " . iKT, gxK, gyK, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
+                , RUONG_COT, RUONG_HANG, RUONG_X - 14, RUONG_X + 14
+                , RUONG_Y - 16, RUONG_Y + 16)
+    }
+    ShowMsg("Đang chụp túi đồ…", "warn")
+    DoMotLuoi(fKT, "TUI DO", gxK, gyK, TUI_X, TUI_Y, TUI_OW, TUI_OH
+            , TUI_COT, TUI_HANG, TUI_X - 14, TUI_X + 14, TUI_Y - 16, TUI_Y + 16)
+
+    MouseMove, %cxKT%, %cyKT%, 0
+    g_DangQuet := false
+    ShowMsg("Xong. Kết quả trong thư mục _kiem-tra", "ok", 8000)
+    Run, %thuMuc%
+return
+
+;   Chụp cả màn hình ra file PNG. Dùng PowerShell cho gọn — việc này chạy
+;   một lần mỗi tab, không phải chỗ cần nhanh.
+ChupManHinh(f)
+{
+    local lenh
+    lenh := "powershell -NoProfile -Command ""Add-Type -AssemblyName System.Drawing;"
+          . " $b = New-Object Drawing.Bitmap " . A_ScreenWidth . "," . A_ScreenHeight . ";"
+          . " $g = [Drawing.Graphics]::FromImage($b);"
+          . " $g.CopyFromScreen(0,0,0,0,$b.Size);"
+          . " $b.Save('" . f . "')"""
+    RunWait, %lenh%, , Hide
+}
+
 
 ;=====================================================================
 ;   DỌN DẸP LÚC THOÁT
