@@ -183,7 +183,7 @@ global g_LanThuOng := 0     ; lần gần nhất thử dựng đường ống (A
 global g_SoTab   := 7       ; rương có mấy tab — chọn trong hộp thoại F2
 global g_QuetTui := true    ; có quét cả túi đồ nhân vật không
 global g_Tab     := []      ; g_Tab[i] = có quét tab i không
-global g_DaQuet  := []      ; nội dung các món đã lấy trong lượt quét này
+global g_DaQuet  := {}      ; các ô đã lấy: "nơi|hàng|cột|nội dung"
 global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / quet / huy
 global g_DoLai   := true    ; có dò lại các ô im lặng không
 global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
@@ -479,7 +479,7 @@ DoClear:
     g_FreshCapture := false
     g_BatchStart := 1
     g_MonDaLay := ""      ; xóa sạch rồi thì món đang rê chuột lấy lại được
-    g_DaQuet := []
+    g_DaQuet := {}
 
     if (n = 0)
         ShowMsg("Chưa có món nào để xoá", "warn")
@@ -756,11 +756,11 @@ ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false)
     if (demNguoc && msHien > 0)
     {
         GuiControlGet, p, Msg:Pos, MsgChu
-        rongDem := Round(34 * A_ScreenDPI / 96)
-        Gui, Msg:Font, % "s" . Round(8 * A_ScreenDPI / 96) . " Norm", Segoe UI
+        rongDem := Round(46 * A_ScreenDPI / 96)
+        Gui, Msg:Font, % "s" . Round(10 * A_ScreenDPI / 96) . " Bold", Segoe UI
         Gui, Msg:Add, Text, % "x" . (pX + pW - rongDem)
                            . " y" . (pY + pH + Round(3 * A_ScreenDPI / 96))
-                           . " w" . rongDem . " Right c9A9A9A BackgroundTrans vMsgDem"
+                           . " w" . rongDem . " Right c4A4A4A BackgroundTrans vMsgDem"
                            , % Round(msHien / 1000) . "s"
         g_DemConLai := Round(msHien / 1000)
         SetTimer, DemNguocTimer, 1000
@@ -1432,10 +1432,49 @@ VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
 ;
 ;   Trả về: "" nếu ô trống hoặc bị huỷ, ngược lại là chữ của món.
 ;=====================================================================
-QuetMotO(x, y, ByRef huy, choMs, ByRef msCho)
+;   xTrong  = một điểm trong panel chắc chắn KHÔNG có món, để rê ra cho
+;             game xoá tooltip trước khi hỏi lại.
+;   monTruoc = nội dung ô liền trước, dùng để phát hiện đọc nhầm.
+QuetMotO(x, y, ByRef huy, choMs, ByRef msCho, xTrong, monTruoc := "")
 {
     global
-    local het, mon, batDau
+    local mon
+
+    ; Con trỏ đang đứng sẵn ở đây thì MouseMove không phải là một cú di
+    ; chuyển, game chẳng có cớ gì gửi lại tooltip — ô có đồ hoá ra ô trống.
+    MouseGetPos, mx, my
+    if (Abs(mx - x) <= LECH_CHUOT && Abs(my - y) <= LECH_CHUOT)
+    {
+        MouseMove, %xTrong%, %y%, 0
+        Sleep, 40
+    }
+
+    mon := HoiMotO(x, y, huy, choMs, msCho)
+    if (huy != "" || mon = "")
+        return mon
+
+    ; Đọc ra đúng y món của ô liền trước thì có hai khả năng, mà hậu quả
+    ; khác hẳn nhau:
+    ;   - tooltip của ô TRƯỚC về muộn, bị tính nhầm cho ô này  -> đọc sai
+    ;   - hai món giống hệt nhau nằm cạnh nhau (hai nhẫn cùng chỉ số)
+    ;                                                          -> đúng thật
+    ; Không đoán. Rê ra chỗ trống cho game xoá tooltip rồi hỏi lại — lần
+    ; này thứ nhận được chắc chắn là của ô này.
+    if (mon = monTruoc)
+    {
+        g_TK.hoiLai++
+        MouseMove, %xTrong%, %y%, 0
+        Sleep, 70
+        mon := HoiMotO(x, y, huy, choMs, msCho)
+    }
+    return mon
+}
+
+;   Rê tới một ô rồi chờ tooltip. Trả về "" nếu ô trống hoặc bị huỷ.
+HoiMotO(x, y, ByRef huy, choMs, ByRef msCho)
+{
+    global
+    local het, batDau
 
     g_MonCuoi := ""
     g_TenCuoi := ""
@@ -1517,7 +1556,7 @@ TenMonTu(mon)
 ;   Ba ngả kết thúc, và cả ba đều phải vào sổ. Trước đây món "đọc được
 ;   nhưng không hiểu" bị bỏ im — đúng kiểu sót mà không ai hay.
 ;=====================================================================
-XuLyMon(mon, r, c, ms, laDoLai)
+XuLyMon(mon, noi, r, c, ms, laDoLai)
 {
     global
     local chu, kq, nhan, tenMon
@@ -1533,7 +1572,7 @@ XuLyMon(mon, r, c, ms, laDoLai)
         return
     }
 
-    kq := ThemVaoHangDoi(chu, mon)
+    kq := ThemVaoHangDoi(chu, mon, noi, r, c)
     if (kq = "moi")
     {
         g_TK.moi++
@@ -1561,7 +1600,12 @@ XuLyMon(mon, r, c, ms, laDoLai)
 QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
 {
     global
-    local r, c, i, o, tx, ty, mon, ms, imLang, cuu
+    local r, c, i, o, tx, ty, mon, ms, imLang, cuu, xTrong, monTruoc
+
+    ; Điểm không có món, để rê ra cho game xoá tooltip. Nằm trong nền
+    ; panel, bên trái lưới rương — chỗ đó không bao giờ có ô đồ.
+    xTrong := gx + RUONG_X - 20
+    monTruoc := ""
 
     GhiLog("")
     GhiLog("--- " . ten . "  (" . soHang . "×" . soCot . " = " . (soHang * soCot) . " ô) ---")
@@ -1580,13 +1624,14 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
             g_TK.oRe++
-            mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms)
+            mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms, xTrong, monTruoc)
             if (huy != "")
                 return
+            monTruoc := mon
             if (mon = "")
                 imLang.Push([r, c, tx, ty])
             else
-                XuLyMon(mon, r, c, ms, false)
+                XuLyMon(mon, ten, r, c, ms, false)
             c++
         }
         r++
@@ -1594,7 +1639,7 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
 
     ; LƯỢT HAI. Ô im lặng có thể là ô trống thật, cũng có thể là tooltip về
     ; chậm hơn ngưỡng chờ — mà cái sau thì mất luôn món đồ, im ru. Hỏi lại
-    ; một lần với ngưỡng gấp đôi: thà chậm còn hơn sót.
+    ; một lần với ngưỡng gấp ba: thà chậm còn hơn sót.
     if (!g_DoLai || imLang.Length() = 0)
     {
         for i, o in imLang
@@ -1609,7 +1654,7 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
     cuu := 0
     for i, o in imLang
     {
-        mon := QuetMotO(o[3], o[4], huy, CHO_O_MS * 2, ms)
+        mon := QuetMotO(o[3], o[4], huy, CHO_O_MS * 3, ms, xTrong)
         if (huy != "")
             return
         if (mon = "")
@@ -1621,7 +1666,7 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
         {
             cuu++
             g_TK.cuuDuoc++
-            XuLyMon(mon, o[1], o[2], ms, true)
+            XuLyMon(mon, ten, o[1], o[2], ms, true)
         }
     }
     if (cuu > 0)
@@ -1763,7 +1808,7 @@ DoQuet:
     huy := ""
     ngoTab := ""                   ; tab nào ngờ là bấm hụt
     g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
-           , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0}
+           , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0, hoiLai: 0}
     SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
 
     FormatTime, gioBatDau,, dd/MM/yyyy HH:mm:ss
@@ -1825,6 +1870,7 @@ DoQuet:
     GhiLog("      " . g_TK.moi . " món mới vào hàng đợi · " . g_TK.trung . " trùng"
          . " · " . g_TK.khongHieu . " không hiểu · " . g_TK.loi . " ghi hỏng")
     GhiLog("      lượt dò lại cứu " . g_TK.cuuDuoc . " món"
+         . " · hỏi lại vì trùng ô trước " . g_TK.hoiLai . " lần"
          . " · tooltip chậm nhất " . g_TK.msMax . "ms / ngưỡng chờ " . CHO_O_MS . "ms")
     if (huy != "")
         GhiLog("      DỪNG GIỮA CHỪNG: " . huy)
@@ -1847,13 +1893,24 @@ return
 ;   món, không phải "món cuối" như F3 — quét hàng loạt thì con trỏ đi qua
 ;   lại, rất dễ đọc lại một món đã có.
 ;=====================================================================
-ThemVaoHangDoi(chu, monGoc)
+;   Khoá chống trùng là VỊ TRÍ Ô, không phải nội dung món.
+;
+;   Trước đây so nội dung trên cả lượt quét, và thế là sai: hai món giống
+;   hệt nhau nằm ở hai ô khác nhau — hai chiếc nhẫn cùng chỉ số chẳng hạn —
+;   là HAI MÓN, hai món hàng để bán. Món thứ hai bị vứt đi im lặng, đếm ra
+;   thiếu mà chẳng ai biết vì sao.
+;
+;   Một ô chỉ chứa một món, nên vị trí ô mới là thứ xác định món. Kèm cả
+;   nội dung vào khoá để quét lại lần nữa sau khi đã đổi đồ trong rương thì
+;   vẫn nhận ra là món khác.
+ThemVaoHangDoi(chu, monGoc, noi, r, c)
 {
     global
+    local khoa
 
-    for k, cu in g_DaQuet
-        if (cu = monGoc)
-            return "trung"
+    khoa := noi . "|" . r . "|" . c . "|" . monGoc
+    if (g_DaQuet.HasKey(khoa))
+        return "trung"
 
     f := QUEUE_DIR . "\" . SoTiepTheo() . ".txt"
     FileDelete, %f%
@@ -1866,7 +1923,7 @@ ThemVaoHangDoi(chu, monGoc)
     g_Items.Push(f)
     g_Cur := g_Items.Length()
     g_FreshCapture := true
-    g_DaQuet.Push(monGoc)
+    g_DaQuet[khoa] := true
     return "moi"
 }
 
