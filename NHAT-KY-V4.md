@@ -510,6 +510,44 @@ Kiểm bằng rương giả:
 Bài học: **"chống trùng" phải hỏi trùng theo cái gì.** Trùng nội dung không
 có nghĩa là trùng vật thể.
 
+### 29. Cùng một cửa sổ, hai máy ra hai vùng vẽ khác nhau
+
+Máy thứ hai (qua Parsec) báo *"vùng vẽ 1920×1017"* trong khi máy gốc luôn ra
+1920×1027. Lệch đúng 10 px, và mọi toạ độ của F2 đo ở 1027.
+
+Đo hai máy thì thấy nguyên nhân:
+
+```
+vùng vẽ = chiều cao cửa sổ − viền
+
+máy A   cửa sổ 1066   viền dọc 39   →  vùng vẽ 1027
+máy B   cửa sổ 1066   viền dọc 49   →  vùng vẽ 1017
+```
+
+**Viền dày bao nhiêu là do Windows quyết, không phải do game** — khác chủ đề,
+khác mức phóng DPI, hoặc màn hình ảo của phần mềm điều khiển từ xa. Cùng một
+cỡ cửa sổ cho ra hai vùng vẽ khác nhau.
+
+Nên chỉnh thì **đừng đặt cứng chiều cao cửa sổ**. Đo viền tại chỗ rồi cộng:
+
+```ahk
+viềnDọc  := caoCửaSổ - caoVùngVẽ        ; đo ngay lúc chạy
+WinMove, …, CLIENT_W + viềnNgang, CLIENT_H + viềnDọc
+```
+
+Hai chốt kèm theo:
+
+* **Đặt xong phải đo lại.** Game có thể tự nắn lại cỡ theo ý nó, và lúc ấy
+  báo "đã chỉnh xong" là nói dối. Thử tối đa 3 lượt rồi chịu thua và nói thật.
+* **Cả vùng vẽ phải nằm trong màn hình**, không riêng góc trên. Lưới túi đồ
+  chạy tới `x = 1851`; phần nào lọt ra ngoài thì `PixelGetColor` đọc không ra
+  mà rê chuột cũng không tới được.
+
+Kiểm trên cửa sổ giả (không đụng cửa sổ game đang chạy của người dùng), sáu
+ca đều về đúng 1920×1027 và nằm gọn trong màn hình: nhỏ ở giữa · sát mép phải
+· sát mép dưới · lọt ra ngoài bên trái · **viền 14×14** · không viền. Ca viền
+14×14 là ca quan trọng nhất — nó chứng minh viền được **đo**, không phải đoán.
+
 ---
 
 ## Đo được

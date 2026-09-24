@@ -1459,6 +1459,89 @@ TamTab(i, n)
 ;   chuột và BẤM lên cửa sổ đó theo toạ độ của game. Nhận theo
 ;   "ahk_exe Diablo IV.exe" thì không thể nhầm sang thứ khác.
 ;=====================================================================
+;=====================================================================
+;   CHỈNH CỠ CỬA SỔ GAME VỀ ĐÚNG 1920×1027
+;
+;   Vì sao cần: vùng vẽ = chiều cao cửa sổ − viền. Viền dày bao nhiêu là
+;   do Windows quyết, và nó KHÁC NHAU giữa các máy — khác chủ đề, khác
+;   mức phóng DPI, hoặc màn hình ảo của Parsec. Đo được trên hai máy:
+;       máy A  viền dọc 39  →  vùng vẽ 1027   (đúng)
+;       máy B  viền dọc 49  →  vùng vẽ 1017   (lệch 10 px)
+;   Cùng một cửa sổ cao 1066, ra hai vùng vẽ khác nhau.
+;
+;   Nên không đặt cứng chiều cao cửa sổ. Đo viền TẠI CHỖ rồi cộng vào:
+;       cao cửa sổ cần = 1027 + (cao cửa sổ hiện tại − vùng vẽ hiện tại)
+;
+;   Đặt xong PHẢI ĐO LẠI. Game có thể tự nắn lại cỡ theo ý nó, và lúc ấy
+;   báo "đã chỉnh xong" là nói dối. Thử tối đa 3 lượt rồi thôi.
+;
+;   Trả về "" nếu cuối cùng đúng cỡ, ngược lại là câu nói rõ hỏng ở đâu.
+;=====================================================================
+ChinhCoCuaSo(dk := "ahk_exe Diablo IV.exe")
+{
+    global
+    local hwnd, tt, wx, wy, ww, wh, cw, ch, gx, gy, vienN, vienD, i
+
+    WinGet, hwnd, ID, %dk%
+    if (!hwnd)
+        return "Không thấy cửa sổ Diablo IV."
+
+    ; Cửa sổ phóng to hoặc thu nhỏ thì WinMove không ăn — trả về cỡ thường trước.
+    WinGet, tt, MinMax, ahk_id %hwnd%
+    if (tt != 0)
+    {
+        WinRestore, ahk_id %hwnd%
+        Sleep, 450
+    }
+
+    i := 0
+    while (i < 3)
+    {
+        if (!VungVe(gx, gy, cw, ch, dk))
+            return "Không đọc được kích thước cửa sổ Diablo IV."
+        if (cw = CLIENT_W && ch = CLIENT_H)
+            break
+
+        WinGetPos, wx, wy, ww, wh, ahk_id %hwnd%
+        vienN := ww - cw
+        vienD := wh - ch
+        if (vienN < 0 || vienD < 0 || vienD > 200)
+            return "Viền cửa sổ đo ra số vô lý (" . vienN . "×" . vienD . ")."
+
+        ; CẢ VÙNG VẼ phải nằm trong màn hình, không riêng góc trên.
+        ; Lưới túi đồ chạy tới x = 1851 và dải tab sát đỉnh; phần nào lọt
+        ; ra ngoài thì PixelGetColor đọc không ra, mà rê chuột tới đó cũng
+        ; không tới được.
+        SysGet, manRong, 78
+        SysGet, manCao, 79
+        SysGet, manX, 76
+        SysGet, manY, 77
+        if (gx < manX)
+            wx += manX - gx
+        if (gy < manY)
+            wy += manY - gy
+        if (gx + CLIENT_W > manX + manRong)
+            wx -= (gx + CLIENT_W) - (manX + manRong)
+        if (gy + CLIENT_H > manY + manCao)
+            wy -= (gy + CLIENT_H) - (manY + manCao)
+
+        WinMove, ahk_id %hwnd%, , %wx%, %wy%
+                , % CLIENT_W + vienN, % CLIENT_H + vienD
+        Sleep, 550
+        i++
+    }
+
+    if (!VungVe(gx, gy, cw, ch, dk))
+        return "Không đọc được kích thước cửa sổ Diablo IV."
+    if (cw != CLIENT_W || ch != CLIENT_H)
+        return "Chỉnh không được: vùng vẽ vẫn là " . cw . "×" . ch
+             . " chứ không phải " . CLIENT_W . "×" . CLIENT_H . "."
+             . "`nGame tự nắn lại cỡ cửa sổ. Thử đổi độ phân giải trong"
+             . " Options > Graphics về 1920×1080, chế độ Windowed."
+    return ""
+}
+
+
 KiemCuaSoGame(ByRef gx, ByRef gy, ByRef cw, ByRef ch)
 {
     global
@@ -1498,17 +1581,19 @@ LoiCoVungVe(cw, ch)
     if (cw < CLIENT_W || ch < CLIENT_H)
         return "Cửa sổ game đang nhỏ hơn cỡ đầy đủ (vùng vẽ "
              . cw . "×" . ch . ")."
-             . "`nPhóng cửa sổ game về cỡ đầy đủ: vùng vẽ phải là "
+             . "`nBấm F2, nó sẽ hỏi chỉnh giúp cho đúng "
              . CLIENT_W . "×" . CLIENT_H . "."
     return "Vùng vẽ của game là " . cw . "×" . ch . ", cần "
          . CLIENT_W . "×" . CLIENT_H . "."
-         . "`nF2 cần màn hình 1920×1080 và game ở chế độ Cửa sổ, cỡ đầy đủ."
+         . "`nBấm F2, nó sẽ hỏi chỉnh giúp. Vẫn cần màn hình 1920×1080"
+         . " và game ở chế độ Cửa sổ."
 }
 
 
-VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
+; dk = cách chỉ ra cửa sổ. Để mặc định là game; đặt khác chỉ dùng lúc chạy thử.
+VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao, dk := "ahk_exe Diablo IV.exe")
 {
-    WinGet, hwnd, ID, ahk_exe Diablo IV.exe
+    WinGet, hwnd, ID, %dk%
     if (!hwnd)
         return false
     VarSetCapacity(pt, 8, 0)
@@ -1850,6 +1935,32 @@ DoQuet:
         return
     }
     loiCuaSo := KiemCuaSoGame(gx, gy, cw, ch)
+    if (loiCuaSo != "" && cw > 0 && ch > 0 && (cw != CLIENT_W || ch != CLIENT_H))
+    {
+        ; Sai cỡ thì chỉnh hộ được — nhưng HỎI trước. Đây là cửa sổ game
+        ; đang chạy của người ta, tự ý kéo co là chuyện không nên làm im.
+        ;
+        ; Khoá F2 NGAY: hộp thoại hỏi chặn luồng này, mà phím tắt thì vẫn
+        ; nhận — không khoá thì bấm F2 lần nữa là mở chồng hộp thoại thứ hai.
+        g_DangQuet := true
+        HideMsgNow()
+        MsgBox, 0x34, D4Lister
+            , % loiCuaSo . "`n`nChỉnh giúp cỡ cửa sổ luôn không?"
+            . "`n(Chỉ đổi cỡ cửa sổ, không đụng thiết lập nào của game.)"
+        IfMsgBox, No
+        {
+            g_DangQuet := false
+            return
+        }
+        loiCuaSo := ChinhCoCuaSo()
+        if (loiCuaSo = "")
+        {
+            loiCuaSo := KiemCuaSoGame(gx, gy, cw, ch)
+            if (loiCuaSo = "")
+                ShowMsg("Đã chỉnh cửa sổ về " . CLIENT_W . "×" . CLIENT_H, "ok")
+        }
+        g_DangQuet := false
+    }
     if (loiCuaSo != "")
     {
         ShowMsg(loiCuaSo, "err", 6000)
@@ -2231,6 +2342,7 @@ HoiQuetGi()
     Gui, hQuet:Add, Edit, voLech x154 y409 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
     Gui, hQuet:Add, Text, x216 y414 w40 h18, px
+    Gui, hQuet:Add, Button, x272 y408 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
 
     ; --- thanh nút ---
     Gui, hQuet:Add, Progress, x0 y442 w452 h58 BackgroundE6E4E1 Disabled
@@ -2295,6 +2407,10 @@ DatGoiY()
         . "`nlại một lần nữa, chờ lâu gấp đôi."
         . "`n`nBẬT:  quét lâu hơn, nhưng món nào hiện chậm cũng không sót."
         . "`nTẮT:  quét nhanh hơn, đổi lại có thể sót món."
+    g_GoiY["Chỉnh cỡ cửa sổ game"] := "Kéo cửa sổ game cho vùng vẽ đúng "
+        . CLIENT_W . "×" . CLIENT_H . "."
+        . "`nMọi toạ độ của F2 đo ở cỡ đó, sai cỡ là rê trượt ô."
+        . "`n`nChỉ đổi cỡ cửa sổ, không đụng thiết lập nào của game."
     g_GoiY["oChoTruoc"] := "Bấm ""Bắt đầu quét"" xong thì đếm ngược rồi mới rê."
         . "`nĐể bạn kịp bỏ tay khỏi chuột, hoặc kịp mở rương ra."
         . "`n`nĐang đếm mà bấm Esc thì huỷ."
@@ -2367,6 +2483,15 @@ DoiSoTabQuet:
         GuiControl, hQuet:, oTab7, 0
         GuiControl, hQuet:Disable, oTab7
     }
+return
+
+ChinhCuaSo:
+    loiCS := ChinhCoCuaSo()
+    if (loiCS = "")
+        MsgBox, 0x40, D4Lister
+            , % "Cửa sổ game đã về đúng " . CLIENT_W . "×" . CLIENT_H . "."
+    else
+        MsgBox, 48, D4Lister, % loiCS
 return
 
 DoiChoTruoc:
