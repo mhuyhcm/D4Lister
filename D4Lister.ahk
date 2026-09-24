@@ -194,6 +194,7 @@ global g_GhimX   := -1      ; ghim tooltip vào chỗ cố định; -1 = bám co
 global g_GhimY   := -1
 global g_DemConLai := 0     ; số giây còn lại của báo cáo cuối lượt
 global g_GoiY    := {}      ; chữ gợi ý khi rê chuột trong hộp thoại F2
+global g_CuaSoCu := "chua-bat"  ; trạng thái cửa sổ game lần báo gần nhất
 global g_TuDat   := false   ; tự đặt thời gian hiện báo cáo
 global g_Giay    := 10      ; ...bao nhiêu giây, khi g_TuDat bật
 global g_ChoTruoc := false  ; chờ vài giây rồi mới bắt đầu quét
@@ -256,14 +257,27 @@ if (!MoOng())
 }
 SetTimer, DocOng, %NHIP_ONG%
 
+; Soi cửa sổ game NGAY lúc khởi động, đừng để đến lúc bấm F2 mới biết.
+; Game chưa bật thì im lặng — đó là chuyện bình thường, bật sau cũng được;
+; đồng hồ dưới đây sẽ để ý và báo khi cửa sổ sai cỡ.
+loiCuaSo := ""
+WinGet, hwndGame, ID, ahk_exe Diablo IV.exe
+if (hwndGame)
+    loiCuaSo := KiemCuaSoGame(gxKD, gyKD, cwKD, chKD)
+
 if (daDonQueueCu)
     ShowMsg("Đã dọn danh sách cũ của bản chụp ảnh" . canhBao, "warn")
+else if (loiCuaSo != "")
+    ShowMsg("F2 chưa dùng được:`n" . loiCuaSo
+          . "`n`nF3 vẫn lấy được từng món bình thường.", "err", 7000)
 else if (g_Items.Length() > 0)
     ShowMsg("D4Lister v3 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
 else if (canhBao != "")
     ShowMsg("D4Lister v3" . canhBao, "err")
 else
     ShowMsg("D4Lister v3 sẵn sàng", "ok")
+
+SetTimer, CanhCuaSo, 4000
 
 ; Kiểm tra bản mới, nhưng để script chạy được ngay đã rồi mới đi hỏi mạng.
 SetTimer, KiemTraCapNhat, -800
@@ -800,6 +814,34 @@ ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false)
     WinMove, ahk_id %g_MsgHwnd%, , %px%, %py%
     SetTimer, HideMsgTimer, % -(msHien > 0 ? msHien : (g_GhimX >= 0 ? 4000 : MSG_TIME))
 }
+
+;=====================================================================
+;   CANH CỬA SỔ GAME
+;
+;   Báo MỘT LẦN mỗi khi trạng thái đổi, không nhắc lại. Nhắc mãi một
+;   chuyện thì vài phút sau người ta thôi nhìn, và lúc có chuyện thật
+;   cũng không nhìn nốt.
+;
+;   Game chưa bật: im lặng, đó là chuyện bình thường.
+;=====================================================================
+CanhCuaSo:
+    if (g_Busy || g_DangQuet)       ; đang quét thì đừng chen ngang
+        return
+    WinGet, hwndCanh, ID, ahk_exe Diablo IV.exe
+    if (!hwndCanh)
+    {
+        g_CuaSoCu := "chua-bat"
+        return
+    }
+    loiCanh := KiemCuaSoGame(gxC, gyC, cwC, chC)
+    if (loiCanh = g_CuaSoCu)
+        return
+    if (loiCanh != "")
+        ShowMsg("F2 chưa dùng được:`n" . loiCanh, "err", 7000)
+    else if (g_CuaSoCu != "" && g_CuaSoCu != "chua-bat")
+        ShowMsg("Cửa sổ game đã đúng cỡ — F2 dùng được", "ok")
+    g_CuaSoCu := loiCanh
+return
 
 HideMsgTimer:
     HideMsgNow()
@@ -1406,9 +1448,67 @@ TamTab(i, n)
 }
 
 
+;=====================================================================
+;   KIỂM CỬA SỔ GAME
+;
+;   Trả về "" nếu mọi thứ ổn, ngược lại là câu nói rõ hỏng ở đâu.
+;
+;   NHẬN DIỆN THEO TỆP THỰC THI, không theo tiêu đề. Trước đây tìm bằng
+;   tiêu đề "Diablo IV", mà AutoHotkey mặc định khớp kiểu "bắt đầu bằng" —
+;   một cửa sổ Explorer đang mở thư mục tên Diablo IV cũng khớp. F2 sẽ rê
+;   chuột và BẤM lên cửa sổ đó theo toạ độ của game. Nhận theo
+;   "ahk_exe Diablo IV.exe" thì không thể nhầm sang thứ khác.
+;=====================================================================
+KiemCuaSoGame(ByRef gx, ByRef gy, ByRef cw, ByRef ch)
+{
+    global
+    local hwnd, tt
+
+    WinGet, hwnd, ID, ahk_exe Diablo IV.exe
+    if (!hwnd)
+        return "Không thấy cửa sổ Diablo IV."
+             . "`nGame chưa bật, hoặc game chạy bằng quyền Quản trị mà"
+             . " D4Lister thì không — khi đó Windows giấu cửa sổ game đi."
+
+    WinGet, tt, MinMax, ahk_id %hwnd%
+    if (tt = -1)
+        return "Cửa sổ Diablo IV đang thu nhỏ dưới thanh tác vụ."
+             . "`nMở game lên rồi bấm lại."
+
+    if (!VungVe(gx, gy, cw, ch))
+        return "Không đọc được kích thước cửa sổ Diablo IV."
+
+    return LoiCoVungVe(cw, ch)
+}
+
+;   Cỡ vùng vẽ có đúng không, và nếu sai thì nhiều khả năng vì sao.
+;   Tách riêng để thử được mọi nhánh mà không phải bật game lên đổi
+;   chế độ màn hình từng kiểu một.
+LoiCoVungVe(cw, ch)
+{
+    global
+    if (cw = CLIENT_W && ch = CLIENT_H)
+        return ""
+
+    ; "Sai cỡ" trống không thì người dùng chẳng biết phải sửa gì. Đoán giúp.
+    if (cw = CLIENT_W && ch = 1080)
+        return "Game đang ở chế độ Toàn màn hình (vùng vẽ " . cw . "×" . ch . ")."
+             . "`nMọi toạ độ của F2 đo ở chế độ CỬA SỔ, nên sẽ rê trượt ô."
+             . "`nVào Options > Graphics, đổi Display Mode sang Windowed."
+    if (cw < CLIENT_W || ch < CLIENT_H)
+        return "Cửa sổ game đang nhỏ hơn cỡ đầy đủ (vùng vẽ "
+             . cw . "×" . ch . ")."
+             . "`nPhóng cửa sổ game về cỡ đầy đủ: vùng vẽ phải là "
+             . CLIENT_W . "×" . CLIENT_H . "."
+    return "Vùng vẽ của game là " . cw . "×" . ch . ", cần "
+         . CLIENT_W . "×" . CLIENT_H . "."
+         . "`nF2 cần màn hình 1920×1080 và game ở chế độ Cửa sổ, cỡ đầy đủ."
+}
+
+
 VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
 {
-    WinGet, hwnd, ID, Diablo IV
+    WinGet, hwnd, ID, ahk_exe Diablo IV.exe
     if (!hwnd)
         return false
     VarSetCapacity(pt, 8, 0)
@@ -1749,16 +1849,10 @@ DoQuet:
         ShowMsg("Game chưa nối vào đường ống — xem _he-thong\CAI-TTS.cmd", "err")
         return
     }
-    if (!VungVe(gx, gy, cw, ch))
+    loiCuaSo := KiemCuaSoGame(gx, gy, cw, ch)
+    if (loiCuaSo != "")
     {
-        ShowMsg("Không thấy cửa sổ Diablo IV", "err")
-        return
-    }
-    if (cw != CLIENT_W || ch != CLIENT_H)
-    {
-        ShowMsg("Vùng vẽ của game là " . cw . "×" . ch . ", không phải "
-            . CLIENT_W . "×" . CLIENT_H . "`nMọi toạ độ đo ở cỡ kia nên sẽ rê trượt ô."
-            . "`nĐể game ở chế độ cửa sổ mặc định, màn hình 1920×1080.", "err")
+        ShowMsg(loiCuaSo, "err", 6000)
         return
     }
 
@@ -1781,8 +1875,8 @@ DoQuet:
 
     ; Hộp thoại vừa cướp tiêu điểm. Game không được kích hoạt thì rê chuột
     ; vào ô cũng chẳng ra tooltip, quét sẽ về tay không mà chẳng rõ vì sao.
-    WinActivate, Diablo IV
-    WinWaitActive, Diablo IV,, 2
+    WinActivate, ahk_exe Diablo IV.exe
+    WinWaitActive, ahk_exe Diablo IV.exe,, 2
     if (ErrorLevel)
     {
         ShowMsg("Không đưa được cửa sổ Diablo IV lên trước", "err")
@@ -1815,6 +1909,17 @@ DoQuet:
             conLai--
         }
         HideMsgNow()
+    }
+
+    ; Kiểm lại cửa sổ. Hộp thoại mở bao lâu là tuỳ người dùng, và trong
+    ; từng ấy thời gian họ có thể đã đổi chế độ màn hình hoặc kéo cửa sổ.
+    loiCuaSo := KiemCuaSoGame(gx, gy, cw, ch)
+    if (loiCuaSo != "")
+    {
+        ShowMsg(loiCuaSo, "err", 6000)
+        g_GhimX := -1, g_GhimY := -1
+        g_DangQuet := false
+        return
     }
 
     ; Rương chưa mở thì mọi toạ độ bên dưới đều trỏ vào thế giới, rê qua
@@ -2230,9 +2335,10 @@ ReChuotHopQuet()
 ;=====================================================================
 ReThuTab:
     Gui, hQuet:Submit, NoHide
-    if (!VungVe(gxT, gyT, cwT, chT))
+    loiT := KiemCuaSoGame(gxT, gyT, cwT, chT)
+    if (loiT != "")
     {
-        MsgBox, 48, D4Lister, Không thấy cửa sổ Diablo IV. Mở game và mở rương trước đã.
+        MsgBox, 48, D4Lister, % loiT
         return
     }
     nT := (oSoTab = 1) ? 7 : 6

@@ -410,6 +410,43 @@ lại **báo nhầm 6/11 trên ảnh Path of Exile**. Nhưng bỏ đi cũng khô
 toạ độ lưới túi đồ vốn đo **trên màn hình rương** — mở túi đồ một mình thì bố
 cục khác. Rương mở là điều kiện cần cho cả hai lưới.
 
+### 26. Tìm cửa sổ game theo TIÊU ĐỀ là một cái bẫy
+
+`WinGet, hwnd, ID, Diablo IV` — AutoHotkey mặc định khớp kiểu **bắt đầu
+bằng**. Nghĩa là bất cứ cửa sổ nào có tiêu đề bắt đầu bằng "Diablo IV" đều
+khớp, kể cả một cửa sổ Explorer đang mở thư mục tên *Diablo IV* — mà thư mục
+đó thì máy nào cài game cũng có.
+
+Hậu quả không phải "không tìm thấy" mà tệ hơn nhiều: F2 sẽ **rê chuột và bấm**
+lên cửa sổ đó theo toạ độ của game.
+
+Thử thật, lúc game đang chạy, dựng thêm một cửa sổ mang đúng tiêu đề
+"Diablo IV" rồi đưa lên trước:
+
+| Cách tìm | Trả về |
+|---|---|
+| theo tiêu đề `Diablo IV` | `0xfa0cb2` — **cửa sổ giả** |
+| theo `ahk_exe Diablo IV.exe` | `0x1560d68` — game thật |
+
+Nhận theo tệp thực thi thì không thể nhầm. Lớp cửa sổ của game, nếu cần:
+`Diablo IV Main Window Class`.
+
+---
+
+### 27. Gốc vùng vẽ đổi giữa hai buổi — và vì sao không sao cả
+
+Đo lại lúc game đang chạy: gốc vùng vẽ là `0,31`. Hôm đo lưới thì là `0,23`.
+Cửa sổ đã dịch xuống 8 px.
+
+Kiểm lại bằng chính hai ảnh chụp cũ — ảnh toàn màn hình nên đỉnh cửa sổ nằm
+trong ảnh: độ sáng mỗi hàng cho thấy phần game bắt đầu **đúng tại y = 23** ở
+cả hai ảnh. Vậy lúc đo, gốc đúng là 23, và các hằng số suy ra từ đó
+(`RUONG_Y = 256`, `TAB_Y = 162`) đều đúng.
+
+Cửa sổ dịch đi mà mọi thứ vẫn khớp, vì mã cộng `gy` **đọc lúc chạy** chứ
+không chôn cứng. Đây chính là lý do phải lưu toạ độ theo vùng vẽ thay vì theo
+màn hình — một quyết định lúc viết tưởng là thừa, hoá ra đã tự cứu mình.
+
 ---
 
 ## Đo được
