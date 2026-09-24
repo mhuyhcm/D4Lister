@@ -171,10 +171,11 @@ global g_DaNoi   := false   ; game đã nối vào đường ống chưa
 global g_LanThuOng := 0     ; lần gần nhất thử dựng đường ống (A_TickCount)
 
 ; --- quét hàng loạt (F2) ---
-global g_SoTab   := 7       ; rương có mấy tab — đổi ở menu khay
+global g_SoTab   := 7       ; rương có mấy tab — chọn trong hộp thoại F2
 global g_QuetTui := true    ; có quét cả túi đồ nhân vật không
 global g_Tab     := []      ; g_Tab[i] = có quét tab i không
 global g_DaQuet  := []      ; nội dung các món đã lấy trong lượt quét này
+global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / quet / huy
 
 ; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
 ; Chạm ngưỡng là gần như chắc chắn công tắc Advanced Tooltip Information
@@ -205,9 +206,6 @@ daDonQueueCu := DonQueueCu()
 LoadQueue()
 
 NapCauHinhQuet()
-DungMenuQuet()
-Menu, Tray, Add
-Menu, Tray, Add, Quét hàng loạt (F2), :mQuet
 
 Hotkey, %HK_QUET%,    DoQuet
 Hotkey, %HK_CAPTURE%, DoCapture
@@ -1404,14 +1402,35 @@ DoQuet:
         return
     }
 
-    dsTab := DocDsTab()
-    if (dsTab = "" && !g_QuetTui)
+    ; Hỏi quét gì NGAY lúc bấm, không bắt nhớ lần trước đã đặt ra sao.
+    ; Hộp thoại mở với đúng lựa chọn của buổi trước (đọc từ quet.ini).
+    g_DangQuet := true                 ; chặn F2 bấm chồng lúc hộp thoại đang mở
+    if (!HoiQuetGi())
     {
-        ShowMsg("Chưa chọn quét gì cả`nChuột phải icon khay → Quét hàng loạt", "err")
+        g_DangQuet := false
         return
     }
 
-    g_DangQuet := true
+    dsTab := DocDsTab()
+    if (dsTab = "" && !g_QuetTui)
+    {
+        ShowMsg("Chưa chọn quét gì cả", "err")
+        g_DangQuet := false
+        return
+    }
+
+    ; Hộp thoại vừa cướp tiêu điểm. Game không được kích hoạt thì rê chuột
+    ; vào ô cũng chẳng ra tooltip, quét sẽ về tay không mà chẳng rõ vì sao.
+    WinActivate, Diablo IV
+    WinWaitActive, Diablo IV,, 2
+    if (ErrorLevel)
+    {
+        ShowMsg("Không đưa được cửa sổ Diablo IV lên trước", "err")
+        g_DangQuet := false
+        return
+    }
+    Sleep, 250                         ; chờ game vẽ lại rồi mới rê
+
     g_Busy := true
     MouseGetPos, chuotX, chuotY
     RefreshForCapture()
@@ -1530,72 +1549,105 @@ LuuCauHinhQuet()
     IniWrite, % DocDsTab(), %FILE_CAU_HINH%, quet, tab
 }
 
-DungMenuQuet()
+;=====================================================================
+;   HỘP THOẠI "QUÉT GÌ"  —  hiện lên mỗi lần bấm F2
+;
+;   Mỗi buổi bán một khác: hôm chỉ quét tab 1, hôm quét cả rương lẫn túi.
+;   Hỏi ngay lúc bấm thì khỏi phải nhớ lần trước đã đặt gì, mà vẫn ghi vào
+;   quet.ini nên mở lên là thấy sẵn lựa chọn cũ, bấm Enter là chạy.
+;
+;   Trả về true nếu người dùng chọn Quét.
+;=====================================================================
+HoiQuetGi()
 {
     global
-    ; BẪY: lần đầu vào đây menu mQuet chưa tồn tại, mà DeleteAll trên menu
-    ; chưa có thì AutoHotkey GIẾT LUÔN luồng đang chạy — không hộp lỗi,
-    ; không stderr, tiến trình vẫn sống. Mọi dòng phía sau coi như mất.
-    ; Thêm một mục mầm trước để menu chắc chắn tồn tại rồi mới xoá sạch.
-    Menu, mQuet, Add, _mam, BamChonTab
-    Menu, mQuet, DeleteAll
+    local i, cx, cy
+
+    g_TraLoi := ""
+
+    Gui, hQuet:New, +AlwaysOnTop -MaximizeBox -MinimizeBox, D4Lister — quét hàng loạt
+    Gui, hQuet:Font, s9, Segoe UI
+
+    Gui, hQuet:Add, GroupBox, x10 y8 w330 h112, Rương
     Loop, 7
     {
-        ten := "Tab " . A_Index
-        Menu, mQuet, Add, %ten%, BamChonTab
-        if (A_Index > g_SoTab)
-            Menu, mQuet, Disable, %ten%
-        else if (g_Tab[A_Index])
-            Menu, mQuet, Check, %ten%
+        i  := A_Index
+        cx := 24 + Mod(i - 1, 4) * 78
+        cy := 32 + ((i - 1) // 4) * 28
+        Gui, hQuet:Add, Checkbox
+           , % "voTab" . i . " x" . cx . " y" . cy . " w70"
+             . (g_Tab[i] ? " Checked" : "")
+             . (i > g_SoTab ? " Disabled" : "")
+           , % "Tab " . i
     }
-    Menu, mQuet, Add
-    Menu, mQuet, Add, Túi đồ nhân vật, BamChonTui
-    if (g_QuetTui)
-        Menu, mQuet, Check, Túi đồ nhân vật
-    Menu, mQuet, Add
-    Menu, mQuet, Add, Chọn tất cả, BamChonHet
-    Menu, mQuet, Add, Bỏ chọn tất cả, BamBoHet
-    Menu, mQuet, Add
-    ten := "Rương có " . g_SoTab . " tab  (bấm để đổi)"
-    Menu, mQuet, Add, %ten%, BamDoiSoTab
+    Gui, hQuet:Add, Text,  x24 y92 w76 h22 +0x200, Rương có:
+    Gui, hQuet:Add, Radio, % "voSoTab Group x102 y92 w66 h22 gDoiSoTabQuet"
+                             . (g_SoTab = 7 ? " Checked" : ""), 7 tab
+    Gui, hQuet:Add, Radio, % "x172 y92 w66 h22 gDoiSoTabQuet"
+                             . (g_SoTab = 6 ? " Checked" : ""), 6 tab
+
+    Gui, hQuet:Add, Checkbox, % "voTui x16 y132 w170 h22"
+                                . (g_QuetTui ? " Checked" : ""), Túi đồ nhân vật
+    Gui, hQuet:Add, Button, x190 y130 w72 h26 gChonHetQuet, Chọn hết
+    Gui, hQuet:Add, Button, x268 y130 w72 h26 gBoHetQuet,   Bỏ hết
+
+    Gui, hQuet:Add, Button, x120 y170 w108 h32 +Default gBatDauQuet, Quét
+    Gui, hQuet:Add, Button, x232 y170 w108 h32 gHuyQuet,             Huỷ
+    Gui, hQuet:Show, w350 h214 Center
+
+    ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
+    ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
+    while (g_TraLoi = "")
+        Sleep, 30
+    Gui, hQuet:Destroy
+
+    if (g_TraLoi != "quet")
+        return false
+
+    g_SoTab   := (oSoTab = 1) ? 7 : 6
+    g_QuetTui := (oTui != 0)
+    g_Tab     := []
+    Loop, 7
+        g_Tab[A_Index] := (oTab%A_Index% != 0 && A_Index <= g_SoTab)
+    LuuCauHinhQuet()
+    return true
 }
 
-BamChonTab:
-    i := SubStr(A_ThisMenuItem, 5) + 0
-    g_Tab[i] := !g_Tab[i]
-    LuuCauHinhQuet()
-    DungMenuQuet()
+; Đổi 7↔6 tab: tab 7 phải tắt hẳn, không chỉ bỏ dấu tick — để bấm nhầm
+; cũng không quét sang một tab không tồn tại.
+DoiSoTabQuet:
+    Gui, hQuet:Submit, NoHide
+    if (oSoTab = 1)
+        GuiControl, hQuet:Enable, oTab7
+    else
+    {
+        GuiControl, hQuet:, oTab7, 0
+        GuiControl, hQuet:Disable, oTab7
+    }
 return
 
-BamChonTui:
-    g_QuetTui := !g_QuetTui
-    LuuCauHinhQuet()
-    DungMenuQuet()
-return
-
-BamChonHet:
-    Loop, % g_SoTab
-        g_Tab[A_Index] := true
-    g_QuetTui := true
-    LuuCauHinhQuet()
-    DungMenuQuet()
-return
-
-BamBoHet:
+ChonHetQuet:
+    Gui, hQuet:Submit, NoHide
     Loop, 7
-        g_Tab[A_Index] := false
-    g_QuetTui := false
-    LuuCauHinhQuet()
-    DungMenuQuet()
+        GuiControl, hQuet:, oTab%A_Index%, % (A_Index <= ((oSoTab = 1) ? 7 : 6) ? 1 : 0)
+    GuiControl, hQuet:, oTui, 1
 return
 
-BamDoiSoTab:
-    g_SoTab := (g_SoTab = 7) ? 6 : 7
-    if (g_SoTab = 6)
-        g_Tab[7] := false
-    LuuCauHinhQuet()
-    DungMenuQuet()
-    ShowMsg("Rương có " . g_SoTab . " tab", "warn")
+BoHetQuet:
+    Loop, 7
+        GuiControl, hQuet:, oTab%A_Index%, 0
+    GuiControl, hQuet:, oTui, 0
+return
+
+BatDauQuet:
+    Gui, hQuet:Submit, NoHide
+    g_TraLoi := "quet"
+return
+
+HuyQuet:
+hQuetGuiClose:
+hQuetGuiEscape:
+    g_TraLoi := "huy"
 return
 
 ;=====================================================================
