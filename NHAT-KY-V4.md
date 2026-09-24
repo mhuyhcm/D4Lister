@@ -601,6 +601,36 @@ sáng nên ô trống hoá ô có đồ.
 Dùng để **đối chiếu**, không dùng để bỏ qua ô: nhìn thấy có đồ mà không đọc
 ra chữ thì chỉ đúng tên ô — *"hàng 3 ô 6"* — chứ vẫn rê đủ mọi ô.
 
+### 31. `return` giữa hàm nuốt mất việc ở cuối hàm
+
+Thêm sơ đồ lưới vào báo cáo, thử tay thì thấy, mà người dùng chạy thật lại
+**không thấy gì**.
+
+Phần dựng sơ đồ nằm ở dòng cuối `QuetLuoi()`. Nhưng giữa hàm có sẵn ba chỗ
+`return`:
+
+```ahk
+if (!g_DoLai || imLang.Length() = 0)
+{
+    …
+    return          ← không bao giờ tới dòng cuối
+}
+```
+
+Nên **tắt "dò lại ô im lặng" là mất sơ đồ**, bấm Esc giữa chừng cũng mất —
+mà chẳng có dấu hiệu gì, vì cả hai vẫn là đường chạy bình thường.
+
+Chữa: bỏ hết `return` giữa hàm, đổi thành `break` với một cờ, để **mọi
+đường đều đi qua một chỗ ra**. Cái gì phải chạy ở cuối thì đừng để nó phụ
+thuộc vào việc không có ai thoát sớm.
+
+Bài học rộng hơn: **thêm một bước vào cuối một hàm đang có `return` giữa
+chừng là tự đặt bẫy.** Trước khi thêm, đếm xem hàm đó có mấy lối ra.
+
+Còn một lỗi lộ ra lúc chạy thử trọn chuỗi: lưới hỏng cả 23 ô thì câu
+*"SÓT 23 ô: …"* kể tên hết, bảng báo cáo rộng **2042 px** — rộng hơn màn
+hình. Giờ báo cáo chỉ kể 5 ô rồi "…", sổ ghi vẫn đủ.
+
 ---
 
 ## Đo được

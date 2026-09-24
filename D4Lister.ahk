@@ -156,6 +156,7 @@ global LECH_CHUOT := 8          ; con trỏ lệch quá ngần này px = ngườ
 global O_LOI      := 0.38      ; lấy mẫu trong bao nhiêu phần lõi ô
 global O_BUOC     := 9         ; cách nhau mấy điểm ảnh
 global O_NGUONG   := 40        ; chênh sáng từ ngần này = ô có đồ
+global SOT_KE_TOI_DA := 5      ; báo cáo kể tên tối đa mấy ô sót (sổ vẫn ghi đủ)
 
 global CLIENT_W := 1920
 global CLIENT_H := 1027
@@ -2058,7 +2059,7 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
             g_TK.oRe++
             mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms, xTrong, monTruoc)
             if (huy != "")
-                return
+                break
             monTruoc := mon
             if (mon = "")
                 imLang.Push([r, c, tx, ty])
@@ -2069,44 +2070,53 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
             }
             c++
         }
+        if (huy != "")
+            break
         r++
     }
 
     ; LƯỢT HAI. Ô im lặng có thể là ô trống thật, cũng có thể là tooltip về
     ; chậm hơn ngưỡng chờ — mà cái sau thì mất luôn món đồ, im ru. Hỏi lại
     ; một lần với ngưỡng gấp ba: thà chậm còn hơn sót.
-    if (!g_DoLai || imLang.Length() = 0)
+    ;
+    ; KHÔNG return ở giữa hàm này nữa, dù huỷ hay không có ô nào im lặng.
+    ; Trước đây có, và thế là mất luôn phần đối chiếu ở cuối: tắt "dò lại
+    ; ô im lặng" là sơ đồ lưới biến mất, mà chẳng có dấu hiệu gì.
+    if (huy = "" && g_DoLai && imLang.Length() > 0)
+    {
+        ShowMsg(ten . " — dò lại " . imLang.Length() . " ô im lặng…", "warn")
+        cuu := 0
+        for i, o in imLang
+        {
+            mon := QuetMotO(o[3], o[4], huy, CHO_O_MS * 3, ms, xTrong)
+            if (huy != "")
+                break
+            if (mon = "")
+            {
+                g_TK.oTrong++
+                GhiLog("  " . TenO(o[1], o[2]) . "  trống")
+            }
+            else
+            {
+                cuu++
+                g_TK.cuuDuoc++
+                daDoc[o[1] * soCot + o[2]] := true
+                XuLyMon(mon, ten, o[1], o[2], ms, true)
+            }
+        }
+        if (cuu > 0)
+            GhiLog("  >> lượt dò lại cứu được " . cuu
+                 . " món mà lượt đầu tưởng là ô trống")
+    }
+    else
     {
         for i, o in imLang
         {
             g_TK.oTrong++
             GhiLog("  " . TenO(o[1], o[2]) . "  trống")
         }
-        return
     }
 
-    ShowMsg(ten . " — dò lại " . imLang.Length() . " ô im lặng…", "warn")
-    cuu := 0
-    for i, o in imLang
-    {
-        mon := QuetMotO(o[3], o[4], huy, CHO_O_MS * 3, ms, xTrong)
-        if (huy != "")
-            return
-        if (mon = "")
-        {
-            g_TK.oTrong++
-            GhiLog("  " . TenO(o[1], o[2]) . "  trống")
-        }
-        else
-        {
-            cuu++
-            g_TK.cuuDuoc++
-            daDoc[o[1] * soCot + o[2]] := true
-            XuLyMon(mon, ten, o[1], o[2], ms, true)
-        }
-    }
-    if (cuu > 0)
-        GhiLog("  >> lượt dò lại cứu được " . cuu . " món mà lượt đầu tưởng là ô trống")
     DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
 }
 
@@ -2125,7 +2135,7 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
 DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
 {
     global
-    local r, c, k, thieu, thua, nThieu, nThua
+    local r, c, k, thieu, thua, dayDu, nThieu, nThua
 
     if (!IsObject(nhinThay) || nhinThay.Length() = 0)
     {
@@ -2139,7 +2149,7 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
     g_OCot  := soCot
     g_OHang := soHang
 
-    thieu := "", thua := "", nThieu := 0, nThua := 0
+    thieu := "", thua := "", dayDu := "", nThieu := 0, nThua := 0
     r := 0
     while (r < soHang)
     {
@@ -2151,7 +2161,14 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
             if (nhinThay[k] && !daDoc[k])
             {
                 nThieu++
-                thieu .= (thieu = "" ? "" : ", ") . TenOVi(r, c)
+                ; Chỉ kể tên vài ô đầu. Một lưới hỏng cả 23 ô mà kể hết thì
+                ; bảng báo cáo rộng 2042 px — rộng hơn màn hình. Sơ đồ lưới
+                ; và sổ ghi mới là chỗ xem đủ.
+                dayDu .= (dayDu = "" ? "" : ", ") . TenOVi(r, c)
+                if (nThieu <= SOT_KE_TOI_DA)
+                    thieu .= (thieu = "" ? "" : ", ") . TenOVi(r, c)
+                else if (nThieu = SOT_KE_TOI_DA + 1)
+                    thieu .= " …"
             }
             else if (!nhinThay[k] && daDoc[k])
             {
@@ -2167,9 +2184,12 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
          . (soNhin - nThieu) . "")
     if (nThieu > 0)
     {
-        GhiLog("  !! SÓT " . nThieu . " ô — nhìn thấy có đồ mà không đọc ra chữ: " . thieu)
+        GhiLog("  !! SÓT " . nThieu . " ô — nhìn thấy có đồ mà không đọc ra chữ:")
+        GhiLog("     " . dayDu)
         g_TK.sot += nThieu
-        g_TK.oSot .= (g_TK.oSot = "" ? "" : " · ") . ten . ": " . thieu
+        g_TK.oSot .= (g_TK.oSot = "" ? "" : "`n   ") . ten . ": " . thieu
+                   . (nThieu > SOT_KE_TOI_DA
+                      ? "  (" . nThieu . " ô, xem sơ đồ)" : "")
     }
     if (nThua > 0)
         GhiLog("  ?? " . nThua . " ô đọc ra chữ mà nhìn không thấy đồ: " . thua
