@@ -174,10 +174,23 @@ Xong có báo cáo, tự tắt sau 10 giây (đổi được):
 ```
 QUÉT XONG
 12 món mới  ·  3 trùng
-Ô có đồ: 15/83
-      Tab 1:   7/50
-      Túi đồ:  8/33
+Đọc được 15/15 ô có đồ
+      Tab 1:   7/7
+      Túi đồ:  8/8
 Đang chờ đăng: 12 món
+```
+
+**Con số bên phải là số ô mà nó NHÌN THẤY có đồ** — đọc bằng điểm ảnh, không
+qua chữ của game. Hai nguồn độc lập, nên sót là lộ ra ngay:
+
+```
+QUÉT XONG — CẦN XEM LẠI
+29 món mới
+Đọc được 29/30 ô có đồ
+      Tab 1:   29/30
+
+⚠ SÓT 1 ô — nhìn thấy có đồ mà không đọc ra:
+   Tab 1: hàng 3 ô 6
 ```
 
 Chi tiết từng ô nằm trong `nhat-ky-quet.txt` cạnh script — mỗi ô một dòng, để

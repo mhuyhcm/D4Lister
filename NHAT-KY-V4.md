@@ -548,6 +548,59 @@ ca đều về đúng 1920×1027 và nằm gọn trong màn hình: nhỏ ở gi�
 · sát mép dưới · lọt ra ngoài bên trái · **viền 14×14** · không viền. Ca viền
 14×14 là ca quan trọng nhất — nó chứng minh viền được **đo**, không phải đoán.
 
+### 30. Nhìn ô bằng điểm ảnh — và ba lần sai trước khi đúng
+
+Bài toán: TTS im lặng có hai nghĩa — **ô trống thật** hay **ô có đồ mà đọc
+hụt**. Không phân biệt được thì sót món mà không ai hay. Người dùng gặp đúng
+thế: tab có 30 món, F2 ghi nhận 29, mà F3 lấy tay thì đủ cả 30.
+
+Cách giải: đọc điểm ảnh, vì mắt người nhìn vào rương là biết ngay ô nào có
+đồ. Nhưng ba lần sai trước khi ra:
+
+**Sai 1 — đo ĐỘ SÁNG.** Trên lưới rương thì tách sạch (ô trống ~10, ô có đồ
+35–68). Đem sang lưới túi đồ thì hỏng: ba món ở hàng cuối chỉ được 47 / 18 /
+10 %, tức hai món bị đọc thành ô trống. Lý do: **cái sáng lên không phải món
+đồ mà là cái khung của nó**, mà khung chỉ sáng khi món được đánh dấu.
+
+**Sai 2 — `PixelGetColor` quá chậm.** Đo trên máy này: **20 ms một lần đọc**.
+Một lưới rương cần ~1750 điểm, tức **35 giây**. Phải chụp cả vùng vào bộ nhớ
+bằng `CreateDIBSection` + `BitBlt` rồi đọc bằng `NumGet`: 1750 điểm còn **0
+ms**, và 6/6 điểm đối chiếu khớp đúng `PixelGetColor`.
+
+**Sai 3 — hằng số khai báo SAU `return` của phần tự chạy.** Ba dòng
+`global O_LOI := 0.38` nằm ở dòng 1478, mà phần tự chạy kết thúc ở dòng 284
+— **không bao giờ được gán**. Và đây là chỗ nó hiểm: trong AutoHotkey,
+
+```ahk
+5 >= ""     ; -> TRUE
+```
+
+nên `chênhSáng >= O_NGUONG` với `O_NGUONG` rỗng là **luôn đúng**, và mọi ô
+đều thành "có đồ". Lỗi không nằm ở luật mà ở một dòng khai báo đặt sai chỗ,
+còn triệu chứng thì trông y như luật sai hoàn toàn.
+
+Cùng gốc với cái bẫy lúc ghép F2: **`global x := …` là một câu lệnh gán, nó
+chỉ chạy khi luồng đi qua.** Giờ có phép kiểm tự động soát mọi
+`global … :=` nằm sau `return` đầu tiên.
+
+**Luật cuối cùng:** ô trống là một mảng **phẳng**, ô có đồ thì có **nét vẽ**.
+Nên đo **chênh sáng** (sáng nhất − tối nhất) trong lõi 38% giữa ô, lấy mẫu
+cách 9 px → 35 điểm.
+
+| | chênh sáng |
+|---|---|
+| ô trống | 5 – 14 |
+| ô có đồ | 77 – 229 |
+
+Khe hở **5,5 lần**, ngưỡng 40 nằm giữa. Đo trên **166 ô thật** (2 ảnh × rương
++ túi đồ): **không sai ô nào**, ở mọi ngưỡng từ 25 đến 50.
+
+Lấy rộng hơn 42% lõi là hỏng — chạm đường kẻ ô, mà đường kẻ cũng có chênh
+sáng nên ô trống hoá ô có đồ.
+
+Dùng để **đối chiếu**, không dùng để bỏ qua ô: nhìn thấy có đồ mà không đọc
+ra chữ thì chỉ đúng tên ô — *"hàng 3 ô 6"* — chứ vẫn rê đủ mọi ô.
+
 ---
 
 ## Đo được

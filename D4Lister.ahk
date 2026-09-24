@@ -152,6 +152,11 @@ global CHO_TAB_MS := 400        ; chờ sau khi bấm đổi tab
 global LECH_CHUOT := 8          ; con trỏ lệch quá ngần này px = người dùng động vào
 
 ; --- vùng vẽ mong đợi. Khác thì dừng, vì mọi toạ độ trên đo ở cỡ này ---
+; --- nhìn ô bằng điểm ảnh: ô trống hay ô có đồ (xem khối NHÌN Ô bên dưới) ---
+global O_LOI      := 0.38      ; lấy mẫu trong bao nhiêu phần lõi ô
+global O_BUOC     := 9         ; cách nhau mấy điểm ảnh
+global O_NGUONG   := 40        ; chênh sáng từ ngần này = ô có đồ
+
 global CLIENT_W := 1920
 global CLIENT_H := 1027
 
@@ -1383,6 +1388,175 @@ SoTiepTheo()
 ;   Trả về false nếu không thấy cửa sổ game.
 ;=====================================================================
 ;=====================================================================
+;   CHỤP MỘT VÙNG MÀN HÌNH VÀO BỘ NHỚ
+;
+;   Vì sao phải làm: PixelGetColor đo được 20 ms MỘT LẦN ĐỌC trên máy này.
+;   Một lưới rương cần ~1750 điểm, tức 35 giây — không dùng được. Chụp cả
+;   vùng một phát rồi đọc trong bộ nhớ thì chỉ còn một lần gọi hệ thống.
+;
+;   Ảnh dựng theo kiểu "trên xuống dưới" (chiều cao ÂM trong BITMAPINFO)
+;   để dòng 0 là dòng trên cùng — để dương thì ảnh lộn ngược, và đó là
+;   loại lỗi chỉ lộ ra khi toạ độ đã sai hết.
+;=====================================================================
+ChupVung(x, y, w, h)
+{
+    local hdcMan, hdcMem, hbm, hcu, bits, bi
+
+    hdcMan := DllCall("GetDC", "ptr", 0, "ptr")
+    if (!hdcMan)
+        return 0
+    hdcMem := DllCall("gdi32\CreateCompatibleDC", "ptr", hdcMan, "ptr")
+
+    VarSetCapacity(bi, 40, 0)
+    NumPut(40,  bi,  0, "uint")      ; biSize
+    NumPut(w,   bi,  4, "int")       ; biWidth
+    NumPut(-h,  bi,  8, "int")       ; biHeight âm = trên xuống dưới
+    NumPut(1,   bi, 12, "ushort")    ; biPlanes
+    NumPut(32,  bi, 14, "ushort")    ; biBitCount
+    NumPut(0,   bi, 16, "uint")      ; BI_RGB
+
+    bits := 0
+    hbm := DllCall("gdi32\CreateDIBSection", "ptr", hdcMem, "ptr", &bi
+                 , "uint", 0, "ptr*", bits, "ptr", 0, "uint", 0, "ptr")
+    if (!hbm)
+    {
+        DllCall("gdi32\DeleteDC", "ptr", hdcMem)
+        DllCall("ReleaseDC", "ptr", 0, "ptr", hdcMan)
+        return 0
+    }
+
+    hcu := DllCall("gdi32\SelectObject", "ptr", hdcMem, "ptr", hbm, "ptr")
+    DllCall("gdi32\BitBlt", "ptr", hdcMem, "int", 0, "int", 0, "int", w, "int", h
+          , "ptr", hdcMan, "int", x, "int", y, "uint", 0x00CC0020)   ; SRCCOPY
+    DllCall("gdi32\SelectObject", "ptr", hdcMem, "ptr", hcu)
+    DllCall("gdi32\DeleteDC", "ptr", hdcMem)
+    DllCall("ReleaseDC", "ptr", 0, "ptr", hdcMan)
+
+    ; Vùng ảnh còn sống chừng nào hbm chưa bị xoá — nhớ gọi XoaAnh().
+    return {bits: bits, hbm: hbm, x: x, y: y, w: w, h: h}
+}
+
+XoaAnh(anh)
+{
+    if (anh && anh.hbm)
+        DllCall("gdi32\DeleteObject", "ptr", anh.hbm)
+}
+
+;   Độ sáng của một điểm, theo TOẠ ĐỘ MÀN HÌNH. Ngoài vùng đã chụp thì
+;   trả về -1 chứ không trả 0 — 0 là màu đen thật, lẫn vào là chẩn sai.
+DocSangTaiDiem(anh, mx, my)
+{
+    local dx, dy, v
+    dx := mx - anh.x
+    dy := my - anh.y
+    if (dx < 0 || dy < 0 || dx >= anh.w || dy >= anh.h)
+        return -1
+    v := NumGet(anh.bits + 0, (dy * anh.w + dx) * 4, "uint")
+    ; trong bộ nhớ thứ tự byte là B, G, R, A
+    return (((v >> 16) & 0xFF) * 299 + ((v >> 8) & 0xFF) * 587
+          + (v & 0xFF) * 114) // 1000
+}
+
+
+;=====================================================================
+;   NHÌN Ô BẰNG ĐIỂM ẢNH  —  ô trống hay ô có đồ
+;
+;   Vì sao cần: TTS im lặng có hai nghĩa — ô trống thật, hoặc ô có đồ mà
+;   đọc hụt. Không phân biệt được thì sót món mà không ai hay. Mắt người
+;   nhìn vào rương là biết ngay; máy cũng nhìn được.
+;
+;   DẤU HIỆU: ô trống là một mảng PHẲNG, ô có đồ thì có nét vẽ. Nên đo độ
+;   CHÊNH SÁNG trong lõi ô (sáng nhất − tối nhất), không đo độ sáng.
+;
+;   Đã thử đo độ sáng trước và HỎNG: cái sáng lên không phải món đồ mà là
+;   cái khung của nó, mà khung chỉ sáng khi món được đánh dấu. Ba món
+;   không đánh dấu ở hàng cuối túi đồ bị đọc thành ô trống.
+;
+;   SỐ ĐO trên 166 ô thật (2 ảnh × rương + túi đồ), không sai ô nào:
+;       ô trống   chênh sáng   5 .. 14
+;       ô có đồ   chênh sáng  77 .. 229
+;   Khe hở 5,5 lần. Ngưỡng 40 nằm giữa, lệch về phía an toàn.
+;
+;   Lấy mẫu: lõi 38% giữa ô, bước 9 px → 35 điểm. Lấy rộng hơn 42% là
+;   chạm đường kẻ ô, mà đường kẻ cũng có chênh sáng — ô trống hoá ô có đồ.
+;=====================================================================
+;   Chênh sáng trong lõi một ô. Trả về -1 nếu ô nằm ngoài vùng đã chụp.
+ChenhSangO(anh, tx, ty, ow, oh)
+{
+    global
+    local x, y, w, h, s, nho, lon
+
+    w := ow * O_LOI
+    h := oh * O_LOI
+    nho := 999
+    lon := -1
+    x := tx - w
+    while (x <= tx + w)
+    {
+        y := ty - h
+        while (y <= ty + h)
+        {
+            s := DocSangTaiDiem(anh, Round(x), Round(y))
+            if (s < 0)
+                return -1
+            if (s < nho)
+                nho := s
+            if (s > lon)
+                lon := s
+            y += O_BUOC
+        }
+        x += O_BUOC
+    }
+    return (lon < 0) ? -1 : (lon - nho)
+}
+
+;   Nhìn cả một lưới: trả về mảng true/false theo thứ tự hàng rồi cột,
+;   và đếm số ô có đồ vào soCoDo. Trả về mảng rỗng nếu chụp hỏng.
+NhinCaLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ByRef soCoDo)
+{
+    global
+    local anh, r, c, tx, ty, cs, ra, vx, vy, vw, vh
+
+    soCoDo := 0
+    ra := []
+
+    ; Vùng chụp: trọn lưới, nới mỗi bên vài điểm cho chắc
+    vx := gx + Round(x0) - 4
+    vy := gy + Round(y0) - 4
+    vw := Round(ow * soCot) + 8
+    vh := Round(oh * soHang) + 8
+    anh := ChupVung(vx, vy, vw, vh)
+    if (!anh)
+        return ra
+
+    r := 0
+    while (r < soHang)
+    {
+        c := 0
+        while (c < soCot)
+        {
+            tx := gx + Round(x0 + ow * (c + 0.5))
+            ty := gy + Round(y0 + oh * (r + 0.5))
+            cs := ChenhSangO(anh, tx, ty, ow, oh)
+            ra[r * soCot + c] := (cs >= O_NGUONG)
+            if (cs >= O_NGUONG)
+                soCoDo++
+            c++
+        }
+        r++
+    }
+    XoaAnh(anh)
+    return ra
+}
+
+;   Tên ô cho người đọc: "hàng 3 ô 6"
+TenOVi(r, c)
+{
+    return "hàng " . (r + 1) . " ô " . (c + 1)
+}
+
+
+;=====================================================================
 ;   RƯƠNG ĐANG MỞ HAY KHÔNG
 ;
 ;   V3 đã bỏ hết bộ xử lý ảnh, nhưng đọc MỘT ĐIỂM ẢNH thì vẫn rẻ. Chỗ dễ
@@ -1400,38 +1574,41 @@ SoTiepTheo()
 ;   TRÊN MÀN HÌNH RƯƠNG. Mở túi đồ một mình thì bố cục khác, số đo sai.
 ;   Nên rương mở là điều kiện cần cho cả hai lưới.
 ;=====================================================================
-DoSang(mau)
-{
-    return ((mau >> 16 & 0xFF) * 299 + (mau >> 8 & 0xFF) * 587
-          + (mau & 0xFF) * 114) // 1000
-}
-
 RuongDangMo(gx, gy)
 {
     global
-    local i, y, go, trai, c, dat
+    local anh, i, y, go, trai, dat, s
 
-    CoordMode, Pixel, Screen
+    ; Chụp một dải hẹp ôm lấy mép trái lưới rồi đọc trong bộ nhớ.
+    ; PixelGetColor đo được 20 ms MỘT LẦN — 48 lần là gần một giây đứng im
+    ; mỗi lúc bấm F2. Chụp cả dải chỉ tốn một lần gọi hệ thống.
+    anh := ChupVung(gx + RUONG_X - 10, gy + RUONG_Y + 10, 20, 450)
+    if (!anh)
+        return true                  ; chụp không được thì đừng chặn người dùng
+
     dat := 0
-    Loop, 12
+    i := 0
+    while (i < 12)
     {
-        y := gy + RUONG_Y + 20 + (A_Index - 1) * 38
+        y := gy + RUONG_Y + 20 + i * 38
 
-        go := 0
-        Loop, 3                      ; chịu được xê dịch 1 px theo chiều ngang
-        {
-            PixelGetColor, c, % gx + RUONG_X - 2 + A_Index, %y%, RGB
-            if (ErrorLevel)
-                return true          ; đọc không được thì đừng chặn người dùng
-            if (DoSang(c) > go)
-                go := DoSang(c)
-        }
-        PixelGetColor, c, % gx + RUONG_X - 6, %y%, RGB
-        trai := DoSang(c)
+        go := -1
+        s := DocSangTaiDiem(anh, gx + RUONG_X - 1, y)
+        if (s > go)
+            go := s
+        s := DocSangTaiDiem(anh, gx + RUONG_X, y)
+        if (s > go)
+            go := s
+        s := DocSangTaiDiem(anh, gx + RUONG_X + 1, y)
+        if (s > go)
+            go := s
 
-        if (go >= 35 && go - trai >= 28)
+        trai := DocSangTaiDiem(anh, gx + RUONG_X - 6, y)
+        if (go >= 35 && trai >= 0 && go - trai >= 28)
             dat++
+        i++
     }
+    XoaAnh(anh)
     return (dat >= 9)
 }
 
@@ -1785,11 +1962,20 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
 {
     global
     local r, c, i, o, tx, ty, mon, ms, imLang, cuu, xTrong, monTruoc
+    local nhinThay, soNhin, daDoc, thieu, thua
 
     ; Điểm không có món, để rê ra cho game xoá tooltip. Nằm trong nền
     ; panel, bên trái lưới rương — chỗ đó không bao giờ có ô đồ.
     xTrong := gx + RUONG_X - 20
     monTruoc := ""
+
+    ; --- NHÌN TRƯỚC KHI RÊ ---
+    ; Rê chuột ra chỗ trống và đợi tooltip tắt hẳn, rồi mới chụp: tooltip
+    ; của game che mất mấy ô bên cạnh, chụp lúc đó là đếm thiếu.
+    MouseMove, %xTrong%, % gy + Round(y0), 0
+    Sleep, 220
+    nhinThay := NhinCaLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, soNhin)
+    daDoc := {}
 
     GhiLog("")
     GhiLog("--- " . ten . "  (" . soHang . "×" . soCot . " = " . (soHang * soCot) . " ô) ---")
@@ -1815,7 +2001,10 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
             if (mon = "")
                 imLang.Push([r, c, tx, ty])
             else
+            {
+                daDoc[r * soCot + c] := true
                 XuLyMon(mon, ten, r, c, ms, false)
+            }
             c++
         }
         r++
@@ -1850,11 +2039,74 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
         {
             cuu++
             g_TK.cuuDuoc++
+            daDoc[o[1] * soCot + o[2]] := true
             XuLyMon(mon, ten, o[1], o[2], ms, true)
         }
     }
     if (cuu > 0)
         GhiLog("  >> lượt dò lại cứu được " . cuu . " món mà lượt đầu tưởng là ô trống")
+    DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
+}
+
+
+;=====================================================================
+;   ĐỐI CHIẾU: NHÌN THẤY vs ĐỌC ĐƯỢC
+;
+;   Đây là thứ trước đây thiếu. TTS im lặng thì chỉ biết "không có gì",
+;   không biết là ô trống thật hay đọc hụt. Giờ có hai nguồn độc lập nên
+;   chỉ được đúng ô nào đáng ngờ.
+;
+;   Hai chiều lệch, ý nghĩa khác hẳn nhau:
+;     nhìn thấy mà không đọc được -> SÓT MÓN, chỉ rõ ô cho người dùng kiểm
+;     đọc được mà không nhìn thấy -> toạ độ lệch, hoặc luật nhìn ô sai
+;=====================================================================
+DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
+{
+    global
+    local r, c, k, thieu, thua, nThieu, nThua
+
+    if (!IsObject(nhinThay) || nhinThay.Length() = 0)
+    {
+        GhiLog("  (không nhìn được lưới bằng điểm ảnh — bỏ phép đối chiếu)")
+        return
+    }
+
+    thieu := "", thua := "", nThieu := 0, nThua := 0
+    r := 0
+    while (r < soHang)
+    {
+        c := 0
+        while (c < soCot)
+        {
+            k := r * soCot + c
+            if (nhinThay[k] && !daDoc[k])
+            {
+                nThieu++
+                thieu .= (thieu = "" ? "" : ", ") . TenOVi(r, c)
+            }
+            else if (!nhinThay[k] && daDoc[k])
+            {
+                nThua++
+                thua .= (thua = "" ? "" : ", ") . TenOVi(r, c)
+            }
+            c++
+        }
+        r++
+    }
+
+    GhiLog("  = " . ten . ": nhìn thấy " . soNhin . " ô có đồ, đọc được "
+         . (soNhin - nThieu) . "")
+    if (nThieu > 0)
+    {
+        GhiLog("  !! SÓT " . nThieu . " ô — nhìn thấy có đồ mà không đọc ra chữ: " . thieu)
+        g_TK.sot += nThieu
+        g_TK.oSot .= (g_TK.oSot = "" ? "" : " · ") . ten . ": " . thieu
+    }
+    if (nThua > 0)
+        GhiLog("  ?? " . nThua . " ô đọc ra chữ mà nhìn không thấy đồ: " . thua
+             . "  (toạ độ có thể lệch)")
+
+    g_TK.nhin += soNhin
 }
 
 
@@ -1888,6 +2140,9 @@ DungBaoCao(huy, ngoTab, ByRef loai)
         vanDe .= "`n⚠ " . g_TK.khongHieu . " món không đọc hiểu được"
     if (g_TK.loi > 0)
         vanDe .= "`n⚠ " . g_TK.loi . " món ghi file hỏng"
+    if (g_TK.sot > 0)
+        vanDe .= "`n⚠ SÓT " . g_TK.sot . " ô — nhìn thấy có đồ mà không đọc ra:"
+               . "`n   " . g_TK.oSot
 
     if (g_TK.cuuDuoc > 0)
         ghiChu .= "`n· Dò lại cứu được " . g_TK.cuuDuoc . " món suýt bị bỏ sót"
@@ -1899,12 +2154,12 @@ DungBaoCao(huy, ngoTab, ByRef loai)
     bc .= "`n" . g_TK.moi . " món mới"
     if (g_TK.trung > 0)
         bc .= "  ·  " . g_TK.trung . " trùng"
-    bc .= "`nÔ có đồ: " . g_TK.coDo . "/" . g_TK.oRe
+    bc .= "`nĐọc được " . g_TK.coDo . "/" . g_TK.nhin . " ô có đồ"
 
-    ; Tách theo từng nơi. Con số tổng chẳng đối chiếu được với cái gì, còn
-    ; "Tab 1: 2/50" thì liếc vào rương là biết đúng hay thiếu ngay.
+    ; Tách theo từng nơi, và so ĐỌC ĐƯỢC với NHÌN THẤY. Con số tổng chẳng
+    ; đối chiếu được với cái gì; "Tab 1: 29/30" thì thấy ngay là thiếu một.
     for i, d in g_TK.chiTiet
-        bc .= "`n      " . d.ten . ":  " . d.coDo . "/" . d.oRe
+        bc .= "`n      " . d.ten . ":  " . d.coDo . "/" . d.nhin
 
     bc .= "`nĐang chờ đăng: " . g_Items.Length() . " món"
     bc .= ghiChu
@@ -2051,7 +2306,7 @@ DoQuet:
     ngoTab := ""                   ; tab nào ngờ là bấm hụt
     g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
            , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0, hoiLai: 0
-           , chiTiet: []}
+           , chiTiet: [], nhin: 0, sot: 0, oSot: ""}
     SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
 
     FormatTime, gioBatDau,, dd/MM/yyyy HH:mm:ss
@@ -2082,12 +2337,14 @@ DoQuet:
         truocCoDo := g_TK.coDo
         truocMoi  := g_TK.moi
         truocRe   := g_TK.oRe
+        truocNhin := g_TK.nhin
         QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
                , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy)
         tabCoDo := g_TK.coDo - truocCoDo
         tabMoi  := g_TK.moi  - truocMoi
         g_TK.chiTiet.Push({ten: "Tab " . i, coDo: tabCoDo
-                         , oRe: g_TK.oRe - truocRe})
+                         , oRe: g_TK.oRe - truocRe
+                         , nhin: g_TK.nhin - truocNhin})
         GhiLog("  = tab " . i . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
 
         ; Bấm hụt dải tab thì game vẫn hiện tab cũ, và ta quét lại y nguyên
@@ -2105,10 +2362,12 @@ DoQuet:
     {
         truocCoDo := g_TK.coDo
         truocRe   := g_TK.oRe
+        truocNhin := g_TK.nhin
         QuetLuoi(gx, gy, TUI_X, TUI_Y, TUI_OW, TUI_OH
                , TUI_COT, TUI_HANG, "Túi đồ", huy)
         g_TK.chiTiet.Push({ten: "Túi đồ", coDo: g_TK.coDo - truocCoDo
-                         , oRe: g_TK.oRe - truocRe})
+                         , oRe: g_TK.oRe - truocRe
+                         , nhin: g_TK.nhin - truocNhin})
     }
 
     MouseMove, %chuotX%, %chuotY%, 0
