@@ -2678,7 +2678,7 @@ HoiQuetGi()
                              . (g_SoTab = 7 ? " Checked" : ""), 7 tab
     Gui, hQuet:Add, Radio, % "x218 y98 w64 h22 gDoiSoTabQuet"
                              . (g_SoTab = 6 ? " Checked" : ""), 6 tab
-    Gui, hQuet:Add, Button, x298 y96 w136 h26 gReThuTab, Rê thử vị trí tab
+    Gui, hQuet:Add, Button, x298 y96 w136 h26 gReThuTab, Test tab
 
     Loop, 7
     {
@@ -2701,7 +2701,7 @@ HoiQuetGi()
     Gui, hQuet:Font, s9 Norm, Segoe UI
     Gui, hQuet:Add, Checkbox, % "voTui x20 y254 w414 h22"
                                 . (g_QuetTui ? " Checked" : "")
-                              , Quét cả túi đồ đang mang trên người
+                              , Quét cả túi đồ
 
     ; --- phần 3: tuỳ chọn ---
     Gui, hQuet:Font, s8 Bold, Segoe UI
@@ -2715,7 +2715,7 @@ HoiQuetGi()
 
     Gui, hQuet:Add, Checkbox, % "voChoTruoc x20 y350 w250 h22 gDoiChoTruoc"
                                 . (g_ChoTruoc ? " Checked" : "")
-                              , Chờ vài giây rồi mới bắt đầu quét
+                              , Time bắt đầu quét sau:
     Gui, hQuet:Add, Edit, % "voCho x272 y349 w56 h22 Center"
                            . (g_ChoTruoc ? "" : " Disabled")
     Gui, hQuet:Add, UpDown, % "voChoUD Range1-30" . (g_ChoTruoc ? "" : " Disabled")
@@ -2724,7 +2724,7 @@ HoiQuetGi()
 
     Gui, hQuet:Add, Checkbox, % "voTuDat x20 y380 w250 h22 gDoiTuDatGio"
                                 . (g_TuDat ? " Checked" : "")
-                              , Tự đặt thời gian hiện báo cáo
+                              , Time hiển thị báo cáo
     Gui, hQuet:Add, Edit, % "voGiay x272 y379 w56 h22 Center"
                            . (g_TuDat ? "" : " Disabled")
     Gui, hQuet:Add, UpDown, % "voGiayUD Range3-120" . (g_TuDat ? "" : " Disabled")
@@ -2743,7 +2743,7 @@ HoiQuetGi()
 
     ; --- thanh nút ---
     Gui, hQuet:Add, Progress, x0 y472 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y486 w136 h32 +Default gBatDauQuet, Bắt đầu quét
+    Gui, hQuet:Add, Button, x188 y486 w136 h32 +Default gBatDauQuet, Scan
     Gui, hQuet:Add, Button, x332 y486 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
@@ -2795,7 +2795,7 @@ DatGoiY()
             . "`nKhông tick tab nào thì bỏ qua rương, chỉ quét túi đồ."
     g_GoiY["oSoTab"] := "Chọn đúng số tab rương của bạn."
         . "`nVị trí các tab đổi theo số này — chọn sai là bấm trượt."
-    g_GoiY["Rê thử vị trí tab"] := "Rê con trỏ qua từng ô tab, KHÔNG bấm."
+    g_GoiY["Test tab"] := "Rê con trỏ qua từng ô tab, KHÔNG bấm."
         . "`nNhìn xem con trỏ có vào giữa ô tab không."
         . "`nTrượt thì chỉnh ở ô ""Chỉnh lệch vị trí tab""."
     g_GoiY["Chọn tất cả"]  := "Tick hết số tab đang có, và cả túi đồ."
@@ -2814,16 +2814,16 @@ DatGoiY()
         . "`n   xanh = đọc được"
         . "`n   đỏ   = nhìn thấy có đồ mà không đọc ra chữ"
         . "`n`nLiếc một cái là biết ô nào hỏng, khỏi ngồi đếm dòng."
-    g_GoiY["oChoTruoc"] := "Bấm ""Bắt đầu quét"" xong thì đếm ngược rồi mới rê."
+    g_GoiY["oChoTruoc"] := "Bấm ""Scan"" xong thì đếm ngược rồi mới rê."
         . "`nĐể bạn kịp bỏ tay khỏi chuột, hoặc kịp mở rương ra."
         . "`n`nĐang đếm mà bấm Esc thì huỷ."
     g_GoiY["oCho"] := g_GoiY["oChoTruoc"]
     g_GoiY["oTuDat"] := "Báo cáo cuối lượt tự tắt sau 10 giây."
         . "`nTick vào đây để tự chọn, từ 3 đến 120 giây."
     g_GoiY["oGiay"] := g_GoiY["oTuDat"]
-    g_GoiY["oLech"] := "Chỉ dùng khi bấm ""Rê thử vị trí tab"" thấy con trỏ"
+    g_GoiY["oLech"] := "Chỉ dùng khi bấm ""Test tab"" thấy con trỏ"
         . "`nkhông vào giữa ô. Số dương đẩy sang phải, số âm sang trái."
-    g_GoiY["Bắt đầu quét"] := "Đóng hộp thoại và bắt đầu rê."
+    g_GoiY["Scan"] := "Đóng hộp thoại và bắt đầu rê."
         . "`nBấm Esc lúc đang quét để dừng."
     g_GoiY["Đóng"] := "Đóng, không quét. Lựa chọn vẫn được nhớ."
 }
