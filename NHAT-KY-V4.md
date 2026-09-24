@@ -667,6 +667,47 @@ Lưu ý phân biệt: hàm **không** có dòng `global` thì AutoHotkey coi m�
 là cục bộ sẵn — `LocMonTTS`, `DonCau`, `LaTenMon`, `LaMocDung` đều thế, nên
 chúng vô can dù cũng dùng `i`. Chỉ hàm có `global` mới nguy hiểm.
 
+### 33. Lấy ít điểm mà sát tâm thì chịu lệch tốt hơn nhiều
+
+Toạ độ lưới đo trên một máy, máy khác có thể lệch. Đo thử xem phép nhận ô
+chịu được bao nhiêu px — và kết quả làm giật mình:
+
+```
+lấy rộng 0,34 ô (140 điểm)   chỉ chịu lệch  -1 .. +4 px
+```
+
+Quá sát. Nguyên nhân: lấy rộng thì chỉ cần lệch vài px là mẫu chạm **đường
+kẻ ô**, mà đường kẻ cũng sáng — ô trống hoá ô có đồ.
+
+Thử ngược lại, lấy **ít điểm hơn nhưng sát tâm**:
+
+| cách lấy | điểm | ô trống / ô có đồ | chịu lệch ngang |
+|---|---|---|---|
+| rộng 0,34 ô | 140 | 0 / 29 | −1 … +4 px |
+| ±16×16 px | 49 | 0 / 5 | −6 … +7 px |
+| ±12×12 px | 25 | 0 / 2 | −10 … +13 px |
+
+Chịu lệch tốt hơn hẳn, nhưng khe hở tụt — vùng nhỏ quá thì **món mảnh không
+đi qua tâm ô**, đếm ra ít điểm lệch.
+
+Nới khe hở lại bằng cách **hạ ngưỡng chênh sáng** từ 16 xuống 12, và lấy
+vùng vừa phải:
+
+```
+±18×20 px, bước 5  →  72 điểm
+ô trống ≤ 1 điểm lệch   ·   ô có đồ ≥ 35 điểm lệch
+chịu lệch −10 … +10 px cả hai chiều
+```
+
+**Ít điểm hơn một nửa, khe hở rộng hơn, chịu lệch gấp ba.**
+
+Bài học: với loại phép đo này, **lấy nhiều mẫu hơn không phải lúc nào cũng
+chắc hơn**. Lấy rộng ra là rước thêm thứ không thuộc về ô. Phải quét cả hai
+tham số — cỡ vùng lấy mẫu VÀ ngưỡng — chứ chỉnh một cái thì thấy đánh đổi mà
+tưởng là giới hạn.
+
+Kiểm trên 166 ô thật, có cố tình làm lệch: **0 sai ở cả 0, ±8 px hai chiều.**
+
 ---
 
 ## Đo được

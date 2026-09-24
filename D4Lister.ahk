@@ -154,9 +154,11 @@ global LECH_CHUOT := 8          ; con trỏ lệch quá ngần này px = ngườ
 
 ; --- vùng vẽ mong đợi. Khác thì dừng, vì mọi toạ độ trên đo ở cỡ này ---
 ; --- nhìn ô bằng điểm ảnh: ô trống hay ô có đồ (xem khối NHÌN Ô bên dưới) ---
-global O_LOI      := 0.38      ; lấy mẫu trong bao nhiêu phần lõi ô
-global O_BUOC     := 9         ; cách nhau mấy điểm ảnh
-global O_NGUONG   := 40        ; chênh sáng từ ngần này = ô có đồ
+global O_NUA_W    := 18        ; lấy mẫu trong ô: nửa bề rộng, tính bằng px
+global O_NUA_H    := 20        ; ...nửa bề cao
+global O_BUOC     := 5         ; hai điểm mẫu cách nhau mấy px  -> 72 điểm
+global O_CHENH    := 12        ; sáng hơn điểm tối nhất quá ngần này = "điểm lệch"
+global O_NGUONG   := 18        ; từ ngần này điểm lệch trở lên = ô có đồ
 global SOT_KE_TOI_DA := 5      ; báo cáo kể tên tối đa mấy ô sót (sổ vẫn ghi đủ)
 
 global CLIENT_W := 1920
@@ -1576,34 +1578,44 @@ DocSangTaiDiem(anh, mx, my)
 ;   Lấy mẫu: lõi 38% giữa ô, bước 9 px → 35 điểm. Lấy rộng hơn 42% là
 ;   chạm đường kẻ ô, mà đường kẻ cũng có chênh sáng — ô trống hoá ô có đồ.
 ;=====================================================================
-;   Chênh sáng trong lõi một ô. Trả về -1 nếu ô nằm ngoài vùng đã chụp.
-ChenhSangO(anh, tx, ty, ow, oh)
+;   Đếm "điểm lệch" trong một ô: điểm nào sáng hơn ĐIỂM TỐI NHẤT của
+;   chính ô đó quá O_CHENH. Ô trống phẳng nên gần như không có điểm nào.
+;   Trả về -1 nếu ô nằm ngoài vùng đã chụp.
+;
+;   Lấy mẫu trong một ô vuông CỐ ĐỊNH TÍNH BẰNG PX quanh tâm, không lấy
+;   theo phần trăm bề rộng ô. Lý do: vùng nhỏ và sát tâm thì lệch vài px
+;   vẫn nằm gọn trong ô, không chạm đường kẻ. Đo được:
+;       lấy rộng 0,34 ô (140 điểm) → chỉ chịu lệch  -1..+4 px
+;       lấy ±18×20 px  ( 72 điểm) → chịu lệch     -10..+10 px
+;   Ít điểm hơn một nửa mà chịu lệch gấp ba, khe hở lại rộng hơn.
+DemLechO(anh, tx, ty)
 {
     global
-    local x, y, w, h, s, nho, lon
+    local x, y, s, nho, n, ds, k
 
-    w := ow * O_LOI
-    h := oh * O_LOI
+    ds := []
     nho := 999
-    lon := -1
-    x := tx - w
-    while (x <= tx + w)
+    x := tx - O_NUA_W
+    while (x <= tx + O_NUA_W)
     {
-        y := ty - h
-        while (y <= ty + h)
+        y := ty - O_NUA_H
+        while (y <= ty + O_NUA_H)
         {
-            s := DocSangTaiDiem(anh, Round(x), Round(y))
+            s := DocSangTaiDiem(anh, x, y)
             if (s < 0)
                 return -1
+            ds.Push(s)
             if (s < nho)
                 nho := s
-            if (s > lon)
-                lon := s
             y += O_BUOC
         }
         x += O_BUOC
     }
-    return (lon < 0) ? -1 : (lon - nho)
+    n := 0
+    for k, s in ds
+        if (s - nho > O_CHENH)
+            n++
+    return n
 }
 
 ;   Nhìn cả một lưới: trả về mảng true/false theo thứ tự hàng rồi cột,
@@ -1633,7 +1645,7 @@ NhinCaLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ByRef soCoDo)
         {
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
-            cs := ChenhSangO(anh, tx, ty, ow, oh)
+            cs := DemLechO(anh, tx, ty)
             ra[r * soCot + c] := (cs >= O_NGUONG)
             if (cs >= O_NGUONG)
                 soCoDo++
@@ -3039,37 +3051,6 @@ LuocNgang(anh, yTu, yDen, buoc, soDuong, x0, x1)
     return totY . "|" . tot . "|" . nhiY . "|" . nhi
 }
 
-;   Đếm điểm lệch trong một ô — cùng luật sẽ dùng để bỏ qua ô trống:
-;   so mọi điểm với ĐIỂM TỐI NHẤT của chính ô đó.
-DemLechO(anh, tx, ty, ow, oh)
-{
-    local x, y, w, h, s, nho, n, ds, k
-    w := ow * 0.34
-    h := oh * 0.34
-    ds := []
-    nho := 999
-    x := tx - w
-    while (x <= tx + w)
-    {
-        y := ty - h
-        while (y <= ty + h)
-        {
-            s := DocSangTaiDiem(anh, Round(x), Round(y))
-            if (s < 0)
-                return -1
-            ds.Push(s)
-            if (s < nho)
-                nho := s
-            y += 4
-        }
-        x += 4
-    }
-    n := 0
-    for k, s in ds
-        if (s - nho > 16)
-            n++
-    return n
-}
 
 DoMotLuoi(f, nhan, gx, gy, x0, y0, ow, oh, soCot, soHang, xTu, xDen, yTu, yDen)
 {
@@ -3111,7 +3092,7 @@ DoMotLuoi(f, nhan, gx, gy, x0, y0, ow, oh, soCot, soHang, xTu, xDen, yTu, yDen)
         {
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
-            n := DemLechO(anh, tx, ty, ow, oh)
+            n := DemLechO(anh, tx, ty)
             dong .= "  " . Format("{:3}", n)
             if (n >= 10)
                 tong++
