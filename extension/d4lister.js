@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '7.1';          // doi cung luc voi version trong manifest.json
+  const BAN = '7.2';          // doi cung luc voi version trong manifest.json
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -124,12 +124,6 @@
       truoc = nay;
     }
     return truoc[b.length];
-  }
-
-  function hopTu(x, y) {
-    if (x === y) return true;
-    const n = Math.max(choPhep(x), choPhep(y));
-    return n > 0 && khoangCach(x, y, n) <= n;
   }
 
   // Diem 0..1 = bao nhieu phan tu khop duoc.
@@ -1585,48 +1579,138 @@
   //  đổi xong là dùng ngay, không phải sửa file, không phải nạp lại.
   // Thiet lap. Gat la LUU LUON — khong co nut Luu, khong co dong mo ta duoi
   // moi cong tac: ten cong tac da du ro, them chu chi lam bang dai ra.
+  // --- THIẾT LẬP --------------------------------------------------------
+  //  Chia hai tab vì hai loại người đọc khác nhau.
+  //
+  //  "Dùng hằng ngày" chỉ có những thứ NGƯỜI BÁN thật sự phải quyết: đăng
+  //  tự động hay không, có đăng khi còn cảnh báo không, chờ mấy giây, xong
+  //  thì con trỏ nhảy đâu. Bốn câu hỏi, trả lời một lần rồi thôi.
+  //
+  //  Mọi thứ còn lại là CÁCH TIỆN ÍCH LÀM VIỆC. Tắt đi thì tiện ích hỏng
+  //  chứ không phải "chạy kiểu khác" — nên nhét chung một bảng với bốn cái
+  //  trên là mời người ta bấm nhầm.
+  //
+  //  Mỗi mục có chữ giải thích khi rê chuột, thay cho việc in hết ra màn
+  //  hình. Bảng rộng 250px, in hết thì thành bức tường chữ.
+  let tabThietLap = 'dung';
+
+  const GIAI_THICH = {
+    tuDang: 'Điền xong và không còn cảnh báo nào thì tự bấm Submit.\n'
+          + 'Tắt đi thì tiện ích vẫn điền, chỉ là bạn tự bấm đăng.',
+    dangCaKhiCanhBao: 'Đăng cả khi còn cảnh báo (số vượt khoảng, thiếu affix…).\n'
+          + 'CÂN NHẮC: cảnh báo là lúc tiện ích không chắc nó điền đúng.\n'
+          + 'Bật cái này là bảo nó cứ đăng bừa.',
+    demNguoc: 'Chờ ngần này giây trước khi bấm Submit, để bạn kịp đọc lại\n'
+          + 'hoặc kịp bấm huỷ.',
+    nhayVaoGia: 'Điền xong thì đặt con trỏ vào ô Price — bạn chỉ còn gõ giá\n'
+          + 'rồi Enter, không phải rê chuột đi tìm.',
+    tuTaoItem: 'V3 không còn ảnh để trang tự dựng món, nên tiện ích phải tự\n'
+          + 'dựng: chọn loại đồ, độ hiếm, rồi Aspect.\n'
+          + 'TẮT = tiện ích không điền được gì cả.',
+    tuChonBase: 'Tự chọn ô base rồi bấm Next, khỏi ngồi chọn hình.',
+    tuThemAffix: 'Trang chỉ dựng sẵn vài dòng affix. Món có nhiều dòng hơn thì\n'
+          + 'tiện ích tự bấm thêm dòng cho đủ.',
+    tuDauSao: 'Tự bật dấu sao cho dòng Greater Affix, và tắt cho dòng thường.',
+    ghiThangForm: 'Đọc KHOẢNG HỢP LỆ (min–max) từ bộ điều khiển form của trang.\n'
+          + 'Nhờ nó mới biết một dòng có vượt khoảng hay không.\n'
+          + 'Tắt đi thì mất phần kiểm tra đó.',
+    doDOM: 'Ghi cấu trúc trang ra Console sau khi dựng món.\n'
+          + 'Chỉ bật khi đang dò lỗi.',
+    ghiFileDo: 'Tải hẳn một file .json kết quả dò về máy mỗi lần chạy.\n'
+          + 'Chỉ bật khi cần gửi file đi.',
+  };
+
   function moThietLap() {
     // NAM TRONG bang ket qua, khong de ra hop thu hai chong len nhau.
     const d = khungBao();
 
     const o = (khoa, nhan) =>
-      '<label style="display:flex;gap:8px;align-items:center;margin-top:7px;cursor:pointer">' +
-      '<input type="checkbox" data-k="' + khoa + '"' + (CD[khoa] ? ' checked' : '') + '>' +
+      '<label title="' + (GIAI_THICH[khoa] || '').replace(/"/g, '&quot;') + '"' +
+      ' style="display:flex;gap:8px;align-items:flex-start;margin-top:7px;cursor:help">' +
+      '<input type="checkbox" data-k="' + khoa + '"' + (CD[khoa] ? ' checked' : '') +
+      ' style="margin-top:2px;cursor:pointer">' +
       '<span>' + nhan + '</span></label>';
+
+    const nut = (id, chu) =>
+      '<button id="' + id + '" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
+      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">' + chu + '</button>';
+
+    const theTab = (ma, chu) =>
+      '<div data-tab="' + ma + '" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;' +
+      'border-bottom:2px solid ' + (tabThietLap === ma ? '#d8b978' : 'transparent') + ';' +
+      'color:' + (tabThietLap === ma ? '#d8b978' : '#888') + ';font-size:12px">' + chu + '</div>';
+
+    let than;
+    if (tabThietLap === 'dung') {
+      than =
+        o('tuDang', 'Tự đăng khi mọi thứ sạch') +
+        o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo') +
+        '<div title="' + GIAI_THICH.demNguoc.replace(/"/g, '&quot;') + '"' +
+        ' style="margin-top:9px;display:flex;align-items:center;gap:6px;cursor:help">' +
+        '<span>Đếm ngược</span>' +
+        '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
+        ' style="width:48px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
+        'padding:2px 5px;font:13px system-ui">' +
+        '<span>giây trước khi đăng</span></div>' +
+        o('nhayVaoGia', 'Xong thì nhảy vào ô giá') +
+        '<div style="margin-top:12px">' + nut('d4l-tl-goc', 'Về mặc định') + '</div>';
+    } else {
+      than =
+        '<div style="margin-top:7px;color:#8a7f5a;font-size:11px;line-height:1.4">' +
+        'Mấy mục này đổi cách tiện ích làm việc. Tắt đi phần lớn là hỏng, ' +
+        'không phải chạy kiểu khác. Rê chuột lên từng mục để xem nó làm gì.' +
+        '</div>' +
+        o('tuTaoItem', 'Tự dựng món') +
+        o('tuChonBase', 'Tự chọn base') +
+        o('tuThemAffix', 'Tự thêm affix thiếu') +
+        o('tuDauSao', 'Tự bật dấu sao') +
+        o('ghiThangForm', 'Đọc khoảng hợp lệ từ form') +
+        o('doDOM', 'Ghi cấu trúc ra Console') +
+        o('ghiFileDo', 'Tải file dò về máy') +
+        '<div style="margin-top:11px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">' +
+        nut('d4l-tl-do', 'Dò lớp phủ') + nut('d4l-tl-nk', 'Chép nhật ký') +
+        '</div>' +
+        '<div style="margin-top:7px;color:#666;font-size:11px">Ctrl+Shift+D chạy lại</div>';
+    }
 
     d.innerHTML =
       '<div style="display:flex;align-items:center">' +
       '<b style="color:#d8b978;flex:1">Thiết lập</b>' +
       '<span id="d4l-tl-dong" style="cursor:pointer;color:#888">&#10005;</span></div>' +
-      o('tuDang', 'Tự đăng') +
-      o('dangCaKhiCanhBao', 'Đăng cả khi có cảnh báo') +
-      o('tuQuet', 'Tự bấm Scan') +
-      o('ghiThangForm', 'Ghi thẳng vào form') +
-      o('nhayVaoGia', 'Nhảy vào ô giá') +
-      o('ghiFileDo', 'Ghi file dò') +
-      o('tuChonBase', 'Tự chọn base') +
-      o('tuTaoItem', 'Tự dựng món') +
-      o('tuThemAffix', 'Tự thêm affix thiếu') +
-      o('tuDauSao', 'Tự bật dấu sao') +
-      o('doDOM', 'Ghi cấu trúc ra Console') +
-      '<div style="margin-top:9px;display:flex;align-items:center;gap:6px">' +
-      '<span>Đếm ngược</span>' +
-      '<input id="d4l-tl-giay" type="number" min="1" max="60" value="' + (CD.demNguoc | 0) + '"' +
-      ' style="width:48px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
-      'padding:2px 5px;font:13px system-ui">' +
-      '<span>giây</span></div>' +
-      '<div style="margin-top:10px;display:flex;align-items:center;gap:8px">' +
-      '<button id="d4l-tl-goc" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
-      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Về mặc định</button>' +
-      '<button id="d4l-tl-do" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
-      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Dò lớp phủ</button>' +
-      '<button id="d4l-tl-nk" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
-      'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">Chép nhật ký</button>' +
-      '<span style="color:#666;font-size:11px">Ctrl+Shift+D chạy lại</span></div>';
+      '<div style="display:flex;margin-top:8px;border-bottom:1px solid #333">' +
+      theTab('dung', 'Dùng hằng ngày') + theTab('dev', 'Nhà phát triển') + '</div>' +
+      than;
+
+    d.querySelectorAll('[data-tab]').forEach(t => {
+      t.onclick = () => { tabThietLap = t.dataset.tab; moThietLap(); };
+    });
+    d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
+    d.querySelectorAll('input[type=checkbox]').forEach(i => {
+      i.onchange = () => { CD[i.dataset.k] = i.checked; luuCaiDat(); };
+    });
+
+    const oGiay = d.querySelector('#d4l-tl-giay');
+    if (oGiay) oGiay.onchange = e => {
+      const g = parseInt(e.target.value, 10);
+      if (g >= 1 && g <= 60) { CD.demNguoc = g; luuCaiDat(); }
+    };
+
+    const nutGoc = d.querySelector('#d4l-tl-goc');
+    if (nutGoc) nutGoc.onclick = () => {
+      CD = Object.assign({}, MAC_DINH);
+      luuCaiDat();
+      moThietLap();
+    };
+
+    // Do lop phu: mo lan luot cac o chon o dau form roi ghi cai xo ra vao
+    // Console. Ban luu Ctrl+S khong chup duoc may lop phu nay.
+    const nutDo = d.querySelector('#d4l-tl-do');
+    if (nutDo) nutDo.onclick = () => { d.remove(); doDOM('trước khi dò'); doLopPhu(); };
 
     // Chep ca xap nhat ky vao clipboard. Bam nut la mot cu cham cua nguoi
     // dung nen clipboard cho ghi; hong thi lui ve cach cu bang textarea.
-    d.querySelector('#d4l-tl-nk').onclick = () => {
+    const nutNK = d.querySelector('#d4l-tl-nk');
+    if (nutNK) nutNK.onclick = () => {
       const t = 'D4Lister ' + BAN + ' — nhật ký ' + nhatKy.length + ' dòng\n'
         + '='.repeat(60) + '\n' + nhatKy.join('\n');
       const xong = () => nhac('Đã chép ' + nhatKy.length + ' dòng nhật ký — dán cho Claude');
@@ -1642,25 +1726,6 @@
           xong();
         });
       } catch (e) { nhac('Không chép được nhật ký — xem Console'); }
-    };
-
-    // Do lop phu: mo lan luot cac o chon o dau form roi ghi cai xo ra vao
-    // Console. Ban luu Ctrl+S khong chup duoc may lop phu nay.
-    d.querySelector('#d4l-tl-do').onclick = () => { d.remove(); doDOM('trước khi dò'); doLopPhu(); };
-
-    d.querySelector('#d4l-tl-dong').onclick = () => d.remove();
-    d.querySelectorAll('input[type=checkbox]').forEach(i => {
-      i.onchange = () => { CD[i.dataset.k] = i.checked; luuCaiDat(); };
-    });
-    d.querySelector('#d4l-tl-giay').onchange = e => {
-      const g = parseInt(e.target.value, 10);
-      if (g >= 1 && g <= 60) { CD.demNguoc = g; luuCaiDat(); }
-    };
-    d.querySelector('#d4l-tl-goc').onclick = () => {
-      CD = Object.assign({}, MAC_DINH);
-      luuCaiDat();
-      d.remove();
-      moThietLap();
     };
   }
 
@@ -1680,7 +1745,6 @@
     demNguoc:         5,      // giây đếm ngược trước khi bấm đăng
     tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
-    tuQuet:           true,   // ảnh nạp xong thì tự bấm Scan
     ghiThangForm:     true,   // ghi thẳng vào form của trang, khỏi gõ vào ô
     nhayVaoGia:       true,   // điền xong thì đặt con trỏ vào ô giá
     ghiFileDo:        false,  // tải file dò về máy (chỉ bật khi cần gửi cho Claude)
@@ -2006,10 +2070,6 @@
     [...document.querySelectorAll('input[type="text"]')]
       .find(i => dangHien(i) && /search aspects/i.test(i.placeholder || ''));
 
-  const nutDoiDoHiem = () =>
-    [...document.querySelectorAll('button')]
-      .find(b => dangHien(b) && /^change rarity$/i.test((b.textContent || '').trim()));
-
   // Luoi DO HIEM dung chung kieu the voi luoi loai do. Phan biet: the do
   // hiem ghi "<DO HIEM> <LOAI DO>" nen chu co chua mot tu chi do hiem, con
   // the loai do chi ghi "Ring" / "Two-Handed Mace".
@@ -2129,17 +2189,6 @@
     'mythic unique': 'Mythic Unique', mythic: 'Mythic', unique: 'Unique',
     legendary: 'Legendary', set: 'Set', rare: 'Rare', magic: 'Magic',
     common: 'Common',
-  };
-
-  // Tim mot thu bam duoc co chu DUNG BANG <chu>, trong so nhung gi dang hien.
-  // Cai lop phu chon do hiem chua ai chup duoc DOM, nen do rong tay thay vi
-  // bam vao mot duong dan cu the roi truot.
-  const nutCoChu = chu => {
-    const c = chu.trim().toLowerCase();
-    return [...document.querySelectorAll(
-      'button,[role="option"],[role="radio"],[role="menuitem"],[cmdk-item]')]
-      .find(e => dangHien(e) &&
-        (e.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase() === c);
   };
 
   //  Ten cua mot the goi y. Uu tien alt cua anh: no la ten TRON, khong dinh
@@ -2455,53 +2504,6 @@
     if (n) { bamThat(n); await doi(450); }
   }
 
-  // ====================================================================
-  //  TU BAM SCAN
-  //
-  //  Dan xong, trang nhan anh roi van doi user bam SCAN. Bam ho — nhung
-  //  chi khi ANH DA NAP XONG THAT, khong phai chi vua thay the <img>:
-  //     complete = true      trinh duyet da tai xong
-  //     naturalWidth > 0     tai duoc that, khong phai anh hong
-  //     do HAI NHIP lien     kich thuoc dung yen -> khong con dang doi anh
-  //  Thieu ba chot nay thi co luc bam SCAN vao mot khung anh rong, trang
-  //  quet ra so lieu cua mon TRUOC do.
-  // ====================================================================
-  const anhDaNap = () =>
-    [...document.querySelectorAll('img')].find(im =>
-      /^(blob:|data:image)/.test(im.currentSrc || im.src || '') &&
-      im.complete && im.naturalWidth > 0 && im.getClientRects().length);
-
-  const nutQuet = () =>
-    [...document.querySelectorAll('button')].find(b =>
-      /^scan$/i.test((b.textContent || '').trim()) &&
-      !b.disabled && b.getClientRects().length);
-
-  // BAY DA SUP MOT LAN: truoc day cho nay do chu "Scanning screenshot" trong
-  // document.body.textContent de biet trang co dang quet dang do khong.
-  // Nhung textContent GOM CA NOI DUNG THE <script>, ma trang nhung goi ngon
-  // ngu ngay trong script — trong do co dung chuoi "Scanning screenshot".
-  // Vay la vua mo trang da thay, tu bam Scan bi chan ngay cau dau, KHONG
-  // BAO GIO chay. Bo han phep do nay: da co daBamQuet (moi lan dan chi bam
-  // mot lan) va nut Scan phai dang HIEN + khong bi khoa — dang quet do thi
-  // nut bien mat, khong the bam trung.
-
-  let anhTruoc = '', daBamQuet = false;
-
-  // Tra ve true khi vua bam SCAN, de vong cho bo qua nhip nay.
-  function thuBamQuet() {
-    if (daBamQuet) return false;
-    const im = anhDaNap();
-    if (!im) { anhTruoc = ''; return false; }
-    const dau = (im.currentSrc || im.src) + '|' + im.naturalWidth + 'x' + im.naturalHeight;
-    if (dau !== anhTruoc) { anhTruoc = dau; return false; }   // doi them mot nhip
-    const nut = nutQuet();
-    if (!nut) return false;
-    daBamQuet = true;
-    nhac('Ảnh đã nạp xong — bấm Scan.');
-    bamThat(nut);
-    return true;
-  }
-
   function choFormDungXong(text) {
     if (dongHo) clearInterval(dongHo);
     const batDau = Date.now();
@@ -2522,8 +2524,6 @@
     soLanChonBase = 0;
     dangTaoItem = false;
     daThuTaoItem = false;
-    daBamQuet = false;
-    anhTruoc = '';
     soDayThang = 0;
     nhac('Đã nhận chữ. Đang đợi form…');
     dongHo = setInterval(() => {
@@ -2568,7 +2568,6 @@
         return;
       }
       if (dangChonBase) return;
-      if (CD.tuQuet && thuBamQuet()) return;
       // Dem theo MAN HINH chu khong theo so sach cua form. Hai le do:
       //   1. so sach doi ngay khi ext ghi, nen dem theo no la tu ru minh
       //   2. V3 co the tao ra mon KHONG CO dong affix nao (do rare bam tu
