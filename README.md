@@ -1,8 +1,8 @@
-# D4Lister v3
+# D4Lister v4
 
 Đăng item Diablo 4 lên **diablo.trade** nhanh hơn. Chạy trên **một máy**.
 
-> **v3** — AutoHotkey **v3**, tiện ích Chrome **7.3**.
+> **v4** — AutoHotkey **v4**, tiện ích Chrome **7.3**.
 >
 > **Bỏ hoàn toàn chụp ảnh và OCR.** Diablo 4 có sẵn chức năng đọc item thành
 > lời cho người khiếm thị; D4Lister cắm vào đó và lấy **thẳng chữ của game**.
@@ -11,7 +11,7 @@
 > - **Không bao giờ đọc nhầm số** — chữ là chữ thật của game, không phải đoán
 >   từ điểm ảnh.
 > - **Dấu ✱ Greater Affix nhận chắc chắn**: dòng nào không in khoảng
->   `[min - max]` thì là ✱. Xem [NHAT-KY-V3.md](NHAT-KY-V3.md).
+>   `[min - max]` thì là ✱. Xem [NHAT-KY-V4.md](NHAT-KY-V4.md).
 > - **Tiện ích tự dựng món** trên trang (loại đồ, độ hiếm, tên, Aspect, sức
 >   mạnh, ổ ngọc) — vì không còn ảnh cho trang quét.
 > - **Không cần Tesseract** (nhẹ đi 164 MB) và **không cần Borderless
@@ -124,10 +124,11 @@ chạy `_he-thong\CAI-TTS.cmd` một lần là xong.
 
 | Phím | Việc |
 |---|---|
+| **F2** | *(trong game)* quét cả rương và túi đồ một lượt |
 | **F3** | *(trong game)* lấy món đang rê chuột |
 | **F4** | *(trên trình duyệt)* dán món hiện tại |
 | **F5 / F6** | sang món kế / lùi món trước |
-| **F9** | xoá sạch hàng đợi |
+| **F9** | xoá sạch danh sách đang chờ đăng |
 | **Ctrl+Shift+F11** | nạp lại script (và kiểm tra bản mới) |
 | **Ctrl+Shift+F12** | thoát |
 
@@ -143,6 +144,43 @@ lần nào. Tooltip hiện `3/3  NEEDLEFLARE HORNED CUDGEL` — liếc một cá
 
 Bấm F3 hai lần cùng một món thì nó báo *"Món này lấy rồi"* chứ không lặng lẽ
 thêm bản thứ hai.
+
+**Hoặc `F2` — lấy cả rương một lượt.** Mở rương trong game rồi bấm F2. Một
+hộp thoại hiện ra hỏi quét gì:
+
+```
+┌ QUÉT HÀNG LOẠT ────────────────────────────┐
+│ KHO RƯƠNG                                  │
+│ Rương của bạn có: (•) 7 tab  ( ) 6 tab     │
+│ ☑Tab 1  ☑Tab 2  ☐Tab 3  ☐Tab 4             │
+│ ☐Tab 5  ☐Tab 6  ☐Tab 7                     │
+│ TÚI ĐỒ NHÂN VẬT                            │
+│ ☑ Quét cả túi đồ đang mang trên người      │
+│ TUỲ CHỌN                                   │
+│ ☑ Dò lại những ô không thấy gì             │
+│ ☐ Chờ vài giây rồi mới bắt đầu quét  [5]   │
+│              [ Bắt đầu quét ]  [ Đóng ]    │
+└────────────────────────────────────────────┘
+```
+
+Nó rê con trỏ qua từng ô, ô nào có đồ thì lấy. Rê nhầm chỗ hay rương chưa mở
+thì nó **dừng và báo**, không quét bừa. Bấm `Esc` lúc đang chạy là dừng.
+
+Xong có báo cáo, tự tắt sau 10 giây (đổi được):
+
+```
+QUÉT XONG
+12 món mới  ·  3 trùng
+Ô có đồ: 15/83
+      Tab 1:   7/50
+      Túi đồ:  8/33
+Đang chờ đăng: 12 món
+```
+
+Chi tiết từng ô nằm trong `nhat-ky-quet.txt` cạnh script — mỗi ô một dòng, để
+đối chiếu xem có sót món nào không.
+
+Lựa chọn trong hộp thoại nhớ vào `quet.ini`, lần sau mở lên là thấy nguyên.
 
 **Sang trình duyệt** — mở trang Create ở chế độ **BETA**, để nguyên hộp thoại
 `ADD ITEM…`:
@@ -176,7 +214,7 @@ danh sách tên để lọc:
 | giáp | ngay sau dòng `Armor` |
 
 Nhờ vậy Item Power, DPS, Damage per Hit, Attacks per Second, All Resist tự
-rụng. Chi tiết và toàn bộ bẫy đã gỡ: [NHAT-KY-V3.md](NHAT-KY-V3.md).
+rụng. Chi tiết và toàn bộ bẫy đã gỡ: [NHAT-KY-V4.md](NHAT-KY-V4.md).
 
 Con số đi **thẳng từ chữ của game vào ô nhập**, không qua bộ quét ảnh của
 diablo.trade. Đó là chỗ tránh được hết lỗi đọc sai số.
@@ -288,7 +326,7 @@ dọn lúc khởi động và báo cho bạn.
 ```
 D4Lister.ahk      ← bấm đúp cái này, hết
 CAI-DAT.bat       ← chỉ dùng một lần trên máy mới
-NHAT-KY-V3.md     ← nhật ký v3 và toàn bộ bẫy đã gỡ
+NHAT-KY-V4.md     ← nhật ký v4 và toàn bộ bẫy đã gỡ
 extension\        ← Chrome trỏ vào đây
 queue\            ← chữ đã gom
 _he-thong\        ← không cần đụng vào

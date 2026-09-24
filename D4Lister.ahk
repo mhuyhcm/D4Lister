@@ -1,5 +1,5 @@
 ﻿;=====================================================================
-;   D4Lister v3  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
+;   D4Lister v4  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
 ;   AutoHotkey v1  |  File độc lập, không #Include gì, chạy được trên máy khác
 ;
 ;   TRONG GAME:
@@ -221,7 +221,7 @@ global ERROR_BROKEN_PIPE     := 109
 ;   KHỞI ĐỘNG
 ;=====================================================================
 Menu, Tray, Icon, C:\WINDOWS\system32\shell32.dll, 44
-Menu, Tray, Tip, D4Lister v3 - F3 lay mon / F4 dan / F5-F6 chuyen
+Menu, Tray, Tip, D4Lister v4 - F2 quet ruong / F3 lay mon / F4 dan
 
 if !FileExist(QUEUE_DIR)
     FileCreateDir, %QUEUE_DIR%
@@ -271,11 +271,11 @@ else if (loiCuaSo != "")
     ShowMsg("F2 chưa dùng được:`n" . loiCuaSo
           . "`n`nF3 vẫn lấy được từng món bình thường.", "err", 7000)
 else if (g_Items.Length() > 0)
-    ShowMsg("D4Lister v3 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
+    ShowMsg("D4Lister v4 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
 else if (canhBao != "")
-    ShowMsg("D4Lister v3" . canhBao, "err")
+    ShowMsg("D4Lister v4" . canhBao, "err")
 else
-    ShowMsg("D4Lister v3 sẵn sàng", "ok")
+    ShowMsg("D4Lister v4 sẵn sàng", "ok")
 
 SetTimer, CanhCuaSo, 4000
 

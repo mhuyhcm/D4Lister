@@ -1,7 +1,41 @@
-# D4Lister v3 — nhật ký và các bẫy đã gỡ
+# D4Lister v4 — nhật ký và các bẫy đã gỡ
 
-Ngày chốt: **23/09/2026**
-AutoHotkey `D4Lister.ahk` **v3** · tiện ích Chrome `d4lister.js` **7.3**
+Ngày chốt: **24/09/2026**
+AutoHotkey `D4Lister.ahk` **v4** · tiện ích Chrome `d4lister.js` **7.3**
+
+---
+
+## V4 đổi cái gì
+
+V3 lấy **một món** mỗi lần rê chuột. V4 thêm **F2 — quét cả rương và túi đồ
+một lượt**, đúng phần `B1` trong `Y-TUONG-V4.md`.
+
+| | V3 | V4 |
+|---|---|---|
+| Lấy một món | F3 | F3 (giữ nguyên) |
+| Lấy cả rương | không có | **F2** |
+| Chọn quét gì | — | hộp thoại hai phần, nhớ lựa chọn |
+| Biết có sót không | — | sổ ghi từng ô + báo cáo cuối lượt |
+| Biết rương mở chưa | — | đọc một đường kẻ, 12/12 điểm |
+| Thiết lập tiện ích | 11 ô tick đổ liền | hai tab: dùng hằng ngày / nhà phát triển |
+
+**F2 làm gì.** Rê con trỏ qua từng ô rương (5×10) và túi đồ (3×11), ô nào có
+đồ thì game gửi tooltip ra đường ống, ô trống thì game im lặng. Chọn tab nào,
+có quét túi đồ không, chờ mấy giây rồi mới chạy — hỏi trong hộp thoại ngay
+lúc bấm, và nhớ vào `quet.ini`.
+
+**Chống sót.** Đây là phần tốn công nhất, vì sót một món thì không ai biết:
+
+* ô im lặng được **hỏi lại một lượt nữa** với ngưỡng chờ gấp ba;
+* món đọc được mà không hiểu được **đếm riêng** thay vì bỏ im;
+* chống trùng khoá theo **vị trí ô**, không theo nội dung — hai món giống hệt
+  nhau ở hai ô là hai món hàng (xem bẫy 28);
+* tooltip của ô trước về muộn thì **hỏi lại cho chắc** chứ không đoán;
+* mọi ô đều có một dòng trong `nhat-ky-quet.txt`, cuối lượt đối chiếu được.
+
+**Toạ độ.** Đo thật từ ảnh chụp, không dùng công thức quy đổi của D4LF — công
+thức của họ sai 12–13 px ở dải tab. Và công thức của **chính tôi** cũng sai:
+xem mục *Dải tab KHÔNG phải một dãy đều căn giữa* ở phần **Đo được**.
 
 ---
 
@@ -446,6 +480,35 @@ cả hai ảnh. Vậy lúc đo, gốc đúng là 23, và các hằng số suy ra
 Cửa sổ dịch đi mà mọi thứ vẫn khớp, vì mã cộng `gy` **đọc lúc chạy** chứ
 không chôn cứng. Đây chính là lý do phải lưu toạ độ theo vùng vẽ thay vì theo
 màn hình — một quyết định lúc viết tưởng là thừa, hoá ra đã tự cứu mình.
+
+### 28. Chống trùng theo NỘI DUNG làm mất món — sót mà không ai biết
+
+Bẫy tệ nhất của bản này, vì nó **không báo gì cả**: đếm ra thiếu một món và
+chẳng có dấu hiệu nào để lần ra.
+
+F2 rê qua lại nhiều ô nên phải chống đọc trùng. Tôi chống bằng cách so **nội
+dung món** với tất cả những gì đã lấy trong lượt. Nghe hợp lý, nhưng sai ngay
+ở giả thiết: hai món **giống hệt nhau** ở hai ô khác nhau — hai chiếc nhẫn
+cùng chỉ số chẳng hạn — là **hai món hàng**, hai thứ để bán. Món thứ hai bị
+vứt im lặng.
+
+Người dùng phát hiện ra bằng câu hỏi *"thực tế 9 món mà quét ra 8"* — không
+phải từ log, không phải từ một lỗi nào nhảy ra.
+
+Chữa: khoá chống trùng là **vị trí ô** (`nơi | hàng | cột | nội dung`), vì
+một ô chỉ chứa một món. Kèm nội dung vào khoá để đổi đồ trong rương rồi quét
+lại vẫn nhận ra là món khác.
+
+Kiểm bằng rương giả:
+
+| tình huống | trước | sau |
+|---|---|---|
+| 2 món y hệt, 2 ô khác nhau | 1 mới + 1 trùng ❌ | 2 mới ✓ |
+| quét lại đúng ô đó | trùng ✓ | trùng ✓ |
+| cùng vị trí, tab khác | trùng ❌ | mới ✓ |
+
+Bài học: **"chống trùng" phải hỏi trùng theo cái gì.** Trùng nội dung không
+có nghĩa là trùng vật thể.
 
 ---
 

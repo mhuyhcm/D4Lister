@@ -4,7 +4,7 @@ Tổng hợp ngày **24/09/2026**, sau khi chạy thử **D4LF v10.0.5** và đ�
 nguồn của họ. Hiện chốt ở **v3** (AHK v3 + tiện ích 7.1).
 
 Đọc kèm:
-- `NHAT-KY-V3.md` — 21 cái bẫy đã gỡ của v3
+- `NHAT-KY-V4.md` — 28 cái bẫy đã gỡ, tính cả v3 và v4
 - `_bo-nho/README.md` — nghiên cứu đọc bộ nhớ game (thư mục riêng, không đẩy lên repo)
 
 ---
@@ -57,7 +57,7 @@ từng món; một tab rương 33 ô là 33 lần.
 
 Có **hai con đường**, và chúng loại trừ nhau. Chọn một.
 
-## B1. Rê chuột tự động — đường của D4LF
+## B1. Rê chuột tự động — đường của D4LF — ✅ ĐÃ LÀM (24/09/2026, phím F2)
 
 **Làm được ngay.** D4LF đã chứng minh, mã ở `src/loot/filter.py` +
 `src/automation/inventory.py`:
@@ -181,7 +181,7 @@ chờ bao lâu mỗi ô.
 
 - **Vét ống sau mỗi ô.** F3 hiện tại đã vét ống trước khi lấy; quét hàng
   loạt cũng phải vét sau mỗi ô, không thì dồn hàng đợi rồi lấy nhầm món
-  (bẫy 3, `NHAT-KY-V3.md`).
+  (bẫy 3, `NHAT-KY-V4.md`).
 - **Món trùng nhau.** `g_MonDaLay` chặn bấm F3 hai lần cùng một món. Quét
   hàng loạt phải so theo **nội dung từng món**, không phải "món cuối".
 - **Chuột đang bận.** Người dùng lỡ động chuột giữa chừng là hỏng cả lượt.
@@ -265,7 +265,7 @@ hai.
 
 ⇒ Form đang sống của chế độ BETA **không phơi ra `getValues`/`setValue`**.
 `replace()` / `append()` / `reset()` đều không với tới. Lý do đầy đủ ở
-`NHAT-KY-V3.md`, mục *Kết luận về đường "đẩy một phát"*.
+`NHAT-KY-V4.md`, mục *Kết luận về đường "đẩy một phát"*.
 
 Đường đang dùng (mở danh sách `ADD STANDARD AFFIXES` một lần rồi thêm từng
 dòng) chạy ổn định **160–300 ms mỗi dòng**.
@@ -328,7 +328,7 @@ mù màu · đổi giao diện sáng tối.
 # Ghi chú vận hành
 
 **D4LF và D4Lister không chạy cùng lúc được.** Cả hai dùng đường ống
-`\\.\pipe\d4lf`, mà ống chỉ cho một mối nối. D4Lister v3 tự thử lại mỗi
+`\\.\pipe\d4lf`, mà ống chỉ cho một mối nối. D4Lister tự thử lại mỗi
 giây nên thoát D4LF là nó cầm lại ống ngay, không cần khởi động lại.
 
 Thứ tự tự nhiên:
