@@ -337,6 +337,18 @@ _he-thong\        ← không cần đụng vào
      CHAY.bat                  dự phòng nếu không bấm đúp .ahk được
      TAT-HET.bat
      CAI-TIEN-ICH-CHROME.bat
+     DONG-GOI.cmd              đóng gói bản hiện tại thành .zip
 ```
 
 Bản tải về khoảng **250 KB**. V2 còn kéo theo Tesseract 164 MB; V3 bỏ hẳn.
+
+### Đóng gói để dành trên máy
+
+Bấm đúp `_he-thong\DONG-GOI.cmd`. Nó đẻ ra
+`_ban-phat-hanh\D4Lister-v4.zip` — giải nén ra đâu cũng chạy, **không cần
+mạng, không cần repo còn sống**. Gói kèm cả bộ cài AutoHotkey nên khoảng
+3,4 MB; máy trắng bung ra là dùng được.
+
+Script tự đọc số hiệu bản từ mã nguồn, và **dừng lại nếu số bản trong
+`manifest.json` lệch với `const BAN` trong `d4lister.js`** — lệch thì trình
+duyệt chạy một bản mà báo một bản khác.

@@ -42,3 +42,6 @@ _thu-unique.txt
 # --- Rieng tung may: lua chon quet va so ghi cua lan quet ---
 quet.ini
 nhat-ky-quet.txt
+
+# --- Goi phat hanh dong tren may, khong day len ---
+_ban-phat-hanh/
