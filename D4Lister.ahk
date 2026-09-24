@@ -194,6 +194,10 @@ global g_DaQuet  := {}      ; các ô đã lấy: "nơi|hàng|cột|nội dung"
 global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / quet / huy
 global g_DoLai   := true    ; có dò lại các ô im lặng không
 global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
+global g_HienLuoi := true   ; vẽ sơ đồ lưới ô trong báo cáo cuối lượt
+global g_OTrangThai := []   ; trạng thái từng ô của lưới vừa quét
+global g_OCot := 0
+global g_OHang := 0
 global g_TK      := {}      ; sổ thống kê của lượt quét đang chạy
 global g_GhimX   := -1      ; ghim tooltip vào chỗ cố định; -1 = bám con trỏ
 global g_GhimY   := -1
@@ -723,7 +727,56 @@ GoToBatchStart()
 ;=====================================================================
 ;   msHien  = 0 -> dùng MSG_TIME. Đặt số khác để giữ lâu hơn (báo cáo cuối lượt).
 ;   demNguoc   -> hiện số giây còn lại, nhỏ, ở góc dưới bên phải.
-ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false)
+   ;   Vẽ sơ đồ các lưới đã quét. Trả về toạ độ y của đáy phần vừa vẽ,
+   ;   và nới rongNhat nếu lưới rộng hơn khối chữ.
+VeLuoiO(dsLuoi, x0, y0, ByRef rongNhat)
+{
+    global
+    local i, d, r, c, tt, mau, canh, khe, yy, rongMotLuoi, fs
+
+    canh := Round(9 * A_ScreenDPI / 96)     ; cạnh một ô vuông
+    khe  := Round(2 * A_ScreenDPI / 96)     ; khe giữa hai ô
+    fs   := Round(8 * A_ScreenDPI / 96)
+    yy   := y0
+
+    for i, d in dsLuoi
+    {
+        if (!IsObject(d.o) || d.cot < 1 || d.hang < 1)
+            continue
+        rongMotLuoi := d.cot * (canh + khe) - khe
+        if (rongMotLuoi > rongNhat)
+            rongNhat := rongMotLuoi
+
+        Gui, Msg:Font, s%fs% Norm, Segoe UI
+        Gui, Msg:Add, Text, % "x" . x0 . " y" . yy . " w" . (rongMotLuoi + 60)
+                           . " h" . Round(15 * A_ScreenDPI / 96)
+                           . " c707070 BackgroundTrans"
+                           , % d.ten . "   " . d.coDo . "/" . d.nhin
+        yy += Round(16 * A_ScreenDPI / 96)
+
+        r := 0
+        while (r < d.hang)
+        {
+            c := 0
+            while (c < d.cot)
+            {
+                tt := d.o[r * d.cot + c]
+                mau := (tt = 1) ? "2E9E4F" : (tt = 2) ? "C0392B" : "C9C9C9"
+                Gui, Msg:Add, Progress, % "x" . (x0 + c * (canh + khe))
+                                       . " y" . yy . " w" . canh . " h" . canh
+                                       . " Background" . mau . " Disabled"
+                c++
+            }
+            yy += canh + khe
+            r++
+        }
+        yy += Round(7 * A_ScreenDPI / 96)
+    }
+    return yy
+}
+
+
+ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false, dsLuoi := "")
 {
     global g_MsgHwnd, MSG_TIME, COL_BG, COL_OK, COL_ERR, COL_WARN
     global g_GhimX, g_GhimY, g_DemConLai
@@ -764,26 +817,35 @@ ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false)
     ; Hiện ngoài màn hình trước để đo kích thước -> không bị nháy hình
     Gui, Msg:Show, NA AutoSize x-32000 y-32000
 
-    ; Đồng hồ đếm ngược: một số nhỏ nhạt ở góc dưới phải, không phải một
-    ; câu chữ trong thân báo cáo — chữ nhiều thì mắt không biết nhìn đâu.
-    ;
     ; PHẢI đặt sau Show: trước khi cửa sổ hiện ra thì control chưa có kích
     ; thước, GuiControlGet trả về rỗng, chuỗi toạ độ thành rác và cả luồng
     ; chết im không một lời báo.
+    GuiControlGet, p, Msg:Pos, MsgChu
+    dayY := pY + pH
+    rongNhat := pW
+
+    ; --- SƠ ĐỒ LƯỚI Ô ---
+    ; Con số "29/30" nói có thiếu, nhưng không nói THIẾU Ở ĐÂU. Vẽ đúng
+    ; hình cái rương ra thì liếc một cái là biết ô nào, khỏi đếm dòng.
+    ;   xám  ô trống      xanh  đọc được      đỏ  có đồ mà không đọc ra
+    if (IsObject(dsLuoi) && dsLuoi.Length() > 0)
+        dayY := VeLuoiO(dsLuoi, pX, dayY + Round(10 * A_ScreenDPI / 96), rongNhat)
+
+    ; Đồng hồ đếm ngược: một số nhỏ nhạt ở góc dưới phải, không phải một
+    ; câu chữ trong thân báo cáo — chữ nhiều thì mắt không biết nhìn đâu.
     SetTimer, DemNguocTimer, Off
     if (demNguoc && msHien > 0)
     {
-        GuiControlGet, p, Msg:Pos, MsgChu
         rongDem := Round(46 * A_ScreenDPI / 96)
         Gui, Msg:Font, % "s" . Round(10 * A_ScreenDPI / 96) . " Bold", Segoe UI
-        Gui, Msg:Add, Text, % "x" . (pX + pW - rongDem)
-                           . " y" . (pY + pH + Round(3 * A_ScreenDPI / 96))
+        Gui, Msg:Add, Text, % "x" . (pX + rongNhat - rongDem)
+                           . " y" . (dayY + Round(3 * A_ScreenDPI / 96))
                            . " w" . rongDem . " Right c4A4A4A BackgroundTrans vMsgDem"
                            , % Round(msHien / 1000) . "s"
         g_DemConLai := Round(msHien / 1000)
         SetTimer, DemNguocTimer, 1000
-        Gui, Msg:Show, NA AutoSize x-32000 y-32000   ; nới cửa sổ cho vừa số
     }
+    Gui, Msg:Show, NA AutoSize x-32000 y-32000   ; nới cửa sổ cho vừa phần vừa thêm
     WinGetPos, , , gw, gh, ahk_id %g_MsgHwnd%
 
     SysGet, vx, 76
@@ -2071,6 +2133,12 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
         return
     }
 
+    ; Bản đồ trạng thái từng ô, để vẽ sơ đồ trong báo cáo:
+    ;   0 trống · 1 đọc được · 2 nhìn thấy có đồ mà không đọc ra
+    g_OTrangThai := []
+    g_OCot  := soCot
+    g_OHang := soHang
+
     thieu := "", thua := "", nThieu := 0, nThua := 0
     r := 0
     while (r < soHang)
@@ -2079,6 +2147,7 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
         while (c < soCot)
         {
             k := r * soCot + c
+            g_OTrangThai[k] := daDoc[k] ? 1 : (nhinThay[k] ? 2 : 0)
             if (nhinThay[k] && !daDoc[k])
             {
                 nThieu++
@@ -2158,8 +2227,12 @@ DungBaoCao(huy, ngoTab, ByRef loai)
 
     ; Tách theo từng nơi, và so ĐỌC ĐƯỢC với NHÌN THẤY. Con số tổng chẳng
     ; đối chiếu được với cái gì; "Tab 1: 29/30" thì thấy ngay là thiếu một.
-    for i, d in g_TK.chiTiet
-        bc .= "`n      " . d.ten . ":  " . d.coDo . "/" . d.nhin
+    ;
+    ; Bật sơ đồ lưới thì BỎ mấy dòng này: lưới đã ghi sẵn cùng con số ngay
+    ; dưới tên mỗi lưới, in thêm lần nữa chỉ tổ dài.
+    if (!g_HienLuoi)
+        for i, d in g_TK.chiTiet
+            bc .= "`n      " . d.ten . ":  " . d.coDo . "/" . d.nhin
 
     bc .= "`nĐang chờ đăng: " . g_Items.Length() . " món"
     bc .= ghiChu
@@ -2344,7 +2417,8 @@ DoQuet:
         tabMoi  := g_TK.moi  - truocMoi
         g_TK.chiTiet.Push({ten: "Tab " . i, coDo: tabCoDo
                          , oRe: g_TK.oRe - truocRe
-                         , nhin: g_TK.nhin - truocNhin})
+                         , nhin: g_TK.nhin - truocNhin
+                         , o: g_OTrangThai, cot: g_OCot, hang: g_OHang})
         GhiLog("  = tab " . i . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
 
         ; Bấm hụt dải tab thì game vẫn hiện tab cũ, và ta quét lại y nguyên
@@ -2367,7 +2441,8 @@ DoQuet:
                , TUI_COT, TUI_HANG, "Túi đồ", huy)
         g_TK.chiTiet.Push({ten: "Túi đồ", coDo: g_TK.coDo - truocCoDo
                          , oRe: g_TK.oRe - truocRe
-                         , nhin: g_TK.nhin - truocNhin})
+                         , nhin: g_TK.nhin - truocNhin
+                         , o: g_OTrangThai, cot: g_OCot, hang: g_OHang})
     }
 
     MouseMove, %chuotX%, %chuotY%, 0
@@ -2392,7 +2467,8 @@ DoQuet:
     ;
     ; Chỉ hai màu: XANH là xong xuôi, ĐỎ là có chuyện cần nhìn. Cam ở giữa
     ; chỉ làm người ta lưỡng lự, mà lưỡng lự thì bỏ qua.
-    ShowMsg(DungBaoCao(huy, ngoTab, loaiBC), loaiBC, GiayBaoCao() * 1000, true)
+    ShowMsg(DungBaoCao(huy, ngoTab, loaiBC), loaiBC, GiayBaoCao() * 1000, true
+          , g_HienLuoi ? g_TK.chiTiet : "")
     g_GhimX := -1          ; hết lượt, tooltip bám con trỏ lại như thường
     g_GhimY := -1
 return
@@ -2474,6 +2550,8 @@ NapCauHinhQuet()
     g_ChoTruoc := (v != 0)
     IniRead, v, %FILE_CAU_HINH%, quet, giaycho, 5
     g_GiayCho := (v + 0 >= 1 && v + 0 <= 30) ? v + 0 : 5
+    IniRead, v, %FILE_CAU_HINH%, quet, luoi, 1
+    g_HienLuoi := (v != 0)
     IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
     g_Tab := []
     Loop, 7
@@ -2498,6 +2576,7 @@ LuuCauHinhQuet()
     IniWrite, % g_Giay, %FILE_CAU_HINH%, quet, giay
     IniWrite, % (g_ChoTruoc ? 1 : 0), %FILE_CAU_HINH%, quet, chotruoc
     IniWrite, % g_GiayCho, %FILE_CAU_HINH%, quet, giaycho
+    IniWrite, % (g_HienLuoi ? 1 : 0), %FILE_CAU_HINH%, quet, luoi
 }
 
 ;=====================================================================
@@ -2597,19 +2676,23 @@ HoiQuetGi()
                            , % g_Giay
     Gui, hQuet:Add, Text, x334 y384 w40 h18, giây
 
-    Gui, hQuet:Add, Text, x20 y410 w132 h22 +0x200, Chỉnh lệch vị trí tab:
-    Gui, hQuet:Add, Edit, voLech x154 y409 w56 h22 Center
+    Gui, hQuet:Add, Checkbox, % "voHienLuoi x20 y410 w414 h22"
+                                . (g_HienLuoi ? " Checked" : "")
+                              , Vẽ sơ đồ lưới ô trong báo cáo
+
+    Gui, hQuet:Add, Text, x20 y440 w132 h22 +0x200, Chỉnh lệch vị trí tab:
+    Gui, hQuet:Add, Edit, voLech x154 y439 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
-    Gui, hQuet:Add, Text, x216 y414 w40 h18, px
-    Gui, hQuet:Add, Button, x272 y408 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
+    Gui, hQuet:Add, Text, x216 y444 w40 h18, px
+    Gui, hQuet:Add, Button, x272 y438 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
 
     ; --- thanh nút ---
-    Gui, hQuet:Add, Progress, x0 y442 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y456 w136 h32 +Default gBatDauQuet, Bắt đầu quét
-    Gui, hQuet:Add, Button, x332 y456 w102 h32 gHuyQuet,             Đóng
+    Gui, hQuet:Add, Progress, x0 y472 w452 h58 BackgroundE6E4E1 Disabled
+    Gui, hQuet:Add, Button, x188 y486 w136 h32 +Default gBatDauQuet, Bắt đầu quét
+    Gui, hQuet:Add, Button, x332 y486 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
-    Gui, hQuet:Show, w452 h500 Center
+    Gui, hQuet:Show, w452 h530 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -2629,6 +2712,7 @@ HoiQuetGi()
     g_Giay    := (oGiayUD + 0 >= 3 && oGiayUD + 0 <= 120) ? oGiayUD + 0 : 10
     g_ChoTruoc := (oChoTruoc != 0)
     g_GiayCho := (oChoUD + 0 >= 1 && oChoUD + 0 <= 30) ? oChoUD + 0 : 5
+    g_HienLuoi := (oHienLuoi != 0)
     g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
@@ -2670,6 +2754,11 @@ DatGoiY()
         . CLIENT_W . "×" . CLIENT_H . "."
         . "`nMọi toạ độ của F2 đo ở cỡ đó, sai cỡ là rê trượt ô."
         . "`n`nChỉ đổi cỡ cửa sổ, không đụng thiết lập nào của game."
+    g_GoiY["oHienLuoi"] := "Vẽ đúng hình cái rương trong báo cáo cuối lượt:"
+        . "`n   xám  = ô trống"
+        . "`n   xanh = đọc được"
+        . "`n   đỏ   = nhìn thấy có đồ mà không đọc ra chữ"
+        . "`n`nLiếc một cái là biết ô nào hỏng, khỏi ngồi đếm dòng."
     g_GoiY["oChoTruoc"] := "Bấm ""Bắt đầu quét"" xong thì đếm ngược rồi mới rê."
         . "`nĐể bạn kịp bỏ tay khỏi chuột, hoặc kịp mở rương ra."
         . "`n`nĐang đếm mà bấm Esc thì huỷ."
