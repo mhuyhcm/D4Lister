@@ -194,6 +194,8 @@ global g_DemConLai := 0     ; số giây còn lại của báo cáo cuối lư�
 global g_GoiY    := {}      ; chữ gợi ý khi rê chuột trong hộp thoại F2
 global g_TuDat   := false   ; tự đặt thời gian hiện báo cáo
 global g_Giay    := 10      ; ...bao nhiêu giây, khi g_TuDat bật
+global g_ChoTruoc := false  ; chờ vài giây rồi mới bắt đầu quét
+global g_GiayCho  := 5      ; ...chờ mấy giây
 global GIAY_MAC_DINH := 10  ; không tự đặt thì dùng số này
 global FILE_LOG_QUET := A_ScriptDir . "\nhat-ky-quet.txt"
 
@@ -1715,7 +1717,13 @@ DungBaoCao(huy, ngoTab, ByRef loai)
     bc .= "`n" . g_TK.moi . " món mới"
     if (g_TK.trung > 0)
         bc .= "  ·  " . g_TK.trung . " trùng"
-    bc .= "  ·  " . g_TK.coDo . "/" . g_TK.oRe . " ô có đồ"
+    bc .= "`nÔ có đồ: " . g_TK.coDo . "/" . g_TK.oRe
+
+    ; Tách theo từng nơi. Con số tổng chẳng đối chiếu được với cái gì, còn
+    ; "Tab 1: 2/50" thì liếc vào rương là biết đúng hay thiếu ngay.
+    for i, d in g_TK.chiTiet
+        bc .= "`n      " . d.ten . ":  " . d.coDo . "/" . d.oRe
+
     bc .= "`nĐang chờ đăng: " . g_Items.Length() . " món"
     bc .= ghiChu
     ; Vấn đề nằm cuối, ngay cạnh chỗ tra cứu — đó là nơi mắt dừng lại.
@@ -1786,11 +1794,38 @@ DoQuet:
     }
     Sleep, 250                         ; chờ game vẽ lại rồi mới rê
 
+    ; Ghim thông báo lên đỉnh cửa sổ game, căn giữa — đặt trước cả lúc đếm
+    ; ngược để con số đứng yên một chỗ ngay từ đầu.
+    g_GhimX := gx + cw // 2
+    g_GhimY := gy + 36
+
+    ; Đếm ngược trước khi rê. Đặt TRƯỚC lúc kiểm rương, không phải sau:
+    ; mấy giây này chính là lúc người dùng kịp mở rương ra.
+    if (g_ChoTruoc)
+    {
+        conLai := g_GiayCho
+        while (conLai > 0)
+        {
+            if (GetKeyState("Escape", "P"))
+            {
+                ShowMsg("Đã huỷ", "warn")
+                g_GhimX := -1, g_GhimY := -1
+                g_DangQuet := false
+                return
+            }
+            ShowMsg("BẮT ĐẦU SAU " . conLai . " GIÂY`nEsc để huỷ", "warn", 1200)
+            Sleep, 1000
+            conLai--
+        }
+        HideMsgNow()
+    }
+
     ; Rương chưa mở thì mọi toạ độ bên dưới đều trỏ vào thế giới, rê qua
     ; 83 ô chỉ tổ mất công — mà bấm đổi tab còn làm nhân vật chạy đi.
     if (!RuongDangMo(gx, gy))
     {
         ShowMsg("CHƯA MỞ RƯƠNG`nMở rương trong game rồi bấm F2 lại.", "err")
+        g_GhimX := -1, g_GhimY := -1
         g_DangQuet := false
         return
     }
@@ -1799,16 +1834,11 @@ DoQuet:
     MouseGetPos, chuotX, chuotY
     RefreshForCapture()
 
-    ; Ghim tooltip lên đỉnh cửa sổ game, căn giữa. Con trỏ lúc quét chạy
-    ; khắp rương nên chữ bám theo là không đọc kịp. Chỗ này nằm trên dải
-    ; tab (y 185) nên không che ô nào đang rê qua.
-    g_GhimX := gx + cw // 2
-    g_GhimY := gy + 36
-
     huy := ""
     ngoTab := ""                   ; tab nào ngờ là bấm hụt
     g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
-           , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0, hoiLai: 0}
+           , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0, hoiLai: 0
+           , chiTiet: []}
     SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
 
     FormatTime, gioBatDau,, dd/MM/yyyy HH:mm:ss
@@ -1838,10 +1868,13 @@ DoQuet:
 
         truocCoDo := g_TK.coDo
         truocMoi  := g_TK.moi
+        truocRe   := g_TK.oRe
         QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
                , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy)
         tabCoDo := g_TK.coDo - truocCoDo
         tabMoi  := g_TK.moi  - truocMoi
+        g_TK.chiTiet.Push({ten: "Tab " . i, coDo: tabCoDo
+                         , oRe: g_TK.oRe - truocRe})
         GhiLog("  = tab " . i . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
 
         ; Bấm hụt dải tab thì game vẫn hiện tab cũ, và ta quét lại y nguyên
@@ -1856,8 +1889,14 @@ DoQuet:
 
     ; --- túi đồ ---
     if (huy = "" && g_QuetTui)
+    {
+        truocCoDo := g_TK.coDo
+        truocRe   := g_TK.oRe
         QuetLuoi(gx, gy, TUI_X, TUI_Y, TUI_OW, TUI_OH
                , TUI_COT, TUI_HANG, "Túi đồ", huy)
+        g_TK.chiTiet.Push({ten: "Túi đồ", coDo: g_TK.coDo - truocCoDo
+                         , oRe: g_TK.oRe - truocRe})
+    }
 
     MouseMove, %chuotX%, %chuotY%, 0
     SetTimer, DocOng, %NHIP_ONG%
@@ -1959,6 +1998,10 @@ NapCauHinhQuet()
     g_TuDat := (v != 0)
     IniRead, v, %FILE_CAU_HINH%, quet, giay, %GIAY_MAC_DINH%
     g_Giay := (v + 0 >= 3 && v + 0 <= 120) ? v + 0 : GIAY_MAC_DINH
+    IniRead, v, %FILE_CAU_HINH%, quet, chotruoc, 0
+    g_ChoTruoc := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, giaycho, 5
+    g_GiayCho := (v + 0 >= 1 && v + 0 <= 30) ? v + 0 : 5
     IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
     g_Tab := []
     Loop, 7
@@ -1981,6 +2024,8 @@ LuuCauHinhQuet()
     IniWrite, % g_LechTab, %FILE_CAU_HINH%, quet, lech
     IniWrite, % (g_TuDat ? 1 : 0), %FILE_CAU_HINH%, quet, tudat
     IniWrite, % g_Giay, %FILE_CAU_HINH%, quet, giay
+    IniWrite, % (g_ChoTruoc ? 1 : 0), %FILE_CAU_HINH%, quet, chotruoc
+    IniWrite, % g_GiayCho, %FILE_CAU_HINH%, quet, giaycho
 }
 
 ;=====================================================================
@@ -2062,27 +2107,36 @@ HoiQuetGi()
                                 . (g_DoLai ? " Checked" : "")
                               , Dò lại những ô không thấy gì
 
-    Gui, hQuet:Add, Checkbox, % "voTuDat x20 y350 w250 h22 gDoiTuDatGio"
+    Gui, hQuet:Add, Checkbox, % "voChoTruoc x20 y350 w250 h22 gDoiChoTruoc"
+                                . (g_ChoTruoc ? " Checked" : "")
+                              , Chờ vài giây rồi mới bắt đầu quét
+    Gui, hQuet:Add, Edit, % "voCho x272 y349 w56 h22 Center"
+                           . (g_ChoTruoc ? "" : " Disabled")
+    Gui, hQuet:Add, UpDown, % "voChoUD Range1-30" . (g_ChoTruoc ? "" : " Disabled")
+                           , % g_GiayCho
+    Gui, hQuet:Add, Text, x334 y354 w40 h18, giây
+
+    Gui, hQuet:Add, Checkbox, % "voTuDat x20 y380 w250 h22 gDoiTuDatGio"
                                 . (g_TuDat ? " Checked" : "")
                               , Tự đặt thời gian hiện báo cáo
-    Gui, hQuet:Add, Edit, % "voGiay x272 y349 w56 h22 Center"
+    Gui, hQuet:Add, Edit, % "voGiay x272 y379 w56 h22 Center"
                            . (g_TuDat ? "" : " Disabled")
     Gui, hQuet:Add, UpDown, % "voGiayUD Range3-120" . (g_TuDat ? "" : " Disabled")
                            , % g_Giay
-    Gui, hQuet:Add, Text, x334 y354 w40 h18, giây
+    Gui, hQuet:Add, Text, x334 y384 w40 h18, giây
 
-    Gui, hQuet:Add, Text, x20 y380 w132 h22 +0x200, Chỉnh lệch vị trí tab:
-    Gui, hQuet:Add, Edit, voLech x154 y379 w56 h22 Center
+    Gui, hQuet:Add, Text, x20 y410 w132 h22 +0x200, Chỉnh lệch vị trí tab:
+    Gui, hQuet:Add, Edit, voLech x154 y409 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
-    Gui, hQuet:Add, Text, x216 y384 w40 h18, px
+    Gui, hQuet:Add, Text, x216 y414 w40 h18, px
 
     ; --- thanh nút ---
-    Gui, hQuet:Add, Progress, x0 y412 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y426 w136 h32 +Default gBatDauQuet, Bắt đầu quét
-    Gui, hQuet:Add, Button, x332 y426 w102 h32 gHuyQuet,             Đóng
+    Gui, hQuet:Add, Progress, x0 y442 w452 h58 BackgroundE6E4E1 Disabled
+    Gui, hQuet:Add, Button, x188 y456 w136 h32 +Default gBatDauQuet, Bắt đầu quét
+    Gui, hQuet:Add, Button, x332 y456 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
-    Gui, hQuet:Show, w452 h470 Center
+    Gui, hQuet:Show, w452 h500 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -2100,6 +2154,8 @@ HoiQuetGi()
     g_DoLai   := (oDoLai != 0)
     g_TuDat   := (oTuDat != 0)
     g_Giay    := (oGiayUD + 0 >= 3 && oGiayUD + 0 <= 120) ? oGiayUD + 0 : 10
+    g_ChoTruoc := (oChoTruoc != 0)
+    g_GiayCho := (oChoUD + 0 >= 1 && oChoUD + 0 <= 30) ? oChoUD + 0 : 5
     g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
@@ -2137,6 +2193,10 @@ DatGoiY()
         . "`nlại một lần nữa, chờ lâu gấp đôi."
         . "`n`nBẬT:  quét lâu hơn, nhưng món nào hiện chậm cũng không sót."
         . "`nTẮT:  quét nhanh hơn, đổi lại có thể sót món."
+    g_GoiY["oChoTruoc"] := "Bấm ""Bắt đầu quét"" xong thì đếm ngược rồi mới rê."
+        . "`nĐể bạn kịp bỏ tay khỏi chuột, hoặc kịp mở rương ra."
+        . "`n`nĐang đếm mà bấm Esc thì huỷ."
+    g_GoiY["oCho"] := g_GoiY["oChoTruoc"]
     g_GoiY["oTuDat"] := "Báo cáo cuối lượt tự tắt sau 10 giây."
         . "`nTick vào đây để tự chọn, từ 3 đến 120 giây."
     g_GoiY["oGiay"] := g_GoiY["oTuDat"]
@@ -2204,6 +2264,12 @@ DoiSoTabQuet:
         GuiControl, hQuet:, oTab7, 0
         GuiControl, hQuet:Disable, oTab7
     }
+return
+
+DoiChoTruoc:
+    Gui, hQuet:Submit, NoHide
+    GuiControl, % "hQuet:" . (oChoTruoc ? "Enable" : "Disable"), oCho
+    GuiControl, % "hQuet:" . (oChoTruoc ? "Enable" : "Disable"), oChoUD
 return
 
 DoiTuDatGio:
