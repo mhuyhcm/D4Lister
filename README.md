@@ -169,7 +169,8 @@ hộp thoại hiện ra hỏi quét gì:
 Nó rê con trỏ qua từng ô, ô nào có đồ thì lấy. Rê nhầm chỗ hay rương chưa mở
 thì nó **dừng và báo**, không quét bừa. Bấm `Esc` lúc đang chạy là dừng.
 
-Xong có báo cáo, tự tắt sau 10 giây (đổi được):
+Xong có báo cáo. Mặc định nó **ở lại trên màn cho tới khi bạn bấm Esc** —
+muốn tự tắt thì tick *Time hiển thị báo cáo* rồi chọn số giây:
 
 ```
 QUÉT XONG

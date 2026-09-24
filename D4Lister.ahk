@@ -874,7 +874,21 @@ ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false, dsLuoi := "")
     ; Đồng hồ đếm ngược: một số nhỏ nhạt ở góc dưới phải, không phải một
     ; câu chữ trong thân báo cáo — chữ nhiều thì mắt không biết nhìn đâu.
     SetTimer, DemNguocTimer, Off
-    if (demNguoc && msHien > 0)
+    Hotkey, ~Esc, DongBaoCao, Off
+    if (demNguoc && msHien <= 0)
+    {
+        ; Giữ nguyên trên màn, Esc mới đóng. Dùng ~Esc (có dấu ngã) để phím
+        ; vẫn lọt xuống game — nuốt mất Esc là người dùng đóng menu trong
+        ; game không được, mà lỗi kiểu đó rất khó đoán ra là do đâu.
+        Gui, Msg:Font, % "s" . Round(9 * A_ScreenDPI / 96) . " Bold", Segoe UI
+        Gui, Msg:Add, Text, % "x" . (pX + rongNhat - Round(96 * A_ScreenDPI / 96))
+                           . " y" . (dayY + Round(3 * A_ScreenDPI / 96))
+                           . " w" . Round(96 * A_ScreenDPI / 96)
+                           . " Right c4A4A4A BackgroundTrans vMsgDem"
+                           , Esc để đóng
+        Hotkey, ~Esc, DongBaoCao, On
+    }
+    else if (demNguoc && msHien > 0)
     {
         rongDem := Round(46 * A_ScreenDPI / 96)
         Gui, Msg:Font, % "s" . Round(10 * A_ScreenDPI / 96) . " Bold", Segoe UI
@@ -919,7 +933,12 @@ ShowMsg(text, kind := "ok", msHien := 0, demNguoc := false, dsLuoi := "")
     ; Lúc đang ghim (tức đang quét) thì giữ lâu hơn: một hàng ô mất vài giây,
     ; để 1,1 giây thì bảng tiến độ cứ tắt rồi bật, nhìn như bị treo.
     WinMove, ahk_id %g_MsgHwnd%, , %px%, %py%
-    SetTimer, HideMsgTimer, % -(msHien > 0 ? msHien : (g_GhimX >= 0 ? 4000 : MSG_TIME))
+    ; demNguoc + msHien = 0 nghĩa là giữ mãi -> không hẹn giờ tắt.
+    if (demNguoc && msHien <= 0)
+        SetTimer, HideMsgTimer, Off
+    else
+        SetTimer, HideMsgTimer
+            , % -(msHien > 0 ? msHien : (g_GhimX >= 0 ? 4000 : MSG_TIME))
 }
 
 ;=====================================================================
@@ -964,11 +983,16 @@ DemNguocTimer:
     GuiControl, Msg:, MsgDem, % g_DemConLai . "s"
 return
 
+DongBaoCao:
+    HideMsgNow()
+return
+
 HideMsgNow()
 {
     global g_MsgHwnd
     SetTimer, HideMsgTimer, Off
     SetTimer, DemNguocTimer, Off
+    Hotkey, ~Esc, DongBaoCao, Off
     Gui, Msg:Destroy
     g_MsgHwnd := 0
 }
@@ -2406,16 +2430,19 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
 ;
 ;   Tách khỏi F2 để gọi thử được mà không cần mở game.
 ;=====================================================================
+; Số giây báo cáo ở lại trên màn. Trả về 0 nghĩa là GIỮ MÃI cho tới khi
+; người dùng bấm Esc — mặc định là vậy, vì bảng này là thứ duy nhất cho
+; biết có sót món nào không, tự tắt mất thì coi như chưa từng đọc.
 GiayBaoCao()
 {
     global
-    return g_TuDat ? g_Giay : GIAY_MAC_DINH
+    return g_TuDat ? g_Giay : 0
 }
 
 DungBaoCao(huy, ngoTab, ByRef loai)
 {
     global
-    local vanDe, ghiChu, giayBC, bc, i, d
+    local vanDe, ghiChu, bc, i, d
     ; VẤN ĐỀ làm cả báo cáo đỏ. GHI CHÚ thì không.
     ; Phân biệt chỗ này quan trọng: tắt "dò lại ô im lặng" là lựa chọn của
     ; người dùng, không phải sự cố. Đỏ vì chuyện bình thường thì vài hôm là
@@ -2443,7 +2470,6 @@ DungBaoCao(huy, ngoTab, ByRef loai)
     if (g_TK.cuuDuoc > 0)
         ghiChu .= "`n· Dò lại cứu được " . g_TK.cuuDuoc . " món suýt bị bỏ sót"
 
-    giayBC := GiayBaoCao()
     loai := (vanDe = "" ? "ok" : "err")
     bc := (huy != "" ? "ĐÃ DỪNG GIỮA CHỪNG"
         : vanDe = "" ? "QUÉT XONG" : "QUÉT XONG — CẦN XEM LẠI")
@@ -2698,6 +2724,7 @@ DoQuet:
     ;
     ; Chỉ hai màu: XANH là xong xuôi, ĐỎ là có chuyện cần nhìn. Cam ở giữa
     ; chỉ làm người ta lưỡng lự, mà lưỡng lự thì bỏ qua.
+    ; GiayBaoCao() = 0 -> ShowMsg giữ nguyên bảng, chỉ Esc mới đóng.
     ShowMsg(DungBaoCao(huy, ngoTab, loaiBC), loaiBC, GiayBaoCao() * 1000, true
           , g_HienLuoi ? g_TK.chiTiet : "")
     g_GhimX := -1          ; hết lượt, tooltip bám con trỏ lại như thường
@@ -3009,8 +3036,9 @@ DatGoiY()
         . "`nĐể bạn kịp bỏ tay khỏi chuột, hoặc kịp mở rương ra."
         . "`n`nĐang đếm mà bấm Esc thì huỷ."
     g_GoiY["oCho"] := g_GoiY["oChoTruoc"]
-    g_GoiY["oTuDat"] := "Báo cáo cuối lượt tự tắt sau 10 giây."
-        . "`nTick vào đây để tự chọn, từ 3 đến 120 giây."
+    g_GoiY["oTuDat"] := "KHÔNG tick: báo cáo ở lại trên màn cho tới khi"
+        . "`nbạn bấm Esc. Đọc xong rồi mới tắt."
+        . "`n`nTick vào: tự tắt sau số giây bạn chọn (3 đến 120)."
     g_GoiY["oGiay"] := g_GoiY["oTuDat"]
     g_GoiY["oLech"] := "Chỉ dùng khi bấm ""Test tab"" thấy con trỏ"
         . "`nkhông vào giữa ô. Số dương đẩy sang phải, số âm sang trái."
