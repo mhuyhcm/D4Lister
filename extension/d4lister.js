@@ -11,7 +11,20 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '7.2';          // doi cung luc voi version trong manifest.json
+  const BAN = '7.3';          // doi cung luc voi version trong manifest.json
+
+  // So sanh hai so hieu ban: -1 a cu hon, 0 bang, 1 a moi hon.
+  //
+  // So tung DOAN SO, khong so chuoi. So chuoi thi '7.10' < '7.2' vi ky tu
+  // '1' dung truoc '2' — den ban 7.10 la canh bao cap nhat im lang luon.
+  function soSanhBan(a, b) {
+    const A = String(a).split('.'), B = String(b).split('.');
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      const x = parseInt(A[i], 10) || 0, y = parseInt(B[i], 10) || 0;
+      if (x !== y) return x > y ? 1 : -1;
+    }
+    return 0;
+  }
   // Ngo NHANH, nhung "form da dung yen chua" thi tinh bang THOI GIAN THAT.
   // Truoc day tron hai thu: dung yen = "2 nhip lien" -> moi thu bi lam tron
   // len boi so cua nua giay. Tach ra thi ngo nhanh duoc ma van khong cuop co
@@ -1949,7 +1962,13 @@
 
     // Ban tren dia moi hon ban dang chay -> Chrome chua nap lai. Cai nay
     // GIU NGUYEN do dai: khong biet thi user chay ban cu ca ngay khong hay.
-    if (banTrenDia && banTrenDia !== BAN) {
+    //
+    // CHI bao khi DIA MOI HON, khong phai khi "khac nhau". Hai le:
+    //   1. So nay nam san trong file .txt cua mon do, duoc ghi luc CHUP mon.
+    //      Dan lai mot mon chup tu truoc khi nang ban thi no mang so cu —
+    //      dang chay 7.2 ma file ghi 7.1 la chuyen binh thuong, khong hong gi.
+    //   2. Bao nham nhu vay thi lan sau bao that cung khong ai tin.
+    if (banTrenDia && soSanhBan(banTrenDia, BAN) > 0) {
       h = '<div style="background:#4a1f1f;border:1px solid #a04040;border-radius:6px;' +
           'padding:8px 10px;margin-bottom:10px">' +
           '<b style="color:#ffb0b0">Tiện ích đang chạy bản cũ</b><br>' +
