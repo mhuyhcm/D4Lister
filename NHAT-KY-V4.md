@@ -708,6 +708,38 @@ tưởng là giới hạn.
 
 Kiểm trên 166 ô thật, có cố tình làm lệch: **0 sai ở cả 0, ±8 px hai chiều.**
 
+### 34. Phép đo vị trí lưới tự tin sai — và vì sao cần hai lớp chắn
+
+Bật "bỏ qua ô trống" thì đoán sai một ô là **mất món, im lặng**. Nên trước
+khi bỏ qua, đo lại vị trí lưới tại chỗ; lệch quá 6 px thì thà rê đủ.
+
+Thử bằng cách cố tình đưa vào gốc sai:
+
+```
+lệch  0 px  ->  đo ra  0 px   cho bỏ qua        đúng
+lệch  4 px  ->  đo ra  4 px   cho bỏ qua        đúng
+lệch 10 px  ->  đo ra 10 px   từ chối bỏ qua    đúng
+lệch 20 px  ->  đo ra  3 px   CHO BỎ QUA        *** SAI ***
+```
+
+Vì cửa sổ quét chỉ ±16 px, lưới thật ở 20 px nằm **ngoài tầm**. Nó trả về
+cái tốt nhất trong tầm — và con số "3 px" nghe còn yên tâm hơn cả sự thật.
+
+**Một phép đo không tìm thấy thứ cần tìm vẫn trả về một con số.** Con số đó
+không có nghĩa là "gần đúng", nó có nghĩa là "tôi không thấy gì cả".
+
+Chữa hai lớp:
+
+1. **Nới tầm quét lên ±26 px.** Đo lại: lệch 20 px giờ ra đúng 20.
+2. **Rê thử 6 ô mà mình định bỏ qua**, rải đều khắp lưới. Ô nào lại ra món
+   thì phép nhìn sai → bỏ luôn ý định bỏ qua, rê đủ mọi ô.
+
+Lớp 2 **độc lập** với lớp 1: nó không tin phép đo vị trí, nó hỏi thẳng game.
+Đã thử lại cả 5 mức lệch 0/4/10/20/30 px — đúng hết.
+
+Giá của lớp 2 là 6 ô mỗi lưới, khoảng 1 giây. Rẻ so với việc mất một món mà
+không ai biết.
+
 ---
 
 ## Đo được

@@ -162,6 +162,14 @@ global O_NUA_H    := 20        ; ...nửa bề cao
 global O_BUOC     := 5         ; hai điểm mẫu cách nhau mấy px  -> 72 điểm
 global O_CHENH    := 12        ; sáng hơn điểm tối nhất quá ngần này = "điểm lệch"
 global O_NGUONG   := 18        ; từ ngần này điểm lệch trở lên = ô có đồ
+; Ngưỡng RIÊNG, thấp hơn hẳn, dùng khi quyết định CÓ BỎ QUA ô hay không.
+; Hai việc khác nhau nên hai ngưỡng khác nhau:
+;   báo cáo "nhìn thấy có đồ"  -> đoán sai chỉ mất một dòng cảnh báo
+;   bỏ qua không rê            -> đoán sai là MẤT MÓN, im lặng
+; Đo trên 415 ô thật: ô trống nhiều nhất 1 điểm lệch, ô có đồ ít nhất 30.
+; Để 6 thì ô trống vẫn bỏ qua hết, mà món nào mờ cũng còn cách xa ngưỡng.
+global O_RE       := 6         ; từ ngần này trở lên thì PHẢI rê vào
+global SO_O_THU_LAI := 6       ; rê thử mấy ô 'trống' để kiểm phép nhìn
 global SOT_KE_TOI_DA := 5      ; báo cáo kể tên tối đa mấy ô sót (sổ vẫn ghi đủ)
 
 global CLIENT_W := 1920
@@ -202,6 +210,7 @@ global g_TraLoi  := ""      ; hộp thoại F2 trả về: "" chưa chọn / que
 global g_DoLai   := true    ; có dò lại các ô im lặng không
 global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
 global g_HienLuoi := true   ; vẽ sơ đồ lưới ô trong báo cáo cuối lượt
+global g_BoQuaOTrong := false  ; chỉ rê vào ô nhìn thấy có đồ
 global g_OTrangThai := []   ; trạng thái từng ô của lưới vừa quét
 global g_OCot := 0
 global g_OHang := 0
@@ -1648,8 +1657,10 @@ NhinCaLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ByRef soCoDo)
         {
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
+            ; Trả về SỐ ĐIỂM LỆCH, không phải true/false: hai nơi dùng hai
+            ; ngưỡng khác nhau (xem O_NGUONG và O_RE).
             cs := DemLechO(anh, tx, ty)
-            ra[r * soCot + c] := (cs >= O_NGUONG)
+            ra[r * soCot + c] := cs
             if (cs >= O_NGUONG)
                 soCoDo++
             c++
@@ -2088,8 +2099,48 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
     nhinThay := NhinCaLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, soNhin)
     daDoc := {}
 
+    ; --- CÓ ĐƯỢC PHÉP BỎ QUA Ô TRỐNG KHÔNG ---
+    ; Chỉ khi người dùng bật, VÀ lưới nằm đúng chỗ. Toạ độ lưới đo trên một
+    ; máy; máy khác cỡ cửa sổ khác thì panel túi đồ xê dịch. Bỏ qua dựa trên
+    ; toạ độ sai là mất món mà không ai biết — nên đo lại tại chỗ, lệch quá
+    ; thì thà rê đủ còn hơn.
+    boQua := 0
+    duocBoQua := false
+    if (g_BoQuaOTrong && nhinThay.Length() > 0)
+    {
+        lechLuoi := LechViTriLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang)
+        if (lechLuoi >= 0 && lechLuoi <= 6)
+            duocBoQua := true
+        else
+        {
+            GhiLog("  !! không bỏ qua ô trống: lưới lệch " . lechLuoi
+                 . " px so với chỗ mong đợi — rê đủ mọi ô cho chắc")
+            g_TK.canhLuoi++
+        }
+
+        ; LỚP CHẮN THỨ HAI, độc lập với phép đo vị trí ở trên.
+        ; Phép đo vị trí có thể bị lừa — đã gặp. Nên rê thử vài ô mà mình
+        ; ĐỊNH BỎ QUA: nếu một ô trong đó lại ra món thì phép nhìn sai, bỏ
+        ; luôn ý định bỏ qua và rê đủ mọi ô.
+        if (duocBoQua)
+        {
+            if (!ThuVaiOTrong(gx, gy, x0, y0, ow, oh, soCot, soHang
+                            , nhinThay, huy, xTrong))
+            {
+                duocBoQua := false
+                g_TK.canhLuoi++
+                GhiLog("  !! rê thử ô trống lại ra món — phép nhìn sai,"
+                     . " rê đủ mọi ô")
+            }
+            if (huy != "")
+                duocBoQua := false
+        }
+    }
+
     GhiLog("")
     GhiLog("--- " . ten . "  (" . soHang . "×" . soCot . " = " . (soHang * soCot) . " ô) ---")
+    if (duocBoQua && soNhin = 0)
+        GhiLog("  nhìn không thấy ô nào có đồ — sẽ bỏ qua cả lưới")
     imLang := []
 
     r := 0
@@ -2104,6 +2155,17 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
         {
             tx := gx + Round(x0 + ow * (c + 0.5))
             ty := gy + Round(y0 + oh * (r + 0.5))
+
+            ; Ô nhìn không thấy gì -> bỏ qua, khỏi rê. Ngưỡng ở đây THẤP hơn
+            ; ngưỡng báo cáo: thà rê thừa vài ô còn hơn sót một món.
+            if (duocBoQua && nhinThay[r * soCot + c] < O_RE)
+            {
+                boQua++
+                g_TK.boQua++
+                c++
+                continue
+            }
+
             g_TK.oRe++
             mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms, xTrong, monTruoc)
             if (huy != "")
@@ -2170,6 +2232,98 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
 
 
 ;=====================================================================
+;   RÊ THỬ VÀI Ô ĐỊNH BỎ QUA
+;
+;   Trả về false nếu một ô "nhìn thấy trống" lại ra món — tức phép nhìn
+;   sai, không được bỏ qua ô nào nữa.
+;
+;   Chọn ô rải đều khắp lưới chứ không lấy mấy ô đầu: lưới lệch thì sai
+;   không rải đều, mà dồn về một phía.
+;=====================================================================
+ThuVaiOTrong(gx, gy, x0, y0, ow, oh, soCot, soHang, nhinThay, ByRef huy, xTrong)
+{
+    global
+    local tong, buoc, i, k, r, c, tx, ty, mon, ms, ds, soThu
+
+    ds := []
+    tong := soCot * soHang
+    k := 0
+    while (k < tong)
+    {
+        if (nhinThay[k] < O_RE)
+            ds.Push(k)
+        k++
+    }
+    if (ds.Length() = 0)
+        return true
+
+    soThu := SO_O_THU_LAI
+    if (soThu > ds.Length())
+        soThu := ds.Length()
+    buoc := ds.Length() / soThu
+
+    i := 0
+    while (i < soThu)
+    {
+        k := ds[Floor(i * buoc) + 1]
+        r := k // soCot
+        c := Mod(k, soCot)
+        tx := gx + Round(x0 + ow * (c + 0.5))
+        ty := gy + Round(y0 + oh * (r + 0.5))
+        g_TK.oRe++
+        g_TK.thuLai++
+        mon := QuetMotO(tx, ty, huy, CHO_O_MS, ms, xTrong)
+        if (huy != "")
+            return true
+        if (mon != "")
+        {
+            GhiLog("  !! " . TenOVi(r, c) . " nhìn thấy trống mà lại ra món:"
+                 . " " . TenMonTu(mon))
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+
+;=====================================================================
+;   LƯỚI CÓ NẰM ĐÚNG CHỖ KHÔNG
+;
+;   Trả về số px lệch giữa chỗ TÌM ĐƯỢC và chỗ đang dùng, lấy cái lớn hơn
+;   trong hai chiều. Trả về -1 nếu không đo được.
+;
+;   Chỉ gọi khi người dùng bật "bỏ qua ô trống". Bỏ qua mà toạ độ lệch thì
+;   mất món im lặng, nên phải đo lại tại chỗ chứ đừng tin hằng số.
+;=====================================================================
+LechViTriLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang)
+{
+    global
+    local anh, ket, p, lx, ly
+
+    anh := ChupVung(gx + Round(x0) - 60, gy + Round(y0) - 60
+                  , Round(ow * soCot) + 120, Round(oh * soHang) + 120)
+    if (!anh)
+        return -1
+
+    ; Quét rộng ±26 px. Từng để ±16 và sập: lưới lệch 20 px nằm NGOÀI tầm
+    ; quét, nên nó báo "lệch 3 px" — sai mà lại còn nghe có vẻ yên tâm.
+    ket := LuocDoc(anh, gx + Round(x0) - 26, gx + Round(x0) + 26, ow, soCot + 1
+                 , gy + Round(y0) + 20, gy + Round(y0 + oh * soHang) - 20)
+    StringSplit, p, ket, |
+    lx := Abs(p1 - gx - Round(x0))
+
+    ket := LuocNgang(anh, gy + Round(y0) - 26, gy + Round(y0) + 26, oh, soHang + 1
+                   , gx + Round(x0) + 20, gx + Round(x0 + ow * soCot) - 20)
+    StringSplit, p, ket, |
+    ly := Abs(p1 - gy - Round(y0))
+
+    XoaAnh(anh)
+    return (lx > ly) ? lx : ly
+}
+
+
+;=====================================================================
 ;   ĐỐI CHIẾU: NHÌN THẤY vs ĐỌC ĐƯỢC
 ;
 ;   Đây là thứ trước đây thiếu. TTS im lặng thì chỉ biết "không có gì",
@@ -2205,8 +2359,8 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
         while (c < soCot)
         {
             k := r * soCot + c
-            g_OTrangThai[k] := daDoc[k] ? 1 : (nhinThay[k] ? 2 : 0)
-            if (nhinThay[k] && !daDoc[k])
+            g_OTrangThai[k] := daDoc[k] ? 1 : ((nhinThay[k] >= O_NGUONG) ? 2 : 0)
+            if (nhinThay[k] >= O_NGUONG && !daDoc[k])
             {
                 nThieu++
                 ; Chỉ kể tên vài ô đầu. Một lưới hỏng cả 23 ô mà kể hết thì
@@ -2218,7 +2372,7 @@ DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
                 else if (nThieu = SOT_KE_TOI_DA + 1)
                     thieu .= " …"
             }
-            else if (!nhinThay[k] && daDoc[k])
+            else if (nhinThay[k] < O_NGUONG && daDoc[k])
             {
                 nThua++
                 thua .= (thua = "" ? "" : ", ") . TenOVi(r, c)
@@ -2281,6 +2435,11 @@ DungBaoCao(huy, ngoTab, ByRef loai)
         vanDe .= "`n⚠ SÓT " . g_TK.sot . " ô — nhìn thấy có đồ mà không đọc ra:"
                . "`n   " . g_TK.oSot
 
+    if (g_TK.boQua > 0)
+        ghiChu .= "`n· Bỏ qua " . g_TK.boQua . " ô nhìn thấy trống"
+    if (g_TK.canhLuoi > 0)
+        vanDe .= "`n⚠ " . g_TK.canhLuoi . " lưới nằm lệch chỗ — đã rê đủ mọi ô,"
+               . " không bỏ qua ô nào"
     if (g_TK.cuuDuoc > 0)
         ghiChu .= "`n· Dò lại cứu được " . g_TK.cuuDuoc . " món suýt bị bỏ sót"
 
@@ -2447,7 +2606,8 @@ DoQuet:
     ngoTab := ""                   ; tab nào ngờ là bấm hụt
     g_TK := {oRe: 0, coDo: 0, moi: 0, trung: 0, loi: 0
            , khongHieu: 0, oTrong: 0, cuuDuoc: 0, msMax: 0, hoiLai: 0
-           , chiTiet: [], nhin: 0, sot: 0, oSot: ""}
+           , chiTiet: [], nhin: 0, sot: 0, oSot: ""
+           , boQua: 0, canhLuoi: 0, thuLai: 0}
     SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
 
     FormatTime, gioBatDau,, dd/MM/yyyy HH:mm:ss
@@ -2624,6 +2784,8 @@ NapCauHinhQuet()
     g_GiayCho := (v + 0 >= 1 && v + 0 <= 30) ? v + 0 : 5
     IniRead, v, %FILE_CAU_HINH%, quet, luoi, 1
     g_HienLuoi := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, boqua, 0
+    g_BoQuaOTrong := (v != 0)
     IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
     g_Tab := []
     Loop, 7
@@ -2649,6 +2811,7 @@ LuuCauHinhQuet()
     IniWrite, % (g_ChoTruoc ? 1 : 0), %FILE_CAU_HINH%, quet, chotruoc
     IniWrite, % g_GiayCho, %FILE_CAU_HINH%, quet, giaycho
     IniWrite, % (g_HienLuoi ? 1 : 0), %FILE_CAU_HINH%, quet, luoi
+    IniWrite, % (g_BoQuaOTrong ? 1 : 0), %FILE_CAU_HINH%, quet, boqua
 }
 
 ;=====================================================================
@@ -2730,41 +2893,45 @@ HoiQuetGi()
                                 . (g_DoLai ? " Checked" : "")
                               , Dò lại những ô không thấy gì
 
-    Gui, hQuet:Add, Checkbox, % "voChoTruoc x20 y350 w250 h22 gDoiChoTruoc"
+    Gui, hQuet:Add, Checkbox, % "voBoQua x20 y350 w414 h22"
+                                . (g_BoQuaOTrong ? " Checked" : "")
+                              , Bỏ qua ô trống — nhanh hơn nhiều
+
+    Gui, hQuet:Add, Checkbox, % "voChoTruoc x20 y380 w250 h22 gDoiChoTruoc"
                                 . (g_ChoTruoc ? " Checked" : "")
                               , Time bắt đầu quét sau:
-    Gui, hQuet:Add, Edit, % "voCho x272 y349 w56 h22 Center"
+    Gui, hQuet:Add, Edit, % "voCho x272 y379 w56 h22 Center"
                            . (g_ChoTruoc ? "" : " Disabled")
     Gui, hQuet:Add, UpDown, % "voChoUD Range1-30" . (g_ChoTruoc ? "" : " Disabled")
                            , % g_GiayCho
-    Gui, hQuet:Add, Text, x334 y354 w40 h18, giây
+    Gui, hQuet:Add, Text, x334 y384 w40 h18, giây
 
-    Gui, hQuet:Add, Checkbox, % "voTuDat x20 y380 w250 h22 gDoiTuDatGio"
+    Gui, hQuet:Add, Checkbox, % "voTuDat x20 y410 w250 h22 gDoiTuDatGio"
                                 . (g_TuDat ? " Checked" : "")
                               , Time hiển thị báo cáo
-    Gui, hQuet:Add, Edit, % "voGiay x272 y379 w56 h22 Center"
+    Gui, hQuet:Add, Edit, % "voGiay x272 y409 w56 h22 Center"
                            . (g_TuDat ? "" : " Disabled")
     Gui, hQuet:Add, UpDown, % "voGiayUD Range3-120" . (g_TuDat ? "" : " Disabled")
                            , % g_Giay
-    Gui, hQuet:Add, Text, x334 y384 w40 h18, giây
+    Gui, hQuet:Add, Text, x334 y414 w40 h18, giây
 
-    Gui, hQuet:Add, Checkbox, % "voHienLuoi x20 y410 w414 h22"
+    Gui, hQuet:Add, Checkbox, % "voHienLuoi x20 y440 w414 h22"
                                 . (g_HienLuoi ? " Checked" : "")
                               , Vẽ sơ đồ lưới ô trong báo cáo
 
-    Gui, hQuet:Add, Text, x20 y440 w132 h22 +0x200, Chỉnh lệch vị trí tab:
-    Gui, hQuet:Add, Edit, voLech x154 y439 w56 h22 Center
+    Gui, hQuet:Add, Text, x20 y470 w132 h22 +0x200, Chỉnh lệch vị trí tab:
+    Gui, hQuet:Add, Edit, voLech x154 y469 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
-    Gui, hQuet:Add, Text, x216 y444 w40 h18, px
-    Gui, hQuet:Add, Button, x272 y438 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
+    Gui, hQuet:Add, Text, x216 y474 w40 h18, px
+    Gui, hQuet:Add, Button, x272 y468 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
 
     ; --- thanh nút ---
-    Gui, hQuet:Add, Progress, x0 y472 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y486 w136 h32 +Default gBatDauQuet, Scan
-    Gui, hQuet:Add, Button, x332 y486 w102 h32 gHuyQuet,             Đóng
+    Gui, hQuet:Add, Progress, x0 y502 w452 h58 BackgroundE6E4E1 Disabled
+    Gui, hQuet:Add, Button, x188 y516 w136 h32 +Default gBatDauQuet, Scan
+    Gui, hQuet:Add, Button, x332 y516 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
-    Gui, hQuet:Show, w452 h530 Center
+    Gui, hQuet:Show, w452 h560 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -2785,6 +2952,7 @@ HoiQuetGi()
     g_ChoTruoc := (oChoTruoc != 0)
     g_GiayCho := (oChoUD + 0 >= 1 && oChoUD + 0 <= 30) ? oChoUD + 0 : 5
     g_HienLuoi := (oHienLuoi != 0)
+    g_BoQuaOTrong := (oBoQua != 0)
     g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
@@ -2826,6 +2994,12 @@ DatGoiY()
         . CLIENT_W . "×" . CLIENT_H . "."
         . "`nMọi toạ độ của F2 đo ở cỡ đó, sai cỡ là rê trượt ô."
         . "`n`nChỉ đổi cỡ cửa sổ, không đụng thiết lập nào của game."
+    g_GoiY["oBoQua"] := "Nhìn cả lưới trước bằng điểm ảnh, rồi CHỈ rê vào"
+        . "`nnhững ô có đồ. Ô trống bỏ qua luôn."
+        . "`n`nTab 1 món ở ô cuối: ~31 giây  ->  ~0,2 giây."
+        . "`nTab trống: bỏ qua cả lưới."
+        . "`n`nĐã đo trên 415 ô thật, không sai ô nào. Trước khi bỏ qua nó"
+        . "`ncòn đo lại vị trí lưới; lệch quá 6 px thì tự rê đủ mọi ô."
     g_GoiY["oHienLuoi"] := "Vẽ đúng hình cái rương trong báo cáo cuối lượt:"
         . "`n   xám  = ô trống"
         . "`n   xanh = đọc được"
