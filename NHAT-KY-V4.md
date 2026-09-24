@@ -631,6 +631,42 @@ Còn một lỗi lộ ra lúc chạy thử trọn chuỗi: lưới hỏng cả 2
 *"SÓT 23 ô: …"* kể tên hết, bảng báo cáo rộng **2042 px** — rộng hơn màn
 hình. Giờ báo cáo chỉ kể 5 ô rồi "…", sổ ghi vẫn đủ.
 
+### 32. Một hàm ở phạm vi toàn cục ăn mất biến đếm của vòng lặp
+
+Sơ đồ lưới ghi *"Tab 1"* cho cả tab 2. Nhưng dòng cảnh báo ngay phía trên
+lại ghi đúng *"Rương tab 3"*. Cùng một biến `i`, hai chỗ ra hai kết quả.
+
+Khác nhau ở **thời điểm đọc**:
+
+```ahk
+soTab := i                                  ; đọc TRƯỚC khi quét  -> đúng
+QuetLuoi(…, "Rương tab " . i, huy)
+g_TK.chiTiet.Push({ten: "Tab " . i, …})     ; đọc SAU khi quét    -> hỏng
+```
+
+Thủ phạm là `NhanCau()` — hàm mở đầu bằng `global`, nên **mọi biến không
+khai báo trong đó đều là biến toàn cục**. Nó có dòng
+
+```ahk
+i := g_Dem.Length() - A_Index + 1
+```
+
+và nó chạy **mỗi khi một câu TTS về**, tức liên tục suốt lượt quét. Vòng lặp
+tab và nó dùng chung một biến `i` mà không ai biết.
+
+Chữa hai lớp:
+
+* khai báo `local` cho mọi biến làm việc của các hàm có `global` ở đầu;
+* và vòng lặp tab dùng tên riêng `soTabNay`, không xài lại `i` — vòng đó gọi
+  qua cả chục hàm, chỉ cần **một** hàm nào đó đụng vào là số tab hỏng.
+
+Thêm một phép soát tự động: liệt kê mọi hàm có `global` ở đầu mà gán vào
+biến không khai báo `local`. Lần chạy đầu ra **6 hàm**.
+
+Lưu ý phân biệt: hàm **không** có dòng `global` thì AutoHotkey coi mọi biến
+là cục bộ sẵn — `LocMonTTS`, `DonCau`, `LaTenMon`, `LaMocDung` đều thế, nên
+chúng vô can dù cũng dùng `i`. Chỉ hàm có `global` mới nguy hiểm.
+
 ---
 
 ## Đo được

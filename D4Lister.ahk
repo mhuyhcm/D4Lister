@@ -733,23 +733,32 @@ GoToBatchStart()
 VeLuoiO(dsLuoi, x0, y0, ByRef rongNhat)
 {
     global
-    local i, d, r, c, tt, mau, canh, khe, yy, rongMotLuoi, fs
+    local i, d, r, c, tt, mau, canh, khe, fs
+    local cot, hangY, cotX, caoHang, rongCot, xx, yy, dayNhat
 
-    canh := Round(9 * A_ScreenDPI / 96)     ; cạnh một ô vuông
+    canh := Round(12 * A_ScreenDPI / 96)    ; cạnh một ô vuông
     khe  := Round(2 * A_ScreenDPI / 96)     ; khe giữa hai ô
     fs   := Round(8 * A_ScreenDPI / 96)
-    yy   := y0
+
+    ; Xếp HAI LƯỚI MỘT HÀNG NGANG: tab 1-2 một hàng, 3-4 hàng sau, v.v.
+    ; Xếp dọc hết thì bảng cao lêu nghêu, bảy tab là quá màn hình.
+    ; Cột rộng theo lưới rộng nhất (túi đồ 11 cột) để hai cột thẳng nhau.
+    rongCot := 11 * (canh + khe) - khe + Round(22 * A_ScreenDPI / 96)
+    hangY   := y0
+    dayNhat := y0
+    cot     := 0
 
     for i, d in dsLuoi
     {
         if (!IsObject(d.o) || d.cot < 1 || d.hang < 1)
             continue
-        rongMotLuoi := d.cot * (canh + khe) - khe
-        if (rongMotLuoi > rongNhat)
-            rongNhat := rongMotLuoi
+
+        cotX := x0 + cot * rongCot
+        yy   := hangY
 
         Gui, Msg:Font, s%fs% Norm, Segoe UI
-        Gui, Msg:Add, Text, % "x" . x0 . " y" . yy . " w" . (rongMotLuoi + 60)
+        Gui, Msg:Add, Text, % "x" . cotX . " y" . yy
+                           . " w" . (rongCot - Round(8 * A_ScreenDPI / 96))
                            . " h" . Round(15 * A_ScreenDPI / 96)
                            . " c707070 BackgroundTrans"
                            , % d.ten . "   " . d.coDo . "/" . d.nhin
@@ -763,7 +772,7 @@ VeLuoiO(dsLuoi, x0, y0, ByRef rongNhat)
             {
                 tt := d.o[r * d.cot + c]
                 mau := (tt = 1) ? "2E9E4F" : (tt = 2) ? "C0392B" : "C9C9C9"
-                Gui, Msg:Add, Progress, % "x" . (x0 + c * (canh + khe))
+                Gui, Msg:Add, Progress, % "x" . (cotX + c * (canh + khe))
                                        . " y" . yy . " w" . canh . " h" . canh
                                        . " Background" . mau . " Disabled"
                 c++
@@ -771,9 +780,23 @@ VeLuoiO(dsLuoi, x0, y0, ByRef rongNhat)
             yy += canh + khe
             r++
         }
-        yy += Round(7 * A_ScreenDPI / 96)
+
+        if (cotX + d.cot * (canh + khe) - khe > x0 + rongNhat)
+            rongNhat := cotX + d.cot * (canh + khe) - khe - x0
+        if (yy > dayNhat)
+            dayNhat := yy
+
+        ; Sang cột kia; hết hai cột thì xuống hàng mới.
+        cot++
+        if (cot >= 2)
+        {
+            cot   := 0
+            hangY := dayNhat + Round(9 * A_ScreenDPI / 96)
+        }
     }
-    return yy
+
+    ; Lưới cuối nằm một mình ở cột trái thì đáy vẫn là đáy của nó.
+    return (cot = 0) ? hangY : (dayNhat + Round(9 * A_ScreenDPI / 96))
 }
 
 
@@ -991,6 +1014,7 @@ return
 VetOng()
 {
     global
+    local doc, ok
     if (g_Pipe = 0 || g_Pipe = INVALID_HANDLE_VALUE)
         return
     ; VÉT CẠN đường ống mỗi nhịp, không phải nhấp một câu mỗi nhịp.
@@ -1054,6 +1078,13 @@ LaTenMon(d)
 NhanCau(goi)
 {
     global
+    ; BẮT BUỘC khai báo cục bộ. Hàm này ở phạm vi toàn cục (có "global" ở
+    ; trên) nên mọi biến không khai báo đều là biến TOÀN CỤC — mà nó chạy
+    ; mỗi khi một câu TTS về, tức liên tục suốt lượt quét.
+    ;
+    ; Đã sập vì đúng chỗ này: vòng lặp tab trong DoQuet dùng biến i, hàm
+    ; này ghi đè lên, thế là nhãn lưới ghi "Tab 1" cho cả tab 2.
+    local d, thap, vt, i, mon
     Loop, Parse, goi, `n, `r
     {
         d := DonCau(A_LoopField)
@@ -2213,7 +2244,7 @@ GiayBaoCao()
 DungBaoCao(huy, ngoTab, ByRef loai)
 {
     global
-    local vanDe, ghiChu, giayBC, bc
+    local vanDe, ghiChu, giayBC, bc, i, d
     ; VẤN ĐỀ làm cả báo cáo đỏ. GHI CHÚ thì không.
     ; Phân biệt chỗ này quan trọng: tắt "dò lại ô im lặng" là lựa chọn của
     ; người dùng, không phải sự cố. Đỏ vì chuyện bình thường thì vài hôm là
@@ -2415,13 +2446,16 @@ DoQuet:
     {
         if (huy != "")
             break
-        i := A_LoopField + 0
-        tabX := TamTab(i, g_SoTab)
+        ; Tên riêng, không dùng lại i. Vòng lặp này gọi qua cả chục hàm;
+        ; chỉ cần MỘT hàm ở phạm vi toàn cục đụng vào i là số tab hỏng.
+        soTabNay := A_LoopField + 0
+        i := soTabNay
+        tabX := TamTab(soTabNay, g_SoTab)
         if (tabX < 0)
             continue
         tabX += gx
         tabY := gy + TAB_Y
-        ShowMsg("Đổi sang tab " . i . "…", "warn")
+        ShowMsg("Đổi sang tab " . soTabNay . "…", "warn")
         MouseMove, %tabX%, %tabY%, 0
         Sleep, 60
         Click
@@ -2432,22 +2466,22 @@ DoQuet:
         truocRe   := g_TK.oRe
         truocNhin := g_TK.nhin
         QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
-               , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy)
+               , RUONG_COT, RUONG_HANG, "Rương tab " . soTabNay, huy)
         tabCoDo := g_TK.coDo - truocCoDo
         tabMoi  := g_TK.moi  - truocMoi
-        g_TK.chiTiet.Push({ten: "Tab " . i, coDo: tabCoDo
+        g_TK.chiTiet.Push({ten: "Tab " . soTabNay, coDo: tabCoDo
                          , oRe: g_TK.oRe - truocRe
                          , nhin: g_TK.nhin - truocNhin
                          , o: g_OTrangThai, cot: g_OCot, hang: g_OHang})
-        GhiLog("  = tab " . i . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
+        GhiLog("  = tab " . soTabNay . ": " . tabCoDo . " ô có đồ, " . tabMoi . " món mới")
 
         ; Bấm hụt dải tab thì game vẫn hiện tab cũ, và ta quét lại y nguyên
         ; tab vừa rồi — mọi món đều "trùng". Không có cách nào nhìn thấy điều
         ; đó, nhưng dấu vết thì rõ: có đồ mà tuyệt nhiên không món nào mới.
         if (tabCoDo > 0 && tabMoi = 0)
         {
-            ngoTab .= (ngoTab = "" ? "" : ", ") . i
-            GhiLog("  !! tab " . i . " không ra món mới nào — ngờ là bấm hụt tab")
+            ngoTab .= (ngoTab = "" ? "" : ", ") . soTabNay
+            GhiLog("  !! tab " . soTabNay . " không ra món mới nào — ngờ là bấm hụt tab")
         }
     }
 
@@ -2513,7 +2547,7 @@ return
 ThemVaoHangDoi(chu, monGoc, noi, r, c)
 {
     global
-    local khoa
+    local khoa, f
 
     khoa := noi . "|" . r . "|" . c . "|" . monGoc
     if (g_DaQuet.HasKey(khoa))
@@ -2554,6 +2588,7 @@ DocDsTab()
 NapCauHinhQuet()
 {
     global
+    local v, dsTab, i
     IniRead, v, %FILE_CAU_HINH%, quet, soTab, 7
     g_SoTab := (v = 6) ? 6 : 7
     IniRead, v, %FILE_CAU_HINH%, quet, tui, 1
