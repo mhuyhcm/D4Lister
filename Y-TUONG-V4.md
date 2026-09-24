@@ -117,7 +117,7 @@ hiện được "món tương tự đang rao 40–60 triệu" thì đó là th�
 
 ## 4. Danh mục offline của D4LF — ĐÃ KIỂM, KHÔNG dùng thay được
 
-`F:\Project\Website\D4LF\d4lfssets\lang\enUS\` có `affixes.json`,
+`F:\Project\Website\D4LF\d4lf\assets\lang\enUS\` có `affixes.json`,
 `aspects.json`, `uniques.json`, `sigils.json`…
 
 **Thoạt nhìn tưởng là bản dự phòng cho danh mục lấy từ bộ nhớ React của
