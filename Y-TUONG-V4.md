@@ -96,34 +96,62 @@ nội dung đã có sẵn và chạy ổn.
 nên **đừng dựng lại** — cách rẻ hơn: rê hết 33 ô, ô trống thì game không gửi
 tooltip, mình bỏ qua. Chậm hơn chút nhưng không phải nuôi lại GDI+.
 
-**b) Toạ độ lưới — BÊ THẲNG ĐƯỢC, không cần hiệu chỉnh.**
+**b) Toạ độ lưới — ĐÃ ĐO XONG, fix cứng.**
 
-Ban đầu tôi tưởng phải để người dùng chỉ vào ô đầu / ô cuối. Đọc mã thì
-không cần: toạ độ của D4LF là **một công thức**, không phải bảng dò
-(`src/settings/coordinates.py`):
+Toạ độ của D4LF là **một công thức**, không phải bảng dò
+(`src/settings/coordinates.py` + `scaling.py`):
 
 ```python
 """Everything is this file is based on UHD resolution (3840x2160)."""
 slots_3x11 = np.array([2536, 1444, 1214, 486])   # x, y, rong, cao
+
+scale_y = target_height / 2160        # co gian theo CHIEU CAO, ca x lan y
+new = value * scale_y
+width_org = int(scale_y * 3840)
+if new[0] > width_org / 2:            # phan ben PHAI thi day sang
+    new[0] += target_width - width_org
 ```
 
-Đúng **một hình chữ nhật** đo ở 3840×2160, rồi chia đều cho 3 hàng × 11 cột
-(`to_grid`). Độ phân giải khác thì nhân tỉ lệ — log D4LF ghi rõ
-`Setting ui resolution to 1920x1027`.
+### Số đã chốt cho máy này (đo thật 24/09/2026)
 
-Quy ra **1920×1080**:
+Người dùng chơi **chế độ cửa sổ mặc định**, màn hình 1920×1080. Đo bằng
+`GetClientRect` + `ClientToScreen` trên cửa sổ game đang chạy:
 
 ```
-khoi o :  x=1268  y=722  rong=607  cao=243
-moi o  :  55,2 x 81,0 px
-tam o dau: (1295, 762)
+vung ve (client)         : 1920 x 1027      <- KHONG phai 1080
+goc client tren man hinh : (0, 23)          <- thanh tieu de cao 23 px
+ca cua so                : 1936 x 1066 tai (-8, -8)
 ```
 
-AutoHotkey tự lấy kích thước cửa sổ game bằng `WinGetPos` rồi nhân tỉ lệ —
-**không cần ảnh chụp, không cần bước hiệu chỉnh nào.**
+Suy ra:
 
-Vẫn nên có nút hiệu chỉnh tay làm đường lui, phòng khi Blizzard đổi bố cục
-giao diện.
+```
+he so co gian        : 1027 / 2160 = 0,475463
+ROI trong client     : x=1300  y=686  rong=577  cao=231
+mot o                : 52,45 x 77,00 px
+
+TAM O, TOA DO MAN HINH:
+    x = 1300 + 52,45 * (cot + 0,5)        cot = 0..10
+    y =  709 + 77,00 * (hang + 0,5)       hang = 0..2
+
+    hang 1:  1326,748   1379,748   1431,748  ...  1851,748
+    hang 2:  1326,824   1379,824   1431,824  ...  1851,824
+    hang 3:  1326,902   1379,902   1431,902  ...  1851,902
+```
+
+### Cách cài cho đúng
+
+**Fix cứng ROI trong toạ độ CLIENT** `(1300, 686, 577, 231)` — đây là phần
+phụ thuộc độ phân giải, và người dùng chỉ dùng 1920×1080 nên không cần co
+giãn gì nữa.
+
+**Nhưng góc client thì đọc lúc chạy** — một lệnh `WinGetPos` / `ClientToScreen`.
+Không phải để co giãn, mà vì **người dùng kéo cửa sổ đi chỗ khác là lệch hết**.
+Hiện góc ở (0, 23) nhưng đó không phải hằng số.
+
+**Và kiểm vùng client có đúng 1920×1027 không.** Khác thì báo lỗi rõ ràng
+thay vì lặng lẽ rê nhầm ô — đổi sang toàn màn hình là client thành 1920×1080,
+lệch 30 px ngang và 38 px dọc, hơn nửa chiều rộng một ô.
 
 ### Rê chuột phải có nhịp
 
