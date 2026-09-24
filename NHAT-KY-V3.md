@@ -1,7 +1,7 @@
 # D4Lister v3 — nhật ký và các bẫy đã gỡ
 
 Ngày chốt: **23/09/2026**
-AutoHotkey `D4Lister.ahk` **v3** · tiện ích Chrome `d4lister.js` **7.1**
+AutoHotkey `D4Lister.ahk` **v3** · tiện ích Chrome `d4lister.js` **7.3**
 
 ---
 
