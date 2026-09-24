@@ -60,6 +60,7 @@ global g_DpiMode := EnableDpiAwareness()
 ;=====================================================================
 ;   CẤU HÌNH  -  sửa ở đây
 ;=====================================================================
+global HK_QUET    := "F2"           ; quét hàng loạt rương + túi đồ
 global HK_CAPTURE := "F3"           ; lấy món đang rê chuột
 global HK_PASTE   := "F4"           ; dán item hiện tại
 global HK_NEXT    := "F5"           ; sang item kế + dán luôn
@@ -86,6 +87,67 @@ global COL_ERR  := "C00000"
 global COL_WARN := "C06000"
 
 ;=====================================================================
+;   QUÉT HÀNG LOẠT  (F2)
+;
+;   F3 vẫn giữ nguyên: lấy đúng món đang rê chuột. F2 là đường khác —
+;   tự rê qua từng ô rương và túi đồ, món nào có thì đưa vào hàng đợi.
+;
+;   CÁCH LÀM lấy theo D4LF (đã đọc mã nguồn của họ): rê chuột qua tâm
+;   từng ô, game gửi tooltip ra đường ống, ô trống thì game im lặng.
+;   Khác D4LF một chỗ: họ chụp màn hình để biết ô nào có đồ; V3 đã bỏ hết
+;   bộ xử lý ảnh nên ta rê hết mọi ô, ô nào im thì bỏ qua.
+;
+;   TOẠ ĐỘ — ĐO THẬT trên ảnh chụp ngày 24/09/2026, không dùng công thức
+;   quy đổi của D4LF. Đo bằng cách dò các đường kẻ của lưới:
+;
+;       RƯƠNG   11 đường dọc  x = 42 .. 623   cách đều 58,1
+;                6 đường ngang y = 279 .. 740  cách đều 92,2
+;       TÚI ĐỒ  x = 1301, ô rộng 52,4  ·  y = 709, ô cao 77,0
+;       TAB     dải căn giữa quanh x = 332,5, mỗi ô rộng 59,1, y = 185
+;
+;   Riêng dải tab thì công thức của D4LF SAI: họ giãn 63 px trong khi
+;   thực tế 59,1 — tab ở hai đầu lệch tới 12-13 px mà ô tab chỉ rộng 53.
+;   Bấm hụt ra ngoài panel là bấm vào thế giới, nhân vật chạy đi.
+;
+;   Mọi số dưới đây là TOẠ ĐỘ TRONG VÙNG VẼ của cửa sổ game, không phải
+;   toạ độ màn hình. Góc của vùng vẽ đọc lúc chạy — kéo cửa sổ đi chỗ
+;   khác thì mọi thứ vẫn đúng.
+;=====================================================================
+
+; --- lưới rương: 5 hàng × 10 cột ---
+global RUONG_X    := 42
+global RUONG_Y    := 256        ; 279 trên màn hình − 23 của thanh tiêu đề
+global RUONG_OW   := 58.1
+global RUONG_OH   := 92.2
+global RUONG_COT  := 10
+global RUONG_HANG := 5
+
+; --- lưới túi đồ: 3 hàng × 11 cột ---
+global TUI_X    := 1301
+global TUI_Y    := 686
+global TUI_OW   := 52.4
+global TUI_OH   := 77.0
+global TUI_COT  := 11
+global TUI_HANG := 3
+
+; --- dải tab: căn giữa, số tab đổi được ở menu khay ---
+global TAB_GIUA := 332.5
+global TAB_RONG := 59.1
+global TAB_Y    := 162          ; 185 − 23
+
+; --- nhịp ---
+global CHO_O_MS   := 160        ; chờ tooltip tối đa bao lâu mỗi ô
+global CHO_TAB_MS := 400        ; chờ sau khi bấm đổi tab
+global LECH_CHUOT := 8          ; con trỏ lệch quá ngần này px = người dùng động vào
+
+; --- vùng vẽ mong đợi. Khác thì dừng, vì mọi toạ độ trên đo ở cỡ này ---
+global CLIENT_W := 1920
+global CLIENT_H := 1027
+
+global g_DangQuet := false
+global FILE_CAU_HINH := A_ScriptDir . "\quet.ini"
+
+;=====================================================================
 ;   BIẾN TOÀN CỤC
 ;=====================================================================
 global g_Items   := []      ; danh sách file .txt trong hàng đợi
@@ -107,6 +169,12 @@ global g_TenCuoi := ""
 global g_MonDaLay := ""     ; món vừa bấm F3 — chặn bấm hai lần ra hai bản
 global g_DaNoi   := false   ; game đã nối vào đường ống chưa
 global g_LanThuOng := 0     ; lần gần nhất thử dựng đường ống (A_TickCount)
+
+; --- quét hàng loạt (F2) ---
+global g_SoTab   := 7       ; rương có mấy tab — đổi ở menu khay
+global g_QuetTui := true    ; có quét cả túi đồ nhân vật không
+global g_Tab     := []      ; g_Tab[i] = có quét tab i không
+global g_DaQuet  := []      ; nội dung các món đã lấy trong lượt quét này
 
 ; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
 ; Chạm ngưỡng là gần như chắc chắn công tắc Advanced Tooltip Information
@@ -136,6 +204,12 @@ daDonQueueCu := DonQueueCu()
 
 LoadQueue()
 
+NapCauHinhQuet()
+DungMenuQuet()
+Menu, Tray, Add
+Menu, Tray, Add, Quét hàng loạt (F2), :mQuet
+
+Hotkey, %HK_QUET%,    DoQuet
 Hotkey, %HK_CAPTURE%, DoCapture
 Hotkey, %HK_PASTE%,   DoPaste
 Hotkey, %HK_NEXT%,    DoNext
@@ -195,13 +269,13 @@ DoCapture:
     ; mà lấy luôn thì ra món TRƯỚC ĐÓ — đúng cái sai bạn gặp.
     ; Tắt đồng hồ trong lúc này để hai bên không cùng đọc một đường ống.
     SetTimer, DocOng, Off
-    Gosub, DocOng
+    VetOng()
     Loop, 10
     {
         if (g_Dem.Length() = 0)
             break
         Sleep, 25
-        Gosub, DocOng
+        VetOng()
     }
     SetTimer, DocOng, %NHIP_ONG%
 
@@ -387,6 +461,7 @@ DoClear:
     g_FreshCapture := false
     g_BatchStart := 1
     g_MonDaLay := ""      ; xóa sạch rồi thì món đang rê chuột lấy lại được
+    g_DaQuet := []
 
     if (n = 0)
         ShowMsg("Hàng đợi đã trống sẵn", "warn")
@@ -727,6 +802,16 @@ DocOng:
         }
         return
     }
+    VetOng()
+return
+
+;   Vét cạn đường ống. Tách thành HÀM để cả đồng hồ, F3 và F2 dùng chung
+;   — ba nơi đều cần đọc, mà đọc chồng nhau thì mất câu.
+VetOng()
+{
+    global
+    if (g_Pipe = 0 || g_Pipe = INVALID_HANDLE_VALUE)
+        return
     ; VÉT CẠN đường ống mỗi nhịp, không phải nhấp một câu mỗi nhịp.
     ;
     ; BẪY ĐÃ SỤP MỘT LẦN: đường ống chạy ở CHẾ ĐỘ THÔNG ĐIỆP, mỗi lần
@@ -756,7 +841,7 @@ DocOng:
         DllCall("DisconnectNamedPipe", "ptr", g_Pipe)
         DllCall("ConnectNamedPipe", "ptr", g_Pipe, "ptr", 0)
     }
-return
+}
 
 ;   Dọn mấy thứ rác đã biết là có trong chữ TTS (danh sách của D4LF)
 DonCau(d)
@@ -1180,6 +1265,339 @@ SoTiepTheo()
     }
     return SubStr("000" . (n + 1), -2)
 }
+;=====================================================================
+;   GÓC VÀ CỠ CỦA VÙNG VẼ
+;   Trả về false nếu không thấy cửa sổ game.
+;=====================================================================
+VungVe(ByRef gx, ByRef gy, ByRef rong, ByRef cao)
+{
+    WinGet, hwnd, ID, Diablo IV
+    if (!hwnd)
+        return false
+    VarSetCapacity(pt, 8, 0)
+    DllCall("ClientToScreen", "ptr", hwnd, "ptr", &pt)
+    gx := NumGet(pt, 0, "Int")
+    gy := NumGet(pt, 4, "Int")
+    VarSetCapacity(rc, 16, 0)
+    DllCall("GetClientRect", "ptr", hwnd, "ptr", &rc)
+    rong := NumGet(rc, 8, "Int")
+    cao  := NumGet(rc, 12, "Int")
+    return true
+}
+
+
+;=====================================================================
+;   QUÉT MỘT Ô
+;
+;   Xoá món đang giữ trước khi rê, để cái nhận được chắc chắn là của ô
+;   này chứ không phải sót lại của ô trước.
+;
+;   Trả về: "" nếu ô trống hoặc bị huỷ, ngược lại là chữ của món.
+;=====================================================================
+QuetMotO(x, y, ByRef huy)
+{
+    global
+    local het, mon
+
+    g_MonCuoi := ""
+    g_TenCuoi := ""
+    g_Dem := []
+    VetOng()            ; vét sạch phần còn đọng của ô trước
+    g_MonCuoi := ""
+    g_Dem := []
+
+    MouseMove, %x%, %y%, 0
+
+    het := A_TickCount + CHO_O_MS
+    Loop
+    {
+        if (GetKeyState("Escape", "P"))
+        {
+            huy := "bạn bấm Esc"
+            return ""
+        }
+        MouseGetPos, mx, my
+        if (Abs(mx - x) > LECH_CHUOT || Abs(my - y) > LECH_CHUOT)
+        {
+            huy := "con trỏ bị động vào"
+            return ""
+        }
+        VetOng()
+        if (g_MonCuoi != "")
+            break
+        if (A_TickCount > het)
+            return ""       ; ô trống
+        Sleep, 15
+    }
+
+    ; Tooltip có thể còn đang về dở — đợi nốt một nhịp ngắn
+    Sleep, 25
+    VetOng()
+    return g_MonCuoi
+}
+
+
+;=====================================================================
+;   QUÉT MỘT LƯỚI
+;=====================================================================
+QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy, ByRef soMoi)
+{
+    global
+    local r, c, tx, ty, mon, chu
+
+    r := 0
+    while (r < soHang)
+    {
+        ; Báo tiến độ MỖI HÀNG, không phải mỗi ô: ShowMsg dựng lại cả cửa
+        ; sổ GUI nên gọi 83 lần một lượt thì vừa chậm vừa nhấp nháy.
+        ShowMsg(ten . " — hàng " . (r + 1) . "/" . soHang
+            . "`nđã lấy " . soMoi . " món   ·   Esc để dừng", "warn")
+        c := 0
+        while (c < soCot)
+        {
+            tx := gx + Round(x0 + ow * (c + 0.5))
+            ty := gy + Round(y0 + oh * (r + 0.5))
+            mon := QuetMotO(tx, ty, huy)
+            if (huy != "")
+                return
+            if (mon != "")
+            {
+                chu := LocMonTTS(mon)
+                if (chu != "" && ThemVaoHangDoi(chu, mon))
+                    soMoi++
+            }
+            c++
+        }
+        r++
+    }
+}
+
+
+;=====================================================================
+;   HOTKEY: F2  -  QUÉT HÀNG LOẠT
+;=====================================================================
+DoQuet:
+    if (g_Busy || g_DangQuet)
+        return
+    HideMsgNow()
+
+    if (g_Pipe = 0 || g_Pipe = INVALID_HANDLE_VALUE)
+    {
+        ShowMsg("Chưa dựng được đường ống — D4LF có đang chạy không?", "err")
+        return
+    }
+    if (!g_DaNoi)
+    {
+        ShowMsg("Game chưa nối vào đường ống — xem _he-thong\CAI-TTS.cmd", "err")
+        return
+    }
+    if (!VungVe(gx, gy, cw, ch))
+    {
+        ShowMsg("Không thấy cửa sổ Diablo IV", "err")
+        return
+    }
+    if (cw != CLIENT_W || ch != CLIENT_H)
+    {
+        ShowMsg("Vùng vẽ của game là " . cw . "×" . ch . ", không phải "
+            . CLIENT_W . "×" . CLIENT_H . "`nMọi toạ độ đo ở cỡ kia nên sẽ rê trượt ô."
+            . "`nĐể game ở chế độ cửa sổ mặc định, màn hình 1920×1080.", "err")
+        return
+    }
+
+    dsTab := DocDsTab()
+    if (dsTab = "" && !g_QuetTui)
+    {
+        ShowMsg("Chưa chọn quét gì cả`nChuột phải icon khay → Quét hàng loạt", "err")
+        return
+    }
+
+    g_DangQuet := true
+    g_Busy := true
+    MouseGetPos, chuotX, chuotY
+    RefreshForCapture()
+    soMoi := 0
+    huy := ""
+    SetTimer, DocOng, Off          ; chỉ một nơi được đọc đường ống
+
+    ; --- các tab rương ---
+    Loop, Parse, dsTab, `,
+    {
+        if (huy != "")
+            break
+        i := A_LoopField + 0
+        tabX := gx + Round(TAB_GIUA + TAB_RONG * (i - 1 - (g_SoTab - 1) / 2))
+        tabY := gy + TAB_Y
+        ShowMsg("Đổi sang tab " . i . "…", "warn")
+        MouseMove, %tabX%, %tabY%, 0
+        Sleep, 60
+        Click
+        Sleep, %CHO_TAB_MS%
+        QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
+               , RUONG_COT, RUONG_HANG, "Rương tab " . i, huy, soMoi)
+    }
+
+    ; --- túi đồ ---
+    if (huy = "" && g_QuetTui)
+        QuetLuoi(gx, gy, TUI_X, TUI_Y, TUI_OW, TUI_OH
+               , TUI_COT, TUI_HANG, "Túi đồ", huy, soMoi)
+
+    MouseMove, %chuotX%, %chuotY%, 0
+    SetTimer, DocOng, %NHIP_ONG%
+    g_Busy := false
+    g_DangQuet := false
+
+    if (huy != "")
+        ShowMsg("Dừng giữa chừng (" . huy . ")`nĐã lấy được " . soMoi . " món", "warn")
+    else if (soMoi = 0)
+        ShowMsg("Quét xong, không tìm thấy món nào mới"
+            . "`nRương đã mở chưa? Bấm F2 khi đang mở rương.", "warn")
+    else
+        ShowMsg("Quét xong — thêm " . soMoi . " món"
+            . "`nHàng đợi: " . g_Items.Length() . " món", "ok")
+return
+
+;=====================================================================
+;   THÊM MỘT MÓN VÀO HÀNG ĐỢI
+;
+;   Tách ra khỏi F3 để F2 dùng chung. Chống trùng bằng cách so NỘI DUNG
+;   món, không phải "món cuối" như F3 — quét hàng loạt thì con trỏ đi qua
+;   lại, rất dễ đọc lại một món đã có.
+;=====================================================================
+ThemVaoHangDoi(chu, monGoc)
+{
+    global
+
+    for k, cu in g_DaQuet
+        if (cu = monGoc)
+            return false
+
+    f := QUEUE_DIR . "\" . SoTiepTheo() . ".txt"
+    FileDelete, %f%
+    FileAppend, %chu%, %f%, UTF-8-RAW
+    if !FileExist(f)
+        return false
+
+    if (!g_FreshCapture)
+        g_BatchStart := g_Items.Length() + 1
+    g_Items.Push(f)
+    g_Cur := g_Items.Length()
+    g_FreshCapture := true
+    g_DaQuet.Push(monGoc)
+    return true
+}
+
+
+;=====================================================================
+;   MENU KHAY: CHỌN QUÉT GÌ
+;
+;   Đặt ở menu khay chứ không phải sửa mã: mỗi buổi bạn muốn quét tab
+;   khác nhau. Lưu vào quet.ini cạnh script nên lần sau mở vẫn nhớ.
+;=====================================================================
+DocDsTab()
+{
+    global g_Tab
+    ra := ""
+    Loop, 7
+        if (g_Tab[A_Index])
+            ra .= (ra = "" ? "" : ",") . A_Index
+    return ra
+}
+
+NapCauHinhQuet()
+{
+    global
+    IniRead, v, %FILE_CAU_HINH%, quet, soTab, 7
+    g_SoTab := (v = 6) ? 6 : 7
+    IniRead, v, %FILE_CAU_HINH%, quet, tui, 1
+    g_QuetTui := (v != 0)
+    IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
+    g_Tab := []
+    Loop, 7
+        g_Tab[A_Index] := false
+    Loop, Parse, dsTab, `,
+    {
+        i := A_LoopField + 0
+        if (i >= 1 && i <= 7)
+            g_Tab[i] := true
+    }
+}
+
+LuuCauHinhQuet()
+{
+    global
+    IniWrite, % g_SoTab, %FILE_CAU_HINH%, quet, soTab
+    IniWrite, % (g_QuetTui ? 1 : 0), %FILE_CAU_HINH%, quet, tui
+    IniWrite, % DocDsTab(), %FILE_CAU_HINH%, quet, tab
+}
+
+DungMenuQuet()
+{
+    global
+    ; BẪY: lần đầu vào đây menu mQuet chưa tồn tại, mà DeleteAll trên menu
+    ; chưa có thì AutoHotkey GIẾT LUÔN luồng đang chạy — không hộp lỗi,
+    ; không stderr, tiến trình vẫn sống. Mọi dòng phía sau coi như mất.
+    ; Thêm một mục mầm trước để menu chắc chắn tồn tại rồi mới xoá sạch.
+    Menu, mQuet, Add, _mam, BamChonTab
+    Menu, mQuet, DeleteAll
+    Loop, 7
+    {
+        ten := "Tab " . A_Index
+        Menu, mQuet, Add, %ten%, BamChonTab
+        if (A_Index > g_SoTab)
+            Menu, mQuet, Disable, %ten%
+        else if (g_Tab[A_Index])
+            Menu, mQuet, Check, %ten%
+    }
+    Menu, mQuet, Add
+    Menu, mQuet, Add, Túi đồ nhân vật, BamChonTui
+    if (g_QuetTui)
+        Menu, mQuet, Check, Túi đồ nhân vật
+    Menu, mQuet, Add
+    Menu, mQuet, Add, Chọn tất cả, BamChonHet
+    Menu, mQuet, Add, Bỏ chọn tất cả, BamBoHet
+    Menu, mQuet, Add
+    ten := "Rương có " . g_SoTab . " tab  (bấm để đổi)"
+    Menu, mQuet, Add, %ten%, BamDoiSoTab
+}
+
+BamChonTab:
+    i := SubStr(A_ThisMenuItem, 5) + 0
+    g_Tab[i] := !g_Tab[i]
+    LuuCauHinhQuet()
+    DungMenuQuet()
+return
+
+BamChonTui:
+    g_QuetTui := !g_QuetTui
+    LuuCauHinhQuet()
+    DungMenuQuet()
+return
+
+BamChonHet:
+    Loop, % g_SoTab
+        g_Tab[A_Index] := true
+    g_QuetTui := true
+    LuuCauHinhQuet()
+    DungMenuQuet()
+return
+
+BamBoHet:
+    Loop, 7
+        g_Tab[A_Index] := false
+    g_QuetTui := false
+    LuuCauHinhQuet()
+    DungMenuQuet()
+return
+
+BamDoiSoTab:
+    g_SoTab := (g_SoTab = 7) ? 6 : 7
+    if (g_SoTab = 6)
+        g_Tab[7] := false
+    LuuCauHinhQuet()
+    DungMenuQuet()
+    ShowMsg("Rương có " . g_SoTab . " tab", "warn")
+return
+
 ;=====================================================================
 ;   DỌN DẸP LÚC THOÁT
 ;=====================================================================

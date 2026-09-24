@@ -326,6 +326,44 @@ người dùng.
 Đã thử: bật → đếm 0, có cờ. Tắt → 1, 2, 3 rồi ngừng phát cờ. Bật lại → về 0
 ngay.
 
+### 23. `Menu, ..., DeleteAll` trên menu chưa tồn tại — giết luồng, không một lời
+
+Đây là cái bẫy tốn nhiều giờ nhất của bản này.
+
+`DungMenuQuet()` mở đầu bằng `Menu, mQuet, DeleteAll` để dựng lại menu từ đầu
+mỗi lần đổi lựa chọn. Lần **đầu tiên** gọi thì `mQuet` chưa tồn tại, và
+AutoHotkey v1 phản ứng bằng cách **kết thúc luôn luồng đang chạy**:
+
+* không hộp lỗi,
+* không ghi gì ra `stderr`, kể cả khi chạy với `/ErrorStdOut`,
+* tiến trình **vẫn sống**, biểu tượng khay vẫn hiện,
+* `/iLib` kiểm cú pháp vẫn báo sạch — vì đây là lỗi lúc chạy.
+
+Lời gọi nằm trong phần tự chạy, nên mọi dòng phía sau mất sạch: phím tắt
+không đăng ký, `MoOng()` không chạy, **đường ống không bao giờ được dựng**.
+Nhìn từ ngoài: script chạy, F3 câm, D4LF không nối được — chẳng có manh mối
+nào chỉ về cái menu.
+
+Bắt được bằng cách chèn `FileAppend` sau **từng dòng** của phần tự chạy rồi
+xem dòng cuối cùng nào kịp ghi.
+
+Chữa: thêm một mục mầm để menu chắc chắn có rồi mới xoá sạch.
+
+```ahk
+Menu, mQuet, Add, _mam, BamChonTab   ; tạo menu nếu chưa có
+Menu, mQuet, DeleteAll
+```
+
+Hai bẫy phụ đi kèm, cũng đáng nhớ:
+
+* **`FileAppend, chữ, tên-file` — tham số tên file KHÔNG phải biểu thức.**
+  Bọc tên file trong dấu nháy thì dấu nháy thành một phần của tên, file không
+  đẻ ra. Bài thử đầu tiên của tôi dính đúng lỗi này nên ra kết quả rỗng, và
+  tôi kết luận nhầm là đoạn mã không chạy — mất một vòng chẩn đoán.
+* **Liệt kê đường ống bằng `[IO.Directory]::GetFiles` lúc được lúc không**, có
+  lần ném thẳng `DirectoryNotFoundException`. Muốn biết ống có thật hay không
+  thì **nối thử** bằng `NamedPipeClientStream.Connect(700)`.
+
 ---
 
 ## Đo được
