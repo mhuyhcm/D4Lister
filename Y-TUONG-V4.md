@@ -115,16 +115,59 @@ hiện được "món tương tự đang rao 40–60 triệu" thì đó là th�
 
 ---
 
-## 4. Nguồn dữ liệu offline có sẵn trong gói D4LF
+## 4. Danh mục offline của D4LF — ĐÃ KIỂM, KHÔNG dùng thay được
 
-`F:\Project\Website\D4LF\d4lf\assets\lang\enUS\` có sẵn:
+`F:\Project\Website\D4LF\d4lfssets\lang\enUS\` có `affixes.json`,
+`aspects.json`, `uniques.json`, `sigils.json`…
+
+**Thoạt nhìn tưởng là bản dự phòng cho danh mục lấy từ bộ nhớ React của
+trang. Mở ra kiểm thì KHÔNG PHẢI.** Ghi lại đây để lần sau khỏi mừng hụt.
+
+### `aspects.json` — chỉ có tên trần
+
+```json
+["accelerating", "aggressive", ..., "needleflare"]
+```
+
+584 tên, **không mô tả**. Mà bài toán của ta đi **ngược**: game đọc cho ta
+MÔ TẢ, ta cần tìm ra TÊN. Danh sách tên trần không giải được.
+
+### `affixes.json` — khác hệ đặt tên
+
+Đo thật:
 
 ```
-affixes.json  aspects.json  uniques.json  sigils.json
-item_types.json  sets.json  tooltips.json  corrections.json
-charms_affixes.json  seals_affixes.json  tributes.json
+thu vien cua ta   : 638 ten   (lay tu diablo.trade/wiki/affixes)
+affixes.json D4LF : 888 ten   (ten phia GAME)
+ta khong co       : 796
+ho khong co       : 546
 ```
 
-Hiện tiện ích moi danh mục aspect từ **bộ nhớ React của trang**. Nếu chỗ đó
-gãy (trang đổi cấu trúc), đây là nguồn thay thế nằm sẵn trên máy, không phụ
-thuộc diablo.trade.
+Chênh cả hai chiều gần hết ⇒ **hai hệ đặt tên khác nhau**, không phải cái
+này rộng hơn cái kia:
+
+| diablo.trade gọi | game gọi |
+|---|---|
+| `abyss skills` | `abyss damage` |
+| `+1 charm slot` | `aegis cooldown reduction` |
+
+**Đừng đổ chung.** `THU_VIEN` tồn tại để trả lời *"diablo.trade có affix tên
+này không"*. Nhét tên phía game vào là ext sẽ đi thêm affix mà trang không
+hề có.
+
+### Kết luận
+
+Ta cần **từ điển của diablo.trade**, D4LF mang **từ điển của game**.
+
+Bản dự phòng thật sự thì đã có sẵn: `extension/affix-list.js` — 638 tên hứng
+từ chính diablo.trade. Thứ duy nhất chưa có bản offline là **mô tả của
+aspect**; muốn có phải hứng từ diablo.trade một lần rồi cất, không lấy từ
+D4LF được.
+
+### Còn dùng được vào việc gì
+
+- `aspects.json` (584) và `uniques.json` (328): danh sách tên hợp lệ phía
+  game — dùng để **kiểm tra** một tên có thật không, không dùng để tra ngược.
+- Nếu sau này cần đi từ **chữ của game → mã định danh của game** (đúng việc
+  D4LF làm) thì mấy file này là nguồn đúng. Quy trình hiện tại không đi
+  đường đó.
