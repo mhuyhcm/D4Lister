@@ -224,7 +224,7 @@ danh mục : Thorns damage dealt has a chance to deal damage to all enemies…
 
 ## BẢNG BẪY — đọc trước khi sửa
 
-*(74 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
+*(83 cái; cái thứ 20 nằm ở mục "đẩy một phát" bên dưới)*
 
 ### 1. Sinh mã có regex qua heredoc thì mất dấu gạch chéo
 
@@ -1942,6 +1942,166 @@ những zip **nằm dưới** bản vừa đóng mà lại cũ hơn, để khỏ
 
 Đổi luật đánh số thì gọn hơn, nhưng đó là luật người dùng đặt — nên chữa ở
 chỗ cái tên, không đụng vào luật.
+
+### 75. Ghi file đúng, nhưng ĐÚNG LÚC MỌI THỨ CÒN TRẮNG
+
+Người dùng báo ba chuyện: đặt giá không lưu, tiện ích bảo không có giá,
+F3 không lấy giá đã đặt. Nghe như ba lỗi, hoá ra một — và không lỗi nào
+nằm ở chỗ đặt giá.
+
+Bằng chứng nằm ngay trong file của họ: `lich-su-gia.txt` có **9 lần đặt
+giá** (3 món × 999b → 888b → 777b). Giá vẫn lưu bình thường. Nhưng
+`lo-dang.txt` ghi *"0 mon | bo qua 3 mon chua dat gia"*.
+
+Tôi nối chỗ ghi `lo-dang.txt` vào **cuối lượt quét F2**. Mà đặt giá là
+việc làm **SAU**, bằng F3. File chụp đúng lúc còn trắng rồi nằm im mãi.
+
+→ Ghi lại file **mỗi lần đặt giá**, không chờ lượt quét. File nhỏ, ghi
+lại không tốn gì.
+
+**Bài học rộng hơn:** một tính năng đúng đặt sai thời điểm thì hỏng y hệt
+tính năng sai. Hỏi "lúc chạy đoạn này, dữ liệu đã có chưa?" trước khi hỏi
+"đoạn này viết đúng chưa".
+
+### 76. F3 vào món đã quét thì đẻ file thứ hai
+
+Lộ ra cùng lúc với bẫy 75: `queue\` có **6 file cho 3 món**. Lượt F2 tạo
+001–003 (trắng, chưa giá), rồi F3 đặt giá tạo tiếp 004–006. File danh
+sách gom phải mấy cái trắng.
+
+Phép chống trùng cũ chỉ so với **món vừa lấy gần nhất** (`g_MonDaLay`),
+không so với cả hàng đợi.
+
+→ Trước khi tạo file mới, dò cả hàng đợi tìm món có nội dung trùng. So
+thì **bỏ mấy dòng đánh dấu** ra ngoài (`#D4L-GIA` đổi mỗi lần đặt lại
+giá, `#D4L-EXT` đổi theo bản tiện ích) — không bỏ thì món nào cũng thành
+món mới.
+
+### 77. CRLF — dính lần thứ hai
+
+Vá bẫy 76 xong thì phép so nội dung không bao giờ khớp. Đo ra:
+
+```
+chuỗi trong bộ nhớ : "ECHO OF KWATLI<LF>Ancestral..."   53 ký tự
+chữ đọc lại từ file: "ECHO OF KWATLI<CR><LF>Ancestral..." 55 ký tự
+```
+
+`FileAppend` **đổi LF thành CRLF** lúc ghi. Nhìn hai bên y hệt nhau mà so
+thì khác.
+
+Đã có bẫy về chuyện này từ trước, và tôi vẫn đi thẳng vào lần nữa. Nay
+tách hẳn `ChuanHoaDeSo()` — quy CRLF về LF, cắt BOM, cắt dòng đánh dấu —
+và mọi phép so nội dung đều phải đi qua nó.
+
+### 78. BOM: file này cần, file kia cấm — và cả hai đều từng sai
+
+Hai chiều ngược nhau, trong cùng một buổi:
+
+**Chiều một — tưởng thiếu mà không thiếu.** Bài thử báo `lo-dang.txt`
+không có BOM. Tôi tin ngay, đi sửa mã. Đo lại bằng công cụ khác thì cả
+hai cách ghi đều có BOM đủ. Hỏng là ở **bộ đọc của bài thử**: `FileOpen`
+của AutoHotkey **tự nhảy qua BOM** lúc mở, nên `RawRead` đọc ra ngay ký
+tự đầu của chữ. Muốn kiểm phải `file.Pos := 0` trước khi đọc.
+
+**Chiều hai — tưởng không có mà lại có.** `Set-Content -Encoding UTF8`
+của PowerShell **tự thêm BOM**. Nó lẻn vào `manifest.json`, và JSON có
+BOM là JSON không đọc được.
+
+Luật của dự án, ghi ra cho khỏi lẫn:
+
+| file | BOM |
+|---|---|
+| `queue\*.txt` | **KHÔNG** — ba byte đó dính vào tên món |
+| `lo-dang.txt` | **CÓ** — trình duyệt đọc, không có thì nó đoán bảng mã |
+| `manifest.json`, `*.js` | **KHÔNG** |
+
+Bài thử nay canh cả hai chiều.
+
+### 79. Dữ liệu bài thử để trong thư mục dự án — mất hai lần
+
+Lần một: bài thử bẫy 73 đọc ảnh chụp DOM thật trong `Downloads\d4l-hoso\`.
+Tôi **dọn "rác"** và xoá mất nó, bài thử chết lặng tới lần chạy sau.
+
+Lần hai: bài thử `thu_lo.js` đọc `lo-dang.txt` trong thư mục dự án. Người
+dùng chạy thật một lượt, AHK **ghi đè** file đó — 6 phép thử chết oan.
+
+→ Dữ liệu bài thử phải nằm **cạnh bài thử**, ngoài thư mục dự án. Lượt
+dọn không với tới, lượt chạy thật không ghi đè.
+
+Bù lại, phép thử chạy trên **file thật** vẫn đáng giữ — nhưng đừng đòi
+nội dung cụ thể, chỉ đòi nó **bóc ra được** (mấy món, tên có dính BOM
+không, món nào cũng có giá chưa).
+
+### 80. Kê lý do từ trí nhớ
+
+Bảng tổng kết đăng hàng loạt ghi *"HENRIS PERQUISITION — có cảnh báo"*.
+Cảnh báo nào thì không nói.
+
+Vì tôi dựng danh sách lý do **từ trí nhớ**: kê 4 thứ, trong khi điều kiện
+`sach` phụ thuộc **8 điều kiện** — bỏ sót 6, lại thêm một thứ
+(`khongBietSao`) vốn không chặn gì.
+
+→ Bài thử nay **tự đọc công thức `sach` trong mã**, lấy từng tên biến,
+đòi mỗi biến phải có một dòng lý do tương ứng. Ai thêm điều kiện mà quên
+lý do là nó báo ngay.
+
+**Bài học:** chỗ nào phải liệt kê đúng một tập hợp đã có sẵn trong mã thì
+đừng chép tay — bắt bài thử đọc thẳng cái tập hợp đó.
+
+### 81. Lớp chắn không chắn gì
+
+Phép kiểm "giá trị ngoài khoảng min–max của trang" chặn không cho tự
+đăng. Người dùng bảo bỏ. Trước khi gỡ tôi soi xem nó canh gì — và hoá ra
+nó **không canh gì cả**: `dong.dat(v)` chạy **trước** phép kiểm, tức số đã
+điền vào form rồi. Nó chỉ là lời nhận xét.
+
+Mà nhận xét ấy hay sai: khoảng của trang cũ hơn game, Blizzard đổi chỉ số
+một lần là món thật lại nằm ngoài khoảng trang tưởng. Nên nó giữ lại món
+tốt mà chẳng bảo vệ điều gì.
+
+→ Bỏ khỏi điều kiện chặn, vẫn in ra bảng nhưng đổi sang **chữ xám** kèm
+*"vẫn điền, vẫn đăng"*. Ghi chú thì vẽ như ghi chú.
+
+### 82. Không biết thì HỎI, đừng đoán
+
+Vòng lặp đăng hàng loạt cần biết "trang đã đăng xong chưa". Tôi không
+biết diablo.trade báo bằng dấu hiệu nào, và đoán sai ở đúng chỗ này là
+loại hỏng tệ nhất: hoặc tưởng xong trong khi chưa (mất món, không ai
+hay), hoặc kẹt mãi ở món đầu.
+
+→ Lần đăng thật **đầu tiên** dừng lại hỏi một câu: *"đăng thành công
+chưa?"*. Người dùng bấm, tiện ích so trang **trước** và **sau** cú bấm,
+rút ra cái gì vừa đổi rồi nhớ lấy. Từ món thứ hai trở đi tự nhận.
+
+Chạy thật: nó học được **"form trắng lại"** — dấu hiệu cấu trúc, không
+phụ thuộc câu chữ, nên trang đổi tiếng Anh cũng không hỏng.
+
+Hai chi tiết làm nó không học bậy:
+- chỉ nhớ dòng **mới xuất hiện**, không nhớ dòng vốn có sẵn;
+- chỉ nhớ dòng **có chữ và ngắn** — dòng toàn số là bộ đếm, mỗi lần một
+  khác, nhớ lấy thì lần sau không bao giờ khớp.
+
+Dấu hiệu hỏng thì nó tự hỏi lại rồi học đè lên. Không cần nút "học lại",
+và nút đó đã bỏ.
+
+### 83. Đường vòng hợp lệ, nhưng cái giá là ba quyền
+
+Tiện ích cần đọc file `lo-dang.txt` trên đĩa. `fetch("file:///...")` bị
+Chrome chặn cứng — hàng rào cố ý, không cờ nào mở được.
+
+Đường vòng chạy được: **mở file thành một tab ngầm rồi bơm mã vào đọc**.
+Nhưng nó đòi `tabs`, `scripting` và truy cập `file:///*` — ba quyền khá
+rộng cho một việc đọc một file.
+
+Đường tốt hơn: **`showOpenFilePicker`**. Người dùng bấm nút chọn file một
+lần, trình duyệt trả về một "tay nắm" cất được vào IndexedDB. Lần sau đọc
+thẳng, **không cần quyền nào cả**, và cho phép một lần là xong.
+
+→ Đã bỏ hẳn đường vòng và ba quyền kia. Bài thử canh để chúng không lẻn
+về.
+
+**Bài học:** làm được không có nghĩa là nên làm. Hỏi luôn "cái này đòi
+quyền gì" trước khi chốt một đường.
 
 
 ---

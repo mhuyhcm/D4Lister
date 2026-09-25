@@ -4,7 +4,7 @@ Tổng hợp ngày **24/09/2026**, sau khi chạy thử **D4LF v10.0.5** và đ�
 nguồn của họ. Hiện chốt ở **v3** (AHK v3 + tiện ích 7.1).
 
 Đọc kèm:
-- `NHAT-KY-V4.md` — 28 cái bẫy đã gỡ, tính cả v3 và v4
+- `NHAT-KY.md` — 28 cái bẫy đã gỡ, tính cả v3 và v4
 - `_bo-nho/README.md` — nghiên cứu đọc bộ nhớ game (thư mục riêng, không đẩy lên repo)
 
 ---
@@ -181,7 +181,7 @@ chờ bao lâu mỗi ô.
 
 - **Vét ống sau mỗi ô.** F3 hiện tại đã vét ống trước khi lấy; quét hàng
   loạt cũng phải vét sau mỗi ô, không thì dồn hàng đợi rồi lấy nhầm món
-  (bẫy 3, `NHAT-KY-V4.md`).
+  (bẫy 3, `NHAT-KY.md`).
 - **Món trùng nhau.** `g_MonDaLay` chặn bấm F3 hai lần cùng một món. Quét
   hàng loạt phải so theo **nội dung từng món**, không phải "món cuối".
 - **Chuột đang bận.** Người dùng lỡ động chuột giữa chừng là hỏng cả lượt.
@@ -265,7 +265,7 @@ hai.
 
 ⇒ Form đang sống của chế độ BETA **không phơi ra `getValues`/`setValue`**.
 `replace()` / `append()` / `reset()` đều không với tới. Lý do đầy đủ ở
-`NHAT-KY-V4.md`, mục *Kết luận về đường "đẩy một phát"*.
+`NHAT-KY.md`, mục *Kết luận về đường "đẩy một phát"*.
 
 Đường đang dùng (mở danh sách `ADD STANDARD AFFIXES` một lần rồi thêm từng
 dòng) chạy ổn định **160–300 ms mỗi dòng**.

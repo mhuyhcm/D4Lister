@@ -11,7 +11,7 @@
   //  Chu do may ban OCR ra, KHONG qua bo quet cua trang -> khong sai so.
   // ------------------------------------------------------------------
 
-  const BAN = '9.5';          // doi cung luc voi version trong manifest.json
+  const BAN = '9.1.3';          // doi cung luc voi version trong manifest.json
 
   // So sanh hai so hieu ban: -1 a cu hon, 0 bang, 1 a moi hon.
   //
@@ -947,6 +947,115 @@
     if (hencNhatKy) { clearTimeout(hencNhatKy); hencNhatKy = null; }
     if (CD.aiChup) nhac('AI fix bug: đang ghi vào ' + thuMucLuot);
     return thuMucLuot;
+  }
+
+  // ====================================================================
+  //  ĐỌC FILE DANH SÁCH TRÊN ĐĨA   (nền móng của "đăng hàng loạt")
+  //
+  //  HAI đường, thử đường tốt trước:
+  //
+  //  1. TAY NẮM FILE (showOpenFilePicker). Người dùng bấm nút, chọn file
+  //     một lần; trình duyệt trả về một "tay nắm" cất được vào IndexedDB.
+  //     Lần sau mở lại vẫn đọc được, KHÔNG phải gõ đường dẫn, và không
+  //     cần bật công tắc "Cho phép truy cập URL tệp". Máy khác thì chọn
+  //     lại một lần, không phải sửa mã.
+  //
+  //  2. ĐƯỜNG DẪN GÕ TAY, đọc qua file:// (xem lời giải thích ở nen.js).
+  //     Giữ làm đường lui: máy nào Chrome không cho dùng tay nắm thì vẫn
+  //     còn cách, và người quen gõ đường dẫn vẫn gõ được.
+  // ====================================================================
+  const IDB_TEN = 'd4lister', IDB_KHO = 'tay-nam';
+
+  function moIdb() {
+    return new Promise((xong, hong) => {
+      const r = indexedDB.open(IDB_TEN, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(IDB_KHO);
+      r.onsuccess = () => xong(r.result);
+      r.onerror = () => hong(r.error);
+    });
+  }
+
+  function idbLam(cheDoGhi, viec) {
+    return moIdb().then(db => new Promise((xong, hong) => {
+      const gd = db.transaction(IDB_KHO, cheDoGhi ? 'readwrite' : 'readonly');
+      const yc = viec(gd.objectStore(IDB_KHO));
+      yc.onsuccess = () => xong(yc.result);
+      yc.onerror = () => hong(yc.error);
+    })).catch(() => null);
+  }
+
+  const luuTayNam = h => idbLam(true, kho => kho.put(h, 'lo-dang'));
+  const layTayNam = () => idbLam(false, kho => kho.get('lo-dang'));
+
+  //  Bấm nút chọn file. Phải gọi TRONG cú bấm — Chrome đòi có thao tác
+  //  thật của người dùng mới mở hộp thoại chọn file.
+  async function chonFileLo() {
+    if (typeof window.showOpenFilePicker !== 'function')
+      return { ok: false, loi: 'Chrome bản này không có hộp thoại chọn file.\n'
+                             + 'Dùng ô đường dẫn bên dưới.' };
+    try {
+      const [h] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{ description: 'Danh sách D4Lister', accept: { 'text/plain': ['.txt'] } }],
+      });
+      if (!h) return { ok: false, loi: 'chưa chọn file nào' };
+      await luuTayNam(h);
+      return { ok: true, ten: h.name };
+    } catch (e) {
+      // Bấm Cancel cũng ném lỗi — đừng báo đỏ như một chuyện hỏng.
+      if (e && e.name === 'AbortError') return { ok: false, huy: true, loi: '' };
+      return { ok: false, loi: String(e && e.message || e) };
+    }
+  }
+
+  //  Đọc qua tay nắm đã cất. xinPhep = true thì được phép hỏi lại quyền
+  //  (chỉ đúng khi đang ở trong một cú bấm của người dùng).
+  async function docQuaTayNam(xinPhep) {
+    const h = await layTayNam();
+    if (!h) return { ok: false, chuaChon: true, loi: 'chưa chọn file' };
+    try {
+      let q = await h.queryPermission({ mode: 'read' });
+      if (q !== 'granted' && xinPhep)
+        q = await h.requestPermission({ mode: 'read' });
+      if (q !== 'granted')
+        return { ok: false, loi: 'Chrome chưa cho đọc file đó — bấm "Chọn file…" lại.' };
+      const f = await h.getFile();
+      return { ok: true, chu: await f.text(), ten: h.name, qua: 'tay nắm' };
+    } catch (e) {
+      return { ok: false, loi: String(e && e.message || e) };
+    }
+  }
+
+  //  Đọc lô. Chỉ còn MỘT đường: tay nắm file.
+  //
+  //  Trước có thêm đường gõ đường dẫn rồi đọc qua file://, nhưng đường đó
+  //  bắt tiện ích xin ba quyền khá rộng — tabs, scripting, và truy cập
+  //  mọi file:/// — cho một nhánh gần như không bao giờ chạy tới. Tay nắm
+  //  không cần quyền nào cả, và cho phép một lần là xong, nên bỏ hẳn.
+  async function docLoDang(xinPhep) {
+    const kq = await docQuaTayNam(xinPhep);
+    if (!kq.ok && kq.chuaChon)
+      return { ok: false, loi: 'Chưa chọn file danh sách — bấm "Chọn file…".' };
+    return kq;
+  }
+
+  //  Bóc file danh sách thành từng món.
+  //
+  //  Mỗi món mở đầu bằng một dòng #D4L-MON. Dùng dòng mốc chứ không dùng
+  //  dòng trống hay số thứ tự: chữ của món vốn đã có dòng trống, mà đánh
+  //  số thì thêm một chỗ để lệch.
+  function doLo(chu) {
+    const khuc = String(chu || '').split(/^[ \t]*#D4L-MON[ \t]*$/m);
+    const mon = [], ten = [];
+    let soCoGia = 0;
+    for (let i = 1; i < khuc.length; i++) {
+      const t = khuc[i].replace(/^\s*\n/, '').replace(/\s+$/, '');
+      if (!t.trim()) continue;
+      mon.push(t);
+      ten.push((t.split(/\r?\n/).find(x => x.trim()) || '(không rõ tên)').trim());
+      if (/^[ \t]*#D4L-GIA:\s*\S/m.test(t)) soCoGia++;
+    }
+    return { mon, ten, soMon: mon.length, soCoGia };
   }
 
   function rutGonHtml(el) {
@@ -1940,9 +2049,6 @@
           + 'Tắt đi thì tiện ích vẫn điền, chỉ là bạn tự bấm đăng.',
     demNguoc: 'Chờ ngần này giây trước khi bấm Submit, để bạn kịp đọc lại\n'
           + 'hoặc kịp bấm huỷ.',
-    nhayVaoGia: 'Giá đã đặt sẵn trong game (F3) thì điền thẳng vào ô Price.\n'
-          + 'Chưa đặt thì điền xong affix là đặt con trỏ vào ô Price, bạn\n'
-          + 'chỉ còn gõ giá rồi Enter.',
     tuTaoItem: 'V3 không còn ảnh để trang tự dựng món, nên tiện ích phải tự\n'
           + 'dựng: chọn loại đồ, độ hiếm, rồi Aspect.\n'
           + 'TẮT = tiện ích không điền được gì cả.',
@@ -1950,9 +2056,9 @@
     tuThemAffix: 'Trang chỉ dựng sẵn vài dòng affix. Món có nhiều dòng hơn thì\n'
           + 'tiện ích tự bấm thêm dòng cho đủ.',
     tuDauSao: 'Tự bật dấu sao cho dòng Greater Affix, và tắt cho dòng thường.',
-    ghiThangForm: 'Đọc KHOẢNG HỢP LỆ (min–max) từ bộ điều khiển form của trang.\n'
-          + 'Nhờ nó mới biết một dòng có vượt khoảng hay không.\n'
-          + 'Tắt đi thì mất phần kiểm tra đó.',
+    ghiThangForm: 'Đọc KHOẢNG HỢP LỆ (min–max) từ bộ điều khiển form của trang,\n'
+          + 'để ghi chú dòng nào nằm ngoài khoảng trang tưởng.\n'
+          + 'Chỉ là ghi chú — không chặn đăng.',
     doDOM: 'Ghi cấu trúc trang ra Console sau khi dựng món.\n'
           + 'Chỉ bật khi đang dò lỗi.',
     ghiFileDo: 'Tải hẳn một file .json kết quả dò về máy mỗi lần chạy.\n'
@@ -1980,6 +2086,16 @@
       '<button id="' + id + '" style="background:#2a2a32;color:#bbb;border:1px solid #555;' +
       'border-radius:5px;padding:4px 9px;cursor:pointer;font:12px system-ui">' + chu + '</button>';
 
+    //  Một ô số nhỏ kèm chữ hai bên: "Nghỉ [2] giây giữa hai món".
+    const soNho = (khoa, truoc, sau, min, max) =>
+      '<div style="margin-top:7px;display:flex;align-items:center;gap:6px">' +
+      '<span>' + truoc + '</span>' +
+      '<input type="number" data-so="' + khoa + '" min="' + min + '" max="' + max + '"' +
+      ' value="' + (CD[khoa] | 0) + '"' +
+      ' style="width:48px;background:#0d0d12;color:#eee;border:1px solid #555;' +
+      'border-radius:4px;padding:2px 5px;font:13px system-ui">' +
+      '<span>' + sau + '</span></div>';
+
     const theTab = (ma, chu) =>
       '<div data-tab="' + ma + '" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;' +
       'border-bottom:2px solid ' + (tabThietLap === ma ? '#d8b978' : 'transparent') + ';' +
@@ -1988,6 +2104,37 @@
     let than;
     if (tabThietLap === 'dung') {
       than =
+        // ĐĂNG HÀNG LOẠT — việc người bán làm hằng ngày, nên nằm ngay
+        // đầu tab đầu. Trước đây nó ở tab Advanced, chung chỗ với mấy công
+        // tắc đổi cách tiện ích làm việc: sai vai hẳn.
+        '<div style="color:#d8b978;font-size:11px;margin:2px 0 5px">ĐĂNG HÀNG LOẠT</div>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        nut('d4l-tl-chon', 'Chọn file…') + nut('d4l-tl-thu', 'Load') +
+        '</div>' +
+        '<div id="d4l-tl-ten" style="margin-top:5px;font-size:11px;color:#7ec97e"></div>' +
+        '<div id="d4l-tl-kq" style="margin-top:6px;font-size:11px;white-space:pre-wrap;' +
+        'line-height:1.4;color:#888"></div>' +
+        soNho('loToiDa', 'Chỉ chạy', 'món đầu (0 = hết lô)', 0, 99) +
+        // Hai ô dưới đây đặt xong là thôi, không ai chỉnh mỗi ngày. Gấp vào
+        // cho bảng ngắn lại — mỗi dòng thừa là một dòng mắt phải lướt qua.
+        '<details style="margin-top:7px">' +
+        '<summary style="cursor:pointer;color:#777;font-size:11px">Chỉnh sâu hơn</summary>' +
+        soNho('loNghi', 'Nghỉ', 'giây giữa hai món', 0, 30) +
+        soNho('loHongLienTiep', 'Hỏng liên tiếp', 'món thì dừng hẳn', 1, 20) +
+        '<label style="display:flex;gap:8px;align-items:center;margin-top:7px">' +
+        '<input type="checkbox" id="d4l-tl-cbdung"' +
+        (CD.loGapCanhBao === 'dung' ? ' checked' : '') + ' style="cursor:pointer">' +
+        '<span>Gặp cảnh báo thì dừng cả lô</span></label>' +
+        '<div style="margin-top:7px;font-size:11px;color:#777">' +
+        (CD.loDauHieu
+          ? 'Dấu hiệu đăng xong: đã học. Hỏng thì tự hỏi lại rồi học lại.'
+          : 'Dấu hiệu đăng xong: <b>chưa học</b> — món đầu tiên sẽ hỏi bạn một câu.') +
+        '</div></details>' +
+        '<div style="margin-top:9px">' +
+        '<button id="d4l-tl-chay" style="width:100%;background:#2a3a2a;color:#cfe8cf;' +
+        'border:1px solid #5a8a5a;border-radius:5px;padding:6px 9px;cursor:pointer;' +
+        'font:12px system-ui">ĐĂNG HÀNG LOẠT</button></div>' +
+        '<div style="margin-top:13px;border-top:1px solid #333;padding-top:9px"></div>' +
         o('tuDang', 'Tự động đăng') +
         '<div title="' + GIAI_THICH.demNguoc.replace(/"/g, '&quot;') + '"' +
         ' style="margin-top:9px;display:flex;align-items:center;gap:6px;cursor:help">' +
@@ -1996,7 +2143,6 @@
         ' style="width:48px;background:#0d0d12;color:#eee;border:1px solid #555;border-radius:4px;' +
         'padding:2px 5px;font:13px system-ui">' +
         '<span>s</span></div>' +
-        o('nhayVaoGia', 'Tự động nhập giá') +
         '<div style="margin-top:12px">' + nut('d4l-tl-goc', 'Về mặc định') + '</div>';
     } else {
       than =
@@ -2049,6 +2195,74 @@
 
     // Do lop phu: mo lan luot cac o chon o dau form roi ghi cai xo ra vao
     // Console. Ban luu Ctrl+S khong chup duoc may lop phu nay.
+    // --- thử đọc file danh sách ---
+    const tenEl = d.querySelector('#d4l-tl-ten');
+    const kqEl  = d.querySelector('#d4l-tl-kq');
+
+    // Đã chọn file từ lần trước thì nói ra ngay, khỏi phải đoán.
+    if (tenEl) layTayNam().then(h => { if (h) tenEl.textContent = '▸ ' + h.name; });
+
+    const veKetQua = kq => {
+      if (!kq.ok) {
+        kqEl.style.color = '#e08a5a';
+        kqEl.textContent = 'KHÔNG đọc được.\n' + kq.loi;
+        return;
+      }
+      const lo = doLo(kq.chu);
+      kqEl.style.color = '#7ec97e';
+      kqEl.textContent = 'Đọc được ' + kq.chu.length + ' ký tự'
+        + (kq.qua ? ' (qua ' + kq.qua + ')' : '') + '.\n'
+        + (lo.soMon
+            ? 'Thấy ' + lo.soMon + ' món' + (lo.soCoGia < lo.soMon
+                ? ' (' + lo.soCoGia + ' món có giá)' : ' — đều có giá')
+              + '\n   ' + lo.ten.slice(0, 3).join('\n   ')
+              + (lo.soMon > 3 ? '\n   …' : '')
+            : 'Nhưng KHÔNG thấy dòng #D4L-MON nào — file này có phải danh sách không?');
+    };
+
+    const nutChon = d.querySelector('#d4l-tl-chon');
+    if (nutChon) nutChon.onclick = async () => {
+      const c = await chonFileLo();
+      if (!c.ok) {
+        if (c.huy) return;               // bấm Cancel, không phải chuyện hỏng
+        kqEl.style.color = '#e08a5a';
+        kqEl.textContent = c.loi;
+        return;
+      }
+      tenEl.textContent = '▸ ' + c.ten;
+      kqEl.style.color = '#888';
+      kqEl.textContent = 'đang đọc…';
+      veKetQua(await docLoDang(true));
+    };
+
+    const nutThu = d.querySelector('#d4l-tl-thu');
+    if (nutThu) nutThu.onclick = async () => {
+      kqEl.style.color = '#888';
+      kqEl.textContent = 'đang thử…';
+      // Trong cú bấm nên được phép xin lại quyền đọc tay nắm.
+      veKetQua(await docLoDang(true));
+    };
+
+    // Mấy ô số của phần đăng hàng loạt.
+    d.querySelectorAll('input[data-so]').forEach(i => {
+      i.onchange = e => {
+        const k = e.target.dataset.so;
+        const v = parseInt(e.target.value, 10);
+        const min = parseInt(e.target.min, 10), max = parseInt(e.target.max, 10);
+        if (v >= min && v <= max) { CD[k] = v; luuCaiDat(); }
+        else e.target.value = CD[k] | 0;
+      };
+    });
+
+    const cbDung = d.querySelector('#d4l-tl-cbdung');
+    if (cbDung) cbDung.onchange = e => {
+      CD.loGapCanhBao = e.target.checked ? 'dung' : 'bo-qua';
+      luuCaiDat();
+    };
+
+    const nutChay = d.querySelector('#d4l-tl-chay');
+    if (nutChay) nutChay.onclick = () => { d.remove(); batDauLoDang(); };
+
     const nutDo = d.querySelector('#d4l-tl-do');
     if (nutDo) nutDo.onclick = () => { d.remove(); doDOM('trước khi dò'); doLopPhu(); };
 
@@ -2119,12 +2333,17 @@
     tuThemAffix:      true,   // tự thêm dòng affix trang không dựng ra
     tuDauSao:         true,   // tự bật/tắt dấu sao Greater Affix
     ghiThangForm:     true,   // ghi thẳng vào form của trang, khỏi gõ vào ô
-    nhayVaoGia:       true,   // điền xong thì đặt con trỏ vào ô giá
     ghiFileDo:        false,  // tải file dò về máy (chỉ bật khi cần gửi cho Claude)
     tuChonBase:       true,   // tự chọn base rồi bấm Next, khỏi phải chọn hình
     tuTaoItem:        true,   // V3: tự dựng món từ đầu (không còn ảnh để trang quét)
     doDOM:            false,  // ghi cấu trúc trang ra Console sau khi dựng món
     aiChup:           false,  // chụp từng bước + nhật ký ra file, để Claude đọc
+    // --- đăng hàng loạt ---
+    loToiDa:          0,      // chỉ chạy mấy món đầu (0 = hết lô)
+    loNghi:           2,      // nghỉ mấy giây giữa hai món
+    loGapCanhBao:     'bo-qua',   // 'bo-qua' | 'dung'
+    loHongLienTiep:   3,      // hỏng liên tiếp ngần này món thì dừng hẳn
+    loDauHieu:        null,   // dấu hiệu "đã đăng xong", HỌC từ lần đầu
   };
   const KHOA_LUU = 'd4lister-cai-dat';
 
@@ -2230,6 +2449,15 @@
   function xetTuDang(el, sach) {
     if (!el) return;
     if (dongHoDang) { clearInterval(dongHoDang); dongHoDang = null; }
+
+    // Đang chạy lô thì VÒNG LẶP cầm việc bấm Submit, không phải đếm ngược.
+    // Để cả hai cùng bấm là món bị đăng hai lần, hoặc bấm lúc lô đang dọn
+    // form dở.
+    if (loDang && !loDang.xongHan) {
+      el.innerHTML = '<span style="color:#888;font-size:12px">Đang chạy lô — '
+        + 'xem bảng góc dưới trái.</span>';
+      return;
+    }
 
     if (!CD.tuDang) {
       el.innerHTML = '<span style="color:#888;font-size:12px">Tự đăng đang tắt.</span>';
@@ -2345,7 +2573,10 @@
     }
     h += '<div id="d4l-gia" style="margin-top:4px;font-size:12px"></div>';
     if (ngoai.length) {
-      h += '<div style="margin-top:8px;color:#e8c05a">Cao hơn khoảng của trang</div>';
+      // Xám chứ không vàng: đây là ghi chú, không phải cảnh báo. Nó không
+      // chặn gì nữa nên đừng vẽ như một chuyện cần xử lý.
+      h += '<div style="margin-top:8px;color:#888">Ngoài khoảng của trang '
+         + '(vẫn điền, vẫn đăng)</div>';
       h += ngoai.map(x => '<div style="margin-left:12px">' + thoat(x.dong.ten) + ' = <b>' +
         x.v + '</b> <span style="color:#888">(' + x.dong.min + '–' + x.dong.max +
         ')</span></div>').join('');
@@ -2456,7 +2687,16 @@
     // Sạch = không dòng nào vượt khoảng, không thiếu affix, không lỗi, VÀ
     // loại đồ trên trang khớp với chữ của game. Sai loại đồ mà vẫn tự đăng
     // thì món lên sàn với khoảng affix của một loại đồ khác hẳn.
-    const sach = !ngoai.length && !thieu.length && !loiThem.length && !loi
+    // "Ngoài khoảng của trang" KHÔNG còn chặn nữa.
+    //
+    // Số đã được điền vào form rồi (dong.dat chạy trước phép kiểm này), nên
+    // đây chỉ là lời nhận xét chứ không phải lỗi. Mà nhận xét ấy hay sai:
+    // khoảng min–max của trang cũ hơn game, mỗi lần Blizzard đổi chỉ số là
+    // món thật lại nằm ngoài khoảng trang tưởng. Chặn vì nó thì món tốt bị
+    // giữ lại còn người dùng không hiểu vì sao.
+    //
+    // Vẫn in ra trong bảng để nhìn thấy, chỉ thôi không chặn.
+    const sach = !thieu.length && !loiThem.length && !loi
                && !(nghiNgo && nghiNgo.length) && !(lech && lech.length)
                && !saiLoaiDo && !giaBiDoi && daGhi.length > 0;
 
@@ -2486,8 +2726,11 @@
     // xong nen bang ket qua van hien binh thuong, nhin khong ra.
     // MỘT công tắc lo cả hai việc: có giá sẵn thì điền thẳng, chưa có thì
     // lát nữa đặt con trỏ vào ô giá cho gõ tay.
-    const daDatGia = CD.nhayVaoGia ? dienGiaTuChu(chuDaDan) : false;
-    if (CD.nhayVaoGia) baoGia(chuDaDan, daDatGia);
+    // LUÔN điền, không còn công tắc. Chính đoạn này đọc dòng #D4L-GIA
+    // của AHK rồi đặt vào ô Price; tắt nó đi là món lên sàn không giá,
+    // mà đăng hàng loạt thì không ai kịp nhìn từng món.
+    const daDatGia = dienGiaTuChu(chuDaDan);
+    baoGia(chuDaDan, daDatGia);
 
     xetTuDang(d.querySelector('#d4l-dang'), sach);
 
@@ -2495,12 +2738,31 @@
     // con tro. Doi mot nhip cho trang ve xong roi hang.
     // Co gia san roi thi KHONG nhay vao nua: hang con tro o do chi tao co
     // hoi go nham vao, ma go mot phim la dem nguoc dung.
-    if (CD.nhayVaoGia && daGhi.length && !daDatGia)
+    if (daGhi.length && !daDatGia)
       setTimeout(() => { if (!dongHoDang || CD.demNguoc > 1) nhayVaoOGia(); }, 60);
 
     // Chụp trạng thái sau khi điền xong bảng. Chưa phải bước cuối: còn cú
     // bấm Submit lúc đếm ngược hết giờ, chụp ở xetTuDang.
     chupBuoc('9-sau-khi-dien');
+
+    // Đang chạy lô thì đây là mốc "món này điền xong" — báo về cho vòng
+    // lặp. Đặt CUỐI hàm, sau khi giá đã điền và cảnh báo đã tính đủ.
+    if (loDang && !loDang.xongHan) {
+      // Lý do phải dựng từ ĐÚNG mấy điều kiện làm nên `sach`, không phải
+      // từ trí nhớ. Bản đầu tôi kê bốn thứ: bỏ sót sáu, lại thêm một thứ
+      // (khongBietSao) vốn không chặn gì — nên bảng tổng kết chỉ ghi được
+      // "có cảnh báo", chẳng nói được cảnh báo nào.
+      const viSao = [];
+      if (loi) viSao.push('không với tới form');
+      if (!daGhi.length) viSao.push('không điền được dòng nào');
+      if (thieu.length) viSao.push(thieu.length + ' dòng trang chưa có');
+      if (loiThem.length) viSao.push(loiThem.length + ' dòng thêm không được');
+      if (nghiNgo && nghiNgo.length) viSao.push(nghiNgo.length + ' dòng khớp không chắc');
+      if (lech && lech.length) viSao.push(lech.length + ' dòng lệch số');
+      if (saiLoaiDo) viSao.push('loại đồ không khớp');
+      if (giaBiDoi) viSao.push('giá bị trang đổi');
+      loMonXong(sach, viSao.join(', '));
+    }
   }
 
   // ====================================================================
@@ -3363,14 +3625,319 @@
   }
 
   // --- bat su kien dan --------------------------------------------------
-  document.addEventListener('paste', e => {
-    // Don ky tu vo hinh truoc da. BOM (U+FEFF) tung dinh lien vao TEN MON o
-    // dong dau, va game thi chen khoang trang khong ngat (U+00A0) vao ten.
-    // Ca hai deu khong nhin thay duoc nhung du lam hong phep doi chieu ten.
-    const t = ((e.clipboardData || window.clipboardData)?.getData('text/plain') || '')
-      .replace(/[﻿​-‍⁠]/g, '')
-      .replace(/ /g, ' ');
-    if (!t.trim()) return;
+  // ====================================================================
+  //  ĐĂNG HÀNG LOẠT
+  //
+  //  Tiện ích cầm lái cả vòng lặp, không phải AHK. Lý do: người quyết
+  //  định "món này xong chưa" phải là người NHÌN THẤY TRANG. AHK không
+  //  đọc được DOM, nó chỉ đếm giây được — mà đếm giây thì đăng hỏng vẫn
+  //  đi tiếp, mất món mà không ai hay.
+  //
+  //  AHK chỉ ghi lo-dang.txt rồi thôi. Hai bên hết ràng nhau về thời
+  //  gian: quét lúc trưa, chiều bấm đăng cũng được.
+  //
+  //  Dừng bằng Esc bất cứ lúc nào.
+  // ====================================================================
+  let loDang = null;
+  //  { ds, ten, i, ket[], hongLienTiep, dung, dongHoCho }
+
+  const LO_HAN_MON_MS = 45000;   // một món quá lâu thì bỏ, đừng treo cả lô
+
+  function veBangLo() {
+    let d = document.getElementById('d4l-lo');
+    if (!loDang) { if (d) d.remove(); return; }
+    if (!d) {
+      d = document.createElement('div');
+      d.id = 'd4l-lo';
+      d.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:1000000;width:260px;'
+        + 'background:#14141a;color:#eee;border:1px solid #d8b978;border-radius:8px;'
+        + 'padding:9px 11px;font:12.5px/1.45 system-ui,sans-serif;'
+        + 'box-shadow:0 8px 28px rgba(0,0,0,.6)';
+      document.body.appendChild(d);
+    }
+    const n = loDang.ds.length;
+    const dem = { xong: 0, boQua: 0, hong: 0 };
+    for (const k of loDang.ket) dem[k.ket] = (dem[k.ket] || 0) + 1;
+    const dangLam = loDang.i >= 0 && loDang.i < n && !loDang.xongHan;
+    d.innerHTML =
+      '<div style="display:flex;align-items:center;gap:6px">'
+      + '<b style="color:#d8b978;flex:1">Đăng hàng loạt</b>'
+      + (loDang.xongHan ? '<span id="d4l-lo-dong" style="cursor:pointer;color:#888">&#10005;</span>'
+                        : '<button id="d4l-lo-dung" style="background:#3a2020;color:#f0d0d0;'
+                          + 'border:1px solid #844;border-radius:5px;padding:2px 8px;cursor:pointer;'
+                          + 'font:11px system-ui">Dừng</button>')
+      + '</div>'
+      + '<div style="margin-top:5px">' + (dangLam ? 'Món ' + (loDang.i + 1) + '/' + n
+                                                  : 'Xong ' + loDang.ket.length + '/' + n) + '</div>'
+      + (dangLam ? '<div style="color:#9aa;font-size:11px;overflow:hidden;'
+                   + 'text-overflow:ellipsis;white-space:nowrap">' + thoat(loDang.ten[loDang.i])
+                   + '</div>' : '')
+      + '<div style="margin-top:5px;font-size:11px">'
+      + '<span style="color:#7ec97e">' + (dem.xong || 0) + ' đăng</span> · '
+      + '<span style="color:#e8c05a">' + (dem.boQua || 0) + ' bỏ qua</span> · '
+      + '<span style="color:#e08a5a">' + (dem.hong || 0) + ' hỏng</span></div>'
+      + (loDang.xongHan ? '<div id="d4l-lo-ct" style="margin-top:6px;font-size:11px;'
+                          + 'max-height:170px;overflow:auto;color:#9aa"></div>' : '');
+
+    const nutDung = d.querySelector('#d4l-lo-dung');
+    if (nutDung) nutDung.onclick = () => dungLo('bạn bấm Dừng');
+    const nutDong = d.querySelector('#d4l-lo-dong');
+    if (nutDong) nutDong.onclick = () => { loDang = null; d.remove(); };
+
+    const ct = d.querySelector('#d4l-lo-ct');
+    if (ct) ct.innerHTML = loDang.ket.map(k =>
+      '<div style="margin-top:3px">'
+      + '<span style="color:' + (k.ket === 'xong' ? '#7ec97e' : k.ket === 'boQua' ? '#e8c05a' : '#e08a5a')
+      + '">' + (k.ket === 'xong' ? '✔' : k.ket === 'boQua' ? '–' : '✘') + '</span> '
+      + thoat(k.ten) + (k.viSao ? '<br><span style="color:#777;margin-left:12px">'
+                                  + thoat(k.viSao) + '</span>' : '') + '</div>').join('');
+  }
+
+  function dungLo(viSao) {
+    if (!loDang) return;
+    loDang.dung = viSao || 'đã dừng';
+    ghi('Đăng hàng loạt: dừng — ' + loDang.dung);
+  }
+
+  function ketThucLo() {
+    if (!loDang) return;
+    clearTimeout(loDang.dongHoCho);
+    loDang.xongHan = true;
+    ghi('Đăng hàng loạt: xong ' + loDang.ket.length + '/' + loDang.ds.length
+      + (loDang.dung ? ' — dừng vì ' + loDang.dung : ''));
+    nhac('Đăng hàng loạt xong — xem bảng góc dưới trái');
+    veBangLo();
+  }
+
+  function ghiKetLo(ket, viSao) {
+    if (!loDang) return;
+    loDang.ket.push({ ten: loDang.ten[loDang.i], ket, viSao: viSao || '' });
+    if (ket === 'hong') loDang.hongLienTiep++;
+    else loDang.hongLienTiep = 0;
+  }
+
+  async function batDauLoDang() {
+    if (loDang && !loDang.xongHan) { nhac('Đang chạy một lô rồi'); return; }
+    const kq = await docLoDang(true);
+    if (!kq.ok) { nhac('Không đọc được danh sách: ' + kq.loi); return; }
+
+    const lo = doLo(kq.chu);
+    // Lớp chắn THỨ HAI cho luật "chưa có giá thì không đăng". AHK đã lọc
+    // rồi, nhưng file có thể cũ, có thể người dùng tự sửa — mà đăng một
+    // món không giá thì phải vào tận sàn gỡ xuống.
+    const chon = [];
+    for (let i = 0; i < lo.mon.length; i++)
+      if (/^[ \t]*#D4L-GIA:\s*\S/m.test(lo.mon[i]))
+        chon.push({ chu: lo.mon[i], ten: lo.ten[i] });
+    if (!chon.length) { nhac('Danh sách không có món nào đã đặt giá'); return; }
+
+    const han = CD.loToiDa | 0;
+    const dung = han > 0 ? chon.slice(0, han) : chon;
+
+    loDang = {
+      ds: dung.map(x => x.chu),
+      ten: dung.map(x => x.ten),
+      i: -1, ket: [], hongLienTiep: 0, dung: '', xongHan: false, dongHoCho: null,
+    };
+    ghi('Đăng hàng loạt: bắt đầu ' + dung.length + ' món'
+      + (han > 0 && chon.length > han ? ' (cắt còn ' + han + ' trong ' + chon.length + ')' : '')
+);
+    veBangLo();
+    monKeTiep();
+  }
+
+  async function monKeTiep() {
+    if (!loDang) return;
+    clearTimeout(loDang.dongHoCho);
+    if (loDang.dung) return ketThucLo();
+    if (loDang.hongLienTiep >= Math.max(1, CD.loHongLienTiep | 0)) {
+      dungLo('hỏng ' + loDang.hongLienTiep + ' món liên tiếp');
+      return ketThucLo();
+    }
+    loDang.i++;
+    if (loDang.i >= loDang.ds.length) return ketThucLo();
+
+    veBangLo();
+    // Cầu dao thời gian: món nào không chạy tới đích trong ngần này thì
+    // bỏ, đừng để cả lô treo vì một món. Dây chuyền điền có nhiều nhánh
+    // thoát sớm không báo về đây được.
+    loDang.dongHoCho = setTimeout(() => {
+      if (!loDang || loDang.xongHan) return;
+      ghiKetLo('hong', 'quá ' + Math.round(LO_HAN_MON_MS / 1000) + 's không dựng xong món');
+      tiepSauMon();
+    }, LO_HAN_MON_MS);
+
+    nhanChuMon(loDang.ds[loDang.i]);
+  }
+
+  //  Dọn form rồi sang món kế.
+  async function tiepSauMon() {
+    if (!loDang || loDang.xongHan) return;
+    clearTimeout(loDang.dongHoCho);
+    try { bamNutTheoChu('Reset'); } catch (e) {}
+    await doi(600);
+    await doi(Math.max(0, (CD.loNghi | 0) * 1000));
+    monKeTiep();
+  }
+
+  //  Dây chuyền điền gọi về đây khi một món đã điền xong.
+  //  sach = không còn cảnh báo nào.
+  function loMonXong(sach, viSao) {
+    if (!loDang || loDang.xongHan || loDang.i < 0) return;
+    clearTimeout(loDang.dongHoCho);
+
+    if (!sach && CD.loGapCanhBao === 'dung') {
+      ghiKetLo('boQua', viSao || 'có cảnh báo');
+      dungLo('gặp cảnh báo ở món ' + (loDang.i + 1));
+      return ketThucLo();
+    }
+    if (!sach) {
+      ghiKetLo('boQua', viSao || 'có cảnh báo');
+      return tiepSauMon();
+    }
+    dangSubmit();
+  }
+
+  // ====================================================================
+  //  NHẬN BIẾT "TRANG ĐÃ ĐĂNG XONG"  —  HỌC TỪ LẦN ĐẦU
+  //
+  //  Tôi không biết diablo.trade báo đăng thành công bằng dấu hiệu nào, và
+  //  tôi không đoán. Đoán sai ở đúng chỗ này là loại hỏng tệ nhất: hoặc
+  //  tưởng xong trong khi chưa (mất món, không ai hay), hoặc kẹt mãi ở
+  //  món đầu.
+  //
+  //  Nên lần đăng THẬT đầu tiên nó dừng lại hỏi một câu. Người dùng nhìn
+  //  màn hình rồi bấm "Đã đăng" hay "Chưa". Ngay lúc đó tiện ích so trang
+  //  TRƯỚC và SAU cú bấm, rút ra cái gì vừa đổi, rồi nhớ lấy. Từ món thứ
+  //  hai trở đi nó tự nhận, không hỏi nữa; lần chạy sau cũng vậy.
+  //
+  //  Trang đổi giao diện làm dấu hiệu cũ hỏng? Nó quay về hỏi lại một lần
+  //  rồi học lại. Không có gì phải sửa tay.
+  // ====================================================================
+
+  //  Ảnh chụp trạng thái trang, đủ để so trước/sau.
+  function chupDauTrang() {
+    const dong = new Set();
+    for (const d of String(document.body.innerText || '').split('\n')) {
+      const t = d.trim();
+      // Dòng quá dài là cả khối nội dung, không phải lời báo. Dòng rỗng bỏ.
+      if (t && t.length <= 80) dong.add(t);
+    }
+    return { url: location.href, soDong: timCacDong().length, dong };
+  }
+
+  //  Trang có dấu hiệu đã đăng xong không? Trả về lời mô tả, hoặc null.
+  function xemDaDang(truoc, dh) {
+    if (!dh) return null;
+    if (dh.url && location.href !== truoc.url) return 'trang chuyển đi';
+    if (dh.formTrong && truoc.soDong > 0 && timCacDong().length === 0)
+      return 'form trắng lại';
+    if (dh.chu && dh.chu.length) {
+      const nay = chupDauTrang().dong;
+      for (const c of dh.chu)
+        if (nay.has(c) && !truoc.dong.has(c)) return 'trang hiện "' + c + '"';
+    }
+    return null;
+  }
+
+  //  Học dấu hiệu từ một lần đăng đã được người dùng xác nhận.
+  function hocDauHieu(truoc) {
+    const sau = chupDauTrang();
+    const moi = [...sau.dong].filter(x => !truoc.dong.has(x));
+    const dh = {
+      url: sau.url !== truoc.url,
+      formTrong: truoc.soDong > 0 && sau.soDong === 0,
+      // Chỉ giữ dòng CÓ CHỮ và ngắn: mấy dòng toàn số là bộ đếm, mỗi lần
+      // một khác, nhớ lấy thì lần sau không bao giờ khớp.
+      chu: moi.filter(x => /[A-Za-zÀ-ỹ]{3}/.test(x) && x.length <= 60).slice(0, 4),
+    };
+    if (!dh.url && !dh.formTrong && !dh.chu.length) return null;
+    CD.loDauHieu = dh;
+    luuCaiDat();
+    ghi('Đăng hàng loạt: đã học dấu hiệu đăng xong — '
+      + (dh.url ? 'trang chuyển đi; ' : '')
+      + (dh.formTrong ? 'form trắng lại; ' : '')
+      + (dh.chu.length ? 'chữ mới: ' + dh.chu.join(' | ') : ''));
+    return dh;
+  }
+
+  //  Dừng lại hỏi. Trả về true nếu người dùng bảo đã đăng.
+  function hoiDaDangChua() {
+    return new Promise(traLoi => {
+      const d = document.getElementById('d4l-lo');
+      if (!d) return traLoi(false);
+      const h = document.createElement('div');
+      h.style.cssText = 'margin-top:8px;border-top:1px solid #444;padding-top:7px';
+      h.innerHTML =
+        '<div style="color:#e8c05a;font-size:11px;line-height:1.4">'
+        + 'Đã bấm Submit. Nhìn trang giúp: đăng thành công chưa?<br>'
+        + 'Trả lời một lần thôi — lần sau tiện ích tự nhận.</div>'
+        + '<div style="display:flex;gap:6px;margin-top:6px">'
+        + '<button id="d4l-lo-roi" style="flex:1;background:#2a3a2a;color:#cfe8cf;'
+        + 'border:1px solid #5a8a5a;border-radius:5px;padding:4px;cursor:pointer;'
+        + 'font:12px system-ui">Đã đăng ✓</button>'
+        + '<button id="d4l-lo-chua" style="flex:1;background:#3a2020;color:#f0d0d0;'
+        + 'border:1px solid #844;border-radius:5px;padding:4px;cursor:pointer;'
+        + 'font:12px system-ui">Chưa ✗</button></div>';
+      d.appendChild(h);
+      h.querySelector('#d4l-lo-roi').onclick = () => { h.remove(); traLoi(true); };
+      h.querySelector('#d4l-lo-chua').onclick = () => { h.remove(); traLoi(false); };
+    });
+  }
+
+  async function dangSubmit() {
+    const nut = nutDang();
+    if (!nut) {
+      ghiKetLo('hong', 'không thấy nút Submit');
+      return tiepSauMon();
+    }
+    const truoc = chupDauTrang();
+    chupBuoc('lo-truoc-bam-submit');
+    bamThat(nut);
+
+    // Đã biết dấu hiệu thì chờ nó hiện ra.
+    let moTa = null;
+    if (CD.loDauHieu)
+      moTa = await cho(() => xemDaDang(truoc, CD.loDauHieu), 12000);
+    else
+      await doi(3000);          // chưa biết gì — đợi trang phản ứng rồi hỏi
+
+    chupBuoc('lo-sau-bam-submit');
+
+    if (moTa) {
+      ghiKetLo('xong', moTa);
+      return tiepSauMon();
+    }
+
+    // Không nhận ra: hỏi người dùng. Đây cũng là lúc HỌC.
+    //
+    // Hỏi chứ không đoán, và cũng không lẳng lặng coi là hỏng: dấu hiệu cũ
+    // có thể chỉ vừa hết đúng vì trang đổi giao diện.
+    veBangLo();
+    const roi = await hoiDaDangChua();
+    if (roi) {
+      const dh = hocDauHieu(truoc);
+      ghiKetLo('xong', dh ? 'bạn xác nhận — đã học dấu hiệu'
+                          : 'bạn xác nhận (trang không đổi gì nhận ra được)');
+      return tiepSauMon();
+    }
+    ghiKetLo('hong', 'bạn báo chưa đăng được');
+    dungLo('món ' + (loDang.i + 1) + ' chưa đăng được — dừng cho chắc');
+    ketThucLo();
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && loDang && !loDang.xongHan) dungLo('bạn bấm Esc');
+  }, true);
+
+  //  Nhận chữ của MỘT món rồi khởi động cả dây chuyền.
+  //
+  //  Tách khỏi sự kiện dán để phần đăng hàng loạt gọi lại được y hệt:
+  //  cùng một đường, cùng một cách dọn trạng thái. Để lô đi đường riêng
+  //  thì sẽ có ngày hai đường lệch nhau — mà lệch ở khâu dọn trạng thái
+  //  là món sau ăn phải cảnh báo của món trước.
+  function nhanChuMon(t) {
+    if (!t || !t.trim()) return false;
     batGio();
     nhip('nhận chữ dán');
     chuDaDan = t;
@@ -3383,6 +3950,17 @@
     moThuMucLuot(t.split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0] || '');
     chupBuoc('0-vua-dan-chu');
     choFormDungXong(t);
+    return true;
+  }
+
+  document.addEventListener('paste', e => {
+    // Don ky tu vo hinh truoc da. BOM (U+FEFF) tung dinh lien vao TEN MON o
+    // dong dau, va game thi chen khoang trang khong ngat (U+00A0) vao ten.
+    // Ca hai deu khong nhin thay duoc nhung du lam hong phep doi chieu ten.
+    const t = ((e.clipboardData || window.clipboardData)?.getData('text/plain') || '')
+      .replace(/[﻿​-‍⁠]/g, '')
+      .replace(/ /g, ' ');
+    nhanChuMon(t);
   }, true);
 
   // Khong hen gio cung nhac nua: trang con bat bam SCAN roi moi dung form,

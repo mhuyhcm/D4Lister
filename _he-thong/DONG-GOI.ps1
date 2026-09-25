@@ -90,7 +90,7 @@ foreach ($d in $ThuMuc) {
 }
 
 # Nhat ky: ten file doi theo tung ban nen tim thay gi lay nay
-$NhatKy = Get-ChildItem -Filter 'NHAT-KY-*.md' -File | ForEach-Object { $_.Name }
+$NhatKy = Get-ChildItem -Filter 'NHAT-KY*.md' -File | ForEach-Object { $_.Name }
 $YTuong = Get-ChildItem -Filter 'Y-TUONG-*.md' -File | ForEach-Object { $_.Name }
 
 # --- Don cho tam ----------------------------------------------------

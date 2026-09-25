@@ -51,3 +51,10 @@ _kiem-tra/
 
 # --- Ban sao luu dong tren may, khong day len ---
 _sao-luu/
+
+# --- Rieng tung may: so lich su gia va ban do o->mon (V5) ---
+lich-su-gia.txt
+vi-tri-mon.txt
+
+# --- File danh sach dang hang loat, rieng tung may ---
+lo-dang.txt

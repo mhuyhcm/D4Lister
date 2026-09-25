@@ -1,5 +1,5 @@
 ﻿;=====================================================================
-;   D4Lister v4.1.2  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
+;   D4Lister v5.0  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
 ;   AutoHotkey v1  |  File độc lập, không #Include gì, chạy được trên máy khác
 ;
 ;   Mỗi phím CHỈ ăn ở đúng cửa sổ của nó — ngoài đó bấm không có tác dụng,
@@ -71,6 +71,7 @@ EnableDpiAwareness()
 global HK_QUET    := "F2"           ; quét hàng loạt rương + túi đồ
 global HK_KIEMTRA := "F10"          ; chụp & đo các tab (chỉ để dò, không quét)
 global HK_CAPTURE := "F3"           ; lấy món đang rê chuột
+global HK_QUEN    := "+F3"          ; Shift+F3 — quên lịch sử giá món đang rê
 global HK_PASTE   := "F4"           ; dán item hiện tại
 global HK_NEXT    := "F5"           ; sang item kế + dán luôn
 global HK_PREV    := "F6"           ; lùi về item trước
@@ -245,6 +246,8 @@ global g_GiaTenMonDang := ""   ; tên món form đang hỏi giá
 global g_GiaChuO       := ""   ; chữ đang nằm trong ô gõ, giữ qua lần dựng lại
 global g_DonVi         := "b"  ; đơn vị mặc định — gõ 200 nghĩa là 200b
 global g_KyTuTam       := ""   ; ký tự vừa gõ, dùng trong nhãn bắt phím
+global g_GiaHienTai    := ""   ; giá đang treo của món đang hỏi, để in dòng riêng
+global MAU_GIA_NAY := "1565C0" ; xanh dương cho dòng "Hiện tại"
 global GIA_TOI_DA      := 999  ; trần giá, gõ quá thì không ăn phím
 ; Bộ phím form đặt giá bắt lấy. Nuốt luôn, không cho lọt xuống game.
 global PHIM_GIA := "0|1|2|3|4|5|6|7|8|9"
@@ -268,6 +271,35 @@ global g_GiayCho  := 5      ; ...chờ mấy giây
 global GIAY_MAC_DINH := 10  ; không tự đặt thì dùng số này
 global FILE_LOG_QUET := A_ScriptDir . "\nhat-ky-quet.txt"
 
+; --- LỊCH SỬ GIÁ (V5) ------------------------------------------------
+; Sổ ghi mọi lần đặt giá, khoá theo MÓN chứ không theo Ô: món kéo sang ô
+; khác, hay tắt tool rồi mở lại, giá vẫn bám theo nó.
+; File danh sách cho tiện ích đăng hàng loạt. Đặt CẠNH script để máy nào
+; cũng đúng chỗ — tiện ích chọn file này một lần rồi nhớ luôn.
+global FILE_LO_DANG := A_ScriptDir . "\lo-dang.txt"
+global g_GhiLo      := false   ; quét xong có ghi file danh sách không
+
+global FILE_LICH_SU := A_ScriptDir . "\lich-su-gia.txt"
+global FILE_VI_TRI  := A_ScriptDir . "\vi-tri-mon.txt"
+global g_LichSu := {}       ; mã món -> mảng {luc, gia}, cũ trước mới sau
+global g_TenMon := {}       ; mã món -> tên, để in ra cho người đọc
+global g_OMon   := {}       ; "tab|hàng|cột" -> mã món, dựng lại mỗi lượt quét
+global g_MaDang   := ""     ; mã món form F3 đang hỏi giá
+global g_LoaiDang := ""     ; "Ancestral Legendary Amulet" — để tô màu tên
+global LS_HIEN    := 5      ; nhãn hiện mấy lần gần nhất, KỂ CẢ giá đang treo
+global g_KiemDien := false  ; lượt quét này chỉ đi xem món nào còn, không lấy gì
+global g_TabDangQuet := 0   ; lưới đang quét thuộc tab nào (O_TUI_DO = túi)
+global g_MaCoMat  := {}     ; mã món gặp trong lượt kiểm diện
+global g_OMonMoi  := {}     ; bản đồ ô->món dựng trong lượt kiểm diện
+
+; Màu tên món theo độ hiếm, lấy gần màu game in ra. Để một chỗ cho dễ chỉnh.
+global MAU_HIEM_UNIQUE    := "A0522D"   ; nâu vàng
+global MAU_HIEM_MYTHIC    := "C9A227"   ; vàng nhạt
+global MAU_HIEM_LEGENDARY := "C8752B"   ; cam
+global MAU_HIEM_RARE      := "B8A22B"   ; vàng
+global MAU_HIEM_MAGIC     := "4A5FC8"   ; xanh lam
+global MAU_HIEM_THUONG    := "3A3A3A"   ; xám đen, như chữ thường
+
 ; Đếm số món LIÊN TIẾP mà mọi dòng chỉ số đều không có khoảng [min - max].
 ; Chạm ngưỡng là gần như chắc chắn công tắc Advanced Tooltip Information
 ; đang tắt — xem khối CHỐT KIỂM trong LocMonTTS().
@@ -287,7 +319,7 @@ global ERROR_BROKEN_PIPE     := 109
 ;   KHỞI ĐỘNG
 ;=====================================================================
 Menu, Tray, Icon, C:\WINDOWS\system32\shell32.dll, 44
-Menu, Tray, Tip, D4Lister v4.1.2`nTrong game: F2 quet ruong / F3 lay mon`nTren trinh duyet: F4 dan / F5 ke / F6 lui
+Menu, Tray, Tip, D4Lister v5.0`nTrong game: F2 quet ruong / F3 lay mon`nTren trinh duyet: F4 dan / F5 ke / F6 lui
 
 if !FileExist(QUEUE_DIR)
     FileCreateDir, %QUEUE_DIR%
@@ -323,6 +355,7 @@ Hotkey, IfWinActive, ahk_group nhomGame
 Hotkey, %HK_QUET%,    DoQuet
 Hotkey, %HK_KIEMTRA%, DoKiemTra
 Hotkey, %HK_CAPTURE%, DoCapture
+Hotkey, %HK_QUEN%,    DoQuenGia
 
 Hotkey, IfWinActive, ahk_group nhomWeb
 Hotkey, %HK_PASTE%,   DoPaste
@@ -363,6 +396,12 @@ SetTimer, DocOng, %NHIP_ONG%
 SetTimer, TheoDoiTabDau, 400
 SetTimer, TheoDoiReGia, 120
 
+; Nạp sổ lịch sử giá và bản đồ ô->món rồi dựng lại dấu xanh NGAY. Đây là
+; cả điểm khác của V5: mở tool lên là rương đã có sẵn dấu của buổi trước.
+DocLichSuGia()
+DocFileViTri()
+DungLaiDauXanh()
+
 ; Soi cửa sổ game NGAY lúc khởi động, đừng để đến lúc bấm F2 mới biết.
 ; Game chưa bật thì im lặng — đó là chuyện bình thường, bật sau cũng được;
 ; đồng hồ dưới đây sẽ để ý và báo khi cửa sổ sai cỡ.
@@ -377,11 +416,11 @@ else if (loiCuaSo != "")
     ShowMsg("F2 chưa dùng được:`n" . loiCuaSo
           . "`n`nF3 vẫn lấy được từng món bình thường.", "err", 7000)
 else if (g_Items.Length() > 0)
-    ShowMsg("D4Lister v4.1.2 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
+    ShowMsg("D4Lister v5.0 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
 else if (canhBao != "")
-    ShowMsg("D4Lister v4.1.2" . canhBao, "err")
+    ShowMsg("D4Lister v5.0" . canhBao, "err")
 else
-    ShowMsg("D4Lister v4.1.2 sẵn sàng", "ok")
+    ShowMsg("D4Lister v5.0 sẵn sàng", "ok")
 
 SetTimer, CanhCuaSo, 4000
 
@@ -458,10 +497,14 @@ DoCapture:
         {
             fCu := g_FileMonDaLay
             giaCu := DocGiaTuFile(fCu)
-            giaMoi := HoiGia(TenMonTu(g_MonCuoi), giaCu)
+            chuCu := LocMonTTS(g_MonCuoi)
+            maCu  := MaMon(chuCu)
+            DatOChoMon(g_ODangRe, maCu)
+            giaMoi := HoiGia(TenMonTu(g_MonCuoi), giaCu, maCu, LoaiTuChu(chuCu))
             if (giaMoi != "")
             {
                 LuuGiaVaoFile(fCu, giaMoi)
+                ThemLichSuGia(maCu, giaMoi, TenMonTu(g_MonCuoi))
                 DatClipboardTuFile(fCu)
                 ShowMsg("Đã đặt giá " . giaMoi
                     . (DanhDauMon(giaMoi) ? "" : "`nkhông đánh dấu được ô — " . ViSaoKhongDau())
@@ -483,26 +526,53 @@ DoCapture:
         return
     }
 
-    outFile := QUEUE_DIR . "\" . SoTiepTheo() . ".txt"
-    FileDelete, %outFile%
-    ; UTF-8-RAW chứ không phải UTF-8: bản có đuôi -RAW không đặt BOM.
-    ; Đặt BOM thì ba byte EF BB BF dính liền vào TÊN MÓN ở dòng đầu, lúc F4
-    ; đọc lại là tên hoá ra "﻿GALVANIC AZURITE" — tiện ích đem tên đó
-    ; đi gõ vào ô tìm của trang thì không ra món nào.
-    FileAppend, %chu%, %outFile%, UTF-8-RAW
-    if !FileExist(outFile)
+    ; Món này đã có trong hàng đợi (lượt F2 vừa quét) thì DÙNG LẠI file đó,
+    ; đừng tạo file mới. Tạo mới thì ba món quét xong đặt giá hoá ra sáu
+    ; file — ba cái trắng của lượt quét, ba cái có giá của lượt F3 — và
+    ; file danh sách gom phải mấy cái trắng.
+    RefreshQueue()
+    outFile := TimFileCuaMon(chu)
+    if (outFile != "")
     {
-        g_Busy := false
-        ShowMsg("Không lưu được món này", "err")
-        return
+        daCoSan := true
+    }
+    else
+    {
+        daCoSan := false
+        outFile := QUEUE_DIR . "\" . SoTiepTheo() . ".txt"
+        FileDelete, %outFile%
+        ; UTF-8-RAW chứ không phải UTF-8: bản có đuôi -RAW không đặt BOM.
+        ; Đặt BOM thì ba byte EF BB BF dính liền vào TÊN MÓN ở dòng đầu, lúc F4
+        ; đọc lại là tên hoá ra "﻿GALVANIC AZURITE" — tiện ích đem tên đó
+        ; đi gõ vào ô tìm của trang thì không ra món nào.
+        FileAppend, %chu%, %outFile%, UTF-8-RAW
+        if !FileExist(outFile)
+        {
+            g_Busy := false
+            ShowMsg("Không lưu được món này", "err")
+            return
+        }
     }
 
     ; Món đầu tiên của một đợt mới -> ghi nhớ vị trí bắt đầu đợt
     if (!g_FreshCapture)
         g_BatchStart := g_Items.Length() + 1
 
-    g_Items.Push(outFile)
-    g_Cur := g_Items.Length()
+    ; Món đã có sẵn thì chỉ trỏ tới nó, đừng đẩy vào hàng đợi lần nữa.
+    if (daCoSan)
+    {
+        for iCu, fCu2 in g_Items
+            if (fCu2 = outFile)
+            {
+                g_Cur := iCu
+                break
+            }
+    }
+    else
+    {
+        g_Items.Push(outFile)
+        g_Cur := g_Items.Length()
+    }
     g_FreshCapture := true
     g_MonDaLay := g_MonCuoi
     g_FileMonDaLay := outFile
@@ -520,10 +590,14 @@ DoCapture:
     ; nhìn nó. Hỏi sau thì phải nhớ lại món nào ra món nào.
     if (g_HoiGia)
     {
-        giaMoi := HoiGia(g_TenCuoi)
+        maMoi := MaMon(chu)
+        ; Nhớ ô này là món nào, để dấu xanh bám theo món chứ không theo ô.
+        DatOChoMon(g_ODangRe, maMoi)
+        giaMoi := HoiGia(g_TenCuoi, "", maMoi, LoaiTuChu(chu))
         if (giaMoi != "")
         {
             LuuGiaVaoFile(outFile, giaMoi)
+            ThemLichSuGia(maMoi, giaMoi, g_TenCuoi)
             ; Đặt LẠI clipboard từ file. Clipboard được đặt ở trên kia, TRƯỚC
             ; lúc hỏi giá, nên chữ trong đó chưa có dòng #D4L-GIA. Ai dán
             ; bằng Ctrl+V (thay vì F4) là dán phải bản cũ, tiện ích không
@@ -537,6 +611,14 @@ DoCapture:
         }
     }
     ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi, "ok")
+return
+
+;   Shift+F3 — quên lịch sử giá của món đang rê chuột.
+;
+;   Lối thoát tay, dùng khi biết chắc món đã bán mà chưa muốn chạy lượt
+;   quét dọn, hoặc chỉ muốn xoá cho gọn.
+DoQuenGia:
+    QuenMonDangRe()
 return
 
 DoPaste:
@@ -2373,11 +2455,34 @@ TenMonTu(mon)
 XuLyMon(mon, noi, r, c, ms, laDoLai)
 {
     global
-    local chu, kq, nhan, tenMon
+    local chu, kq, nhan, tenMon, maKD
 
     g_TK.coDo++
     tenMon := TenMonTu(mon)
     chu    := LocMonTTS(mon)
+
+    ; LƯỢT KIỂM DIỆN: chỉ ghi nhận "món này đang còn", rồi thôi.
+    ;
+    ; Không ghi file vào queue\, không đụng hàng đợi đang chờ đăng, không
+    ; ghi đè giá, không sửa chỉ số. Chạy xong mọi thứ khác y nguyên như
+    ; trước khi chạy — đúng yêu cầu: "chỉ để check item này còn không".
+    if (g_KiemDien)
+    {
+        if (chu != "")
+        {
+            maKD := MaMon(chu)
+            g_MaCoMat[maKD] := true
+            g_OMonMoi[g_TabDangQuet . "|" . r . "|" . c] := maKD
+            GhiLog("  " . TenO(r, c) . "  có: " . tenMon)
+        }
+        else
+        {
+            g_TK.khongHieu++
+            GhiLog("  " . TenO(r, c) . "  !! ĐỌC ĐƯỢC NHƯNG KHÔNG HIỂU: " . tenMon)
+        }
+        return
+    }
+
     if (chu = "")
     {
         g_TK.khongHieu++
@@ -2952,6 +3057,16 @@ DoQuet:
     }
 
     dsTab := DocDsTab()
+    if (g_KiemDien)
+    {
+        ; Rà hết tab + túi, không hỏi ô tích. Xem lời giải thích ở HoiQuetGi.
+        dsTab := ""
+        Loop, % g_SoTab
+            dsTab .= (dsTab = "" ? "" : ",") . A_Index
+        g_QuetTui := true
+        g_MaCoMat := {}
+        g_OMonMoi := {}
+    }
     if (dsTab = "" && !g_QuetTui)
     {
         ShowMsg("Chưa chọn quét gì cả", "err")
@@ -3062,6 +3177,7 @@ DoQuet:
         truocMoi  := g_TK.moi
         truocRe   := g_TK.oRe
         truocNhin := g_TK.nhin
+        g_TabDangQuet := soTabNay
         QuetLuoi(gx, gy, RUONG_X, RUONG_Y, RUONG_OW, RUONG_OH
                , RUONG_COT, RUONG_HANG, "Rương tab " . soTabNay, huy)
         tabCoDo := g_TK.coDo - truocCoDo
@@ -3088,6 +3204,7 @@ DoQuet:
         truocCoDo := g_TK.coDo
         truocRe   := g_TK.oRe
         truocNhin := g_TK.nhin
+        g_TabDangQuet := O_TUI_DO
         QuetLuoi(gx, gy, TUI_X, TUI_Y, TUI_OW, TUI_OH
                , TUI_COT, TUI_HANG, "Túi đồ", huy)
         g_TK.chiTiet.Push({ten: "Túi đồ", coDo: g_TK.coDo - truocCoDo
@@ -3112,6 +3229,42 @@ DoQuet:
     if (huy != "")
         GhiLog("      DỪNG GIỮA CHỪNG: " . huy)
 
+    if (g_KiemDien)
+    {
+        ShowMsg(DonLichSuSauKiemDien(huy), g_TK.sot ? "err" : "ok", 8000, true)
+        g_KiemDien := false
+        g_GhimX := -1
+        g_GhimY := -1
+        return
+    }
+
+    ; Ghi file danh sách cho tiện ích. Làm TRƯỚC khi vẽ báo cáo, để con số
+    ; "ghi được mấy món" lên thẳng bảng — người dùng đọc một lần là biết
+    ; bên trình duyệt sắp đăng mấy món, khỏi mở file ra đếm.
+    loLo := ""
+    if (g_GhiLo)
+    {
+        if (GhiFileLoDang(soLoMon, soLoBo))
+        {
+            GhiLog("")
+            GhiLog("Đã ghi " . FILE_LO_DANG . ": " . soLoMon . " món"
+                 . (soLoBo ? ", bỏ qua " . soLoBo . " món chưa đặt giá" : ""))
+            ; Ngay sau lượt quét thì CHƯA món nào có giá — đặt giá là việc
+            ; làm sau, bằng F3. Nói rõ ra, không thì con số 0 nhìn như hỏng.
+            loLo := soLoMon
+                  ? "`nDanh sách đăng: " . soLoMon . " món"
+                    . (soLoBo ? "  ·  " . soLoBo . " món chưa đặt giá" : "")
+                  : "`nDanh sách đăng: chưa món nào có giá."
+                    . "`nRê chuột vào món, bấm F3 đặt giá — file tự cập nhật."
+        }
+        else
+        {
+            GhiLog("")
+            GhiLog("!! KHÔNG ghi được " . FILE_LO_DANG)
+            loLo := "`nKHÔNG ghi được file danh sách!"
+        }
+    }
+
     ; BÁO CÁO CUỐI LƯỢT. Giữ lâu hơn hẳn các tooltip khác — đây là thứ duy
     ; nhất cho biết có sót món nào không, đọc không kịp thì coi như không có.
     ; Vẫn ghim tại chỗ, không bám con trỏ.
@@ -3119,7 +3272,7 @@ DoQuet:
     ; Chỉ hai màu: XANH là xong xuôi, ĐỎ là có chuyện cần nhìn. Cam ở giữa
     ; chỉ làm người ta lưỡng lự, mà lưỡng lự thì bỏ qua.
     ; GiayBaoCao() = 0 -> ShowMsg giữ nguyên bảng, chỉ Esc mới đóng.
-    ShowMsg(DungBaoCao(huy, ngoTab, loaiBC), loaiBC, GiayBaoCao() * 1000, true
+    ShowMsg(DungBaoCao(huy, ngoTab, loaiBC) . loLo, loaiBC, GiayBaoCao() * 1000, true
           , g_HienLuoi ? g_TK.chiTiet : "")
     g_GhimX := -1          ; hết lượt, tooltip bám con trỏ lại như thường
     g_GhimY := -1
@@ -3209,6 +3362,8 @@ NapCauHinhQuet()
     g_BoQuaOTrong := (v != 0)
     IniRead, v, %FILE_CAU_HINH%, quet, hoigia, 1
     g_HoiGia := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, ghilo, 0
+    g_GhiLo := (v != 0)
     ; Ghi nguyên văn từng dòng game đọc ra, vào queue\_tts.log. Chỉ bật lúc
     ; đi tìm lỗi đọc item — file này lớn dần mãi, không tự dọn.
     IniRead, v, %FILE_CAU_HINH%, quet, ttslog, 0
@@ -3252,6 +3407,7 @@ LuuCauHinhQuet()
     IniWrite, % (g_HienLuoi ? 1 : 0), %FILE_CAU_HINH%, quet, luoi
     IniWrite, % (g_BoQuaOTrong ? 1 : 0), %FILE_CAU_HINH%, quet, boqua
     IniWrite, % (g_HoiGia ? 1 : 0), %FILE_CAU_HINH%, quet, hoigia
+    IniWrite, % (g_GhiLo ? 1 : 0), %FILE_CAU_HINH%, quet, ghilo
 }
 
 ;=====================================================================
@@ -3363,19 +3519,28 @@ HoiQuetGi()
                                 . (g_HoiGia ? " Checked" : "")
                               , Lấy món xong thì hỏi giá luôn (F3)
 
-    Gui, hQuet:Add, Text, x20 y500 w132 h22 +0x200, Chỉnh lệch vị trí tab:
-    Gui, hQuet:Add, Edit, voLech x154 y499 w56 h22 Center
+    Gui, hQuet:Add, Checkbox, % "voGhiLo x20 y500 w414 h22"
+                                . (g_GhiLo ? " Checked" : "")
+                              , Quét xong ghi file danh sách để đăng hàng loạt
+
+    Gui, hQuet:Add, Text, x20 y530 w132 h22 +0x200, Chỉnh lệch vị trí tab:
+    Gui, hQuet:Add, Edit, voLech x154 y529 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
-    Gui, hQuet:Add, Text, x216 y504 w40 h18, px
-    Gui, hQuet:Add, Button, x272 y498 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
+    Gui, hQuet:Add, Text, x216 y534 w40 h18, px
+    Gui, hQuet:Add, Button, x272 y528 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
 
     ; --- thanh nút ---
-    Gui, hQuet:Add, Progress, x0 y532 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y546 w136 h32 +Default gBatDauQuet, Scan
-    Gui, hQuet:Add, Button, x332 y546 w102 h32 gHuyQuet,             Đóng
+    Gui, hQuet:Add, Progress, x0 y562 w452 h58 BackgroundE6E4E1 Disabled
+    ; Nút RIÊNG chứ không phải một ô tích của Scan: đây là việc khác hẳn.
+    ; Nó không lấy món, không đụng hàng đợi, không đụng giá — chỉ đi xem
+    ; món nào còn trong rương. Nhét chung thành tuỳ chọn là mời người ta
+    ; bấm Scan rồi ngơ ngác không thấy món nào vào hàng đợi.
+    Gui, hQuet:Add, Button, x18 y576 w160 h32 gKiemDienQuet, Dọn lịch sử giá
+    Gui, hQuet:Add, Button, x188 y576 w136 h32 +Default gBatDauQuet, Scan
+    Gui, hQuet:Add, Button, x332 y576 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
-    Gui, hQuet:Show, w452 h590 Center
+    Gui, hQuet:Show, w452 h620 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -3385,8 +3550,12 @@ HoiQuetGi()
     ToolTip
     Gui, hQuet:Destroy
 
-    if (g_TraLoi != "quet")
+    if (g_TraLoi != "quet" && g_TraLoi != "kiemdien")
         return false
+
+    ; Lượt kiểm diện phải rà HẾT tab, bất kể mấy ô tích ở trên. Thiếu một
+    ; tab là món nằm trong đó bị coi như đã bán — xoá oan cả cuốn lịch sử.
+    g_KiemDien := (g_TraLoi = "kiemdien")
 
     g_SoTab   := (oSoTab = 1) ? 7 : 6
     g_QuetTui := (oTui != 0)
@@ -3398,6 +3567,7 @@ HoiQuetGi()
     g_HienLuoi := (oHienLuoi != 0)
     g_BoQuaOTrong := (oBoQua != 0)
     g_HoiGia  := (oHoiGia != 0)
+    g_GhiLo   := (oGhiLo != 0)
     g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
@@ -3577,6 +3747,11 @@ return
 BatDauQuet:
     Gui, hQuet:Submit, NoHide
     g_TraLoi := "quet"
+return
+
+KiemDienQuet:
+    Gui, hQuet:Submit, NoHide
+    g_TraLoi := "kiemdien"
 return
 
 HuyQuet:
@@ -3853,19 +4028,551 @@ ChupManHinh(f)
 ;   Nuốt luôn phím, không cho lọt xuống game: 0-9 trong game là ô kỹ năng.
 ;   Đổi lại phải tắt cho bằng hết lúc đóng form.
 ;
+;=====================================================================
+;   LỊCH SỬ GIÁ  (V5)
+;
+;   Vì sao phải khoá theo MÓN chứ không theo Ô:
+;
+;   Bản V4 ghi "tab|hàng|cột -> giá" và chỉ để trong bộ nhớ. Kéo món sang
+;   ô khác là giá ở lại ô trống; tắt tool là mất sạch. Với một cuốn lịch
+;   sử thì cả hai đều hỏng ngay từ đầu — "500b từ 23h trước" không sống
+;   nổi qua một lần khởi động lại, mà tool thì tắt mở suốt.
+;
+;   Mã món lấy từ CHÍNH CHỮ đã chuẩn hoá của món (LocMonTTS): tên, loại,
+;   item power, từng dòng affix kèm số, câu Aspect. Đo thật trên _tts.log
+;   ngày 25/09/2026: sáu món đọc đi đọc lại đều ra y hệt nhau, không lệch
+;   một dòng — nên mã này ổn định qua các lượt đọc.
+;
+;   Hai món CÙNG TÊN KHÁC CHỈ SỐ ra hai mã khác nhau, đúng ý người dùng:
+;   đó là hai món khác nhau. Hai món giống hệt nhau từng con số thì dùng
+;   chung một cuốn — không phân biệt được, mà cũng không cần: cùng món thì
+;   cùng giá.
+;=====================================================================
+
+;   Băm FNV-1a 32 bit, chạy hai lần với hai hạt giống khác nhau rồi ghép
+;   thành 16 ký tự hex. Một lần 32 bit thì vài trăm món đã có xác suất
+;   trùng đáng kể; ghép hai lần thì coi như hết.
+;
+;   AutoHotkey v1 không có hàm băm sẵn. DllCall sang advapi32 lấy MD5 thì
+;   dài gấp mấy lần đoạn này mà chẳng được gì hơn — đây không phải mật mã,
+;   chỉ cần một con số ổn định cho cùng một chuỗi.
+BamChuoi(chu, hat)
+{
+    local h, i, n
+    h := hat
+    n := StrLen(chu)
+    i := 1
+    while (i <= n)
+    {
+        h := (h ^ Ord(SubStr(chu, i, 1))) & 0xFFFFFFFF
+        h := (h * 16777619) & 0xFFFFFFFF
+        i++
+    }
+    return h
+}
+
+MaMon(chuDaLoc)
+{
+    if (chuDaLoc = "")
+        return ""
+    return Format("{:08x}{:08x}"
+        , BamChuoi(chuDaLoc, 2166136261), BamChuoi(chuDaLoc, 1099511628))
+}
+
+;   Đọc sổ lên bộ nhớ. Gọi một lần lúc khởi động.
+;
+;   Mỗi dòng:  <mã> | <yyyyMMddHHmmss> | <giá> | <tên món>
+;   Tên món để CUỐI vì nó là thứ duy nhất có thể chứa dấu gạch đứng.
+DocLichSuGia()
+{
+    global
+    local chu, ma, luc, gia, ten, p1, p2, p3
+
+    g_LichSu := {}
+    g_TenMon := {}
+    if (!FileExist(FILE_LICH_SU))
+        return
+    FileRead, chu, *P65001 %FILE_LICH_SU%
+    Loop, Parse, chu, `n, `r
+    {
+        if (Trim(A_LoopField) = "")
+            continue
+        p1 := InStr(A_LoopField, "|")
+        p2 := InStr(A_LoopField, "|", false, p1 + 1)
+        p3 := InStr(A_LoopField, "|", false, p2 + 1)
+        if (!p1 || !p2 || !p3)
+            continue
+        ma  := Trim(SubStr(A_LoopField, 1, p1 - 1))
+        luc := Trim(SubStr(A_LoopField, p1 + 1, p2 - p1 - 1))
+        gia := Trim(SubStr(A_LoopField, p2 + 1, p3 - p2 - 1))
+        ten := Trim(SubStr(A_LoopField, p3 + 1))
+        if (ma = "" || gia = "")
+            continue
+        if (!g_LichSu.HasKey(ma))
+            g_LichSu[ma] := []
+        g_LichSu[ma].Push({luc: luc, gia: gia})
+        g_TenMon[ma] := ten
+    }
+}
+
+;   Ghi lại toàn bộ sổ. Chỉ dùng khi XOÁ bớt — lúc thêm thì nối đuôi cho
+;   nhanh và cho khỏi mất sổ nếu máy tắt giữa chừng.
+GhiLaiFileLichSu()
+{
+    global
+    local chu, ma, ds, i, m
+
+    chu := ""
+    for ma, ds in g_LichSu
+    {
+        i := 1
+        while (i <= ds.Length())
+        {
+            m := ds[i]
+            chu .= ma . " | " . m.luc . " | " . m.gia . " | " . g_TenMon[ma] . "`n"
+            i++
+        }
+    }
+    FileDelete, %FILE_LICH_SU%
+    if (chu != "")
+        FileAppend, %chu%, %FILE_LICH_SU%, UTF-8-RAW
+}
+
+ThemLichSuGia(ma, gia, ten)
+{
+    global
+    if (ma = "" || gia = "")
+        return
+    ; Giá y hệt lần trước thì đừng ghi thêm dòng. Mở form ra xem lịch sử
+    ; rồi Enter luôn mà không đổi gì là chuyện thường; mỗi lần như thế đẻ
+    ; một dòng "300b · vừa xong" chồng lên "300b" thì bốn dòng lịch sử
+    ; toàn một con số, chẳng nói lên điều gì.
+    if (GiaDangTreo(ma) = gia)
+        return
+    if (!g_LichSu.HasKey(ma))
+        g_LichSu[ma] := []
+    g_LichSu[ma].Push({luc: A_Now, gia: gia})
+    g_TenMon[ma] := ten
+    FileAppend, % ma . " | " . A_Now . " | " . gia . " | " . ten . "`n"
+              , %FILE_LICH_SU%, UTF-8-RAW
+}
+
+;   Giá đang treo = lần đặt gần nhất. "" nếu chưa từng đặt.
+GiaDangTreo(ma)
+{
+    global
+    local ds
+    if (ma = "" || !g_LichSu.HasKey(ma))
+        return ""
+    ds := g_LichSu[ma]
+    return ds.Length() ? ds[ds.Length()].gia : ""
+}
+
+QuenLichSuGia(ma)
+{
+    global
+    if (ma = "" || !g_LichSu.HasKey(ma))
+        return false
+    g_LichSu.Delete(ma)
+    g_TenMon.Delete(ma)
+    GhiLaiFileLichSu()
+    return true
+}
+
+;   "vừa xong" / "3 phút trước" / "12h trước" / "4 ngày trước".
+;
+;   Đọc bằng mắt chứ không phải đọc cho máy, nên chỉ lấy đơn vị to nhất —
+;   "1 ngày 3 giờ 20 phút trước" dài mà chẳng nói thêm được gì.
+TuoiChu(luc)
+{
+    local giay, phut, gio, ngay, t
+    t := luc
+    giay := A_Now
+    EnvSub, giay, %t%, Seconds
+    if (giay < 0)
+        return "vừa xong"
+    if (giay < 90)
+        return "vừa xong"
+    phut := Round(giay / 60)
+    if (phut < 60)
+        return phut . " phút trước"
+    gio := Floor(giay / 3600)
+    if (gio < 48)
+        return gio . "h trước"
+    ngay := Floor(giay / 86400)
+    return ngay . " ngày trước"
+}
+
+;   Màu chữ tên món theo độ hiếm. Đọc từ dòng thứ hai của tooltip
+;   ("Ancestral Legendary Amulet"). Xét MYTHIC trước UNIQUE vì chuỗi của
+;   nó là "Mythic Unique" — xét ngược thì món Mythic nào cũng ra Unique.
+MauDoHiem(loai)
+{
+    local l
+    l := Format("{:L}", loai)
+    if (InStr(l, "mythic"))
+        return MAU_HIEM_MYTHIC
+    if (InStr(l, "unique"))
+        return MAU_HIEM_UNIQUE
+    if (InStr(l, "legendary"))
+        return MAU_HIEM_LEGENDARY
+    if (InStr(l, "rare"))
+        return MAU_HIEM_RARE
+    if (InStr(l, "magic"))
+        return MAU_HIEM_MAGIC
+    return MAU_HIEM_THUONG
+}
+
+;=====================================================================
+;   GHI FILE DANH SÁCH CHO TIỆN ÍCH ĐĂNG HÀNG LOẠT
+;
+;   AHK chỉ ghi file rồi thôi — không mở trình duyệt, không gõ phím, không
+;   cướp tiêu điểm khỏi game. Bên tiện ích người dùng bấm "Đăng hàng loạt"
+;   lúc nào tuỳ họ. Hai bên hết ràng nhau về thời gian, và bớt hẳn một loại
+;   lỗi: "dán đúng lúc trang vừa tải xong".
+;
+;   CHỈ ghi món ĐÃ CÓ GIÁ. Món chưa đặt giá mà đăng lên thì thành rao bán
+;   không giá — nên bỏ qua, và nói rõ bỏ mấy món.
+;
+;   Ghi CÓ BOM. Mấy file trong queue\ cố tình không có BOM (ba byte đó dính
+;   vào tên món ở dòng đầu, tiện ích đem tên ấy đi tìm thì không ra món
+;   nào). Nhưng file này trình duyệt đọc, không có BOM là nó đoán bảng mã,
+;   đoán sai thì chữ ra rác.
+;=====================================================================
+GhiFileLoDang(ByRef soMon, ByRef soBoQua)
+{
+    global
+    local f, chu, noiDung, gio, than, iLo
+
+    soMon := 0
+    soBoQua := 0
+    RefreshQueue()
+
+    than := ""
+    for iLo, f in g_Items
+    {
+        if (!FileExist(f))
+            continue
+        FileRead, noiDung, *P65001 %f%
+        noiDung := RegExReplace(noiDung, "^\x{FEFF}", "")
+        if (Trim(noiDung) = "")
+            continue
+        ; Đòi #D4L-GIA có kèm giá trị. Dòng rỗng không tính là đã đặt giá.
+        if (!RegExMatch(noiDung, "(?:\R|^)[ \t]*#D4L-GIA:[ \t]*\S"))
+        {
+            soBoQua++
+            continue
+        }
+        than .= "#D4L-MON`n" . RegExReplace(noiDung, "\s+$", "") . "`n"
+        soMon++
+    }
+
+    FormatTime, gio,, yyyy-MM-dd HH:mm:ss
+    chu := "#D4L-LO " . soMon . " mon | " . gio
+         . (soBoQua ? " | bo qua " . soBoQua . " mon chua dat gia" : "") . "`n" . than
+
+    FileDelete, %FILE_LO_DANG%
+    ; "UTF-8" chứ KHÔNG phải "UTF-8-RAW" — khác đúng một chữ mà ngược hẳn ý:
+    ; bản -RAW không đặt BOM, còn bản này đặt. Mọi file khác của tool dùng
+    ; -RAW để TRÁNH BOM (ba byte đó dính vào tên món); riêng file này cần
+    ; BOM cho trình duyệt khỏi đoán bảng mã.
+    ;
+    ; Đo thật (25/09/2026): FileAppend + "UTF-8" ra EF BB BF ở đầu file.
+    ; Đừng kiểm lại bằng FileOpen/RawRead của AHK — FileOpen TỰ NHẢY QUA
+    ; BOM lúc mở, nên đọc kiểu đó thấy ngay ký tự đầu của chữ và tưởng là
+    ; không có BOM. Muốn kiểm thì phải đặt lại con trỏ về 0 trước khi đọc.
+    FileAppend, %chu%, %FILE_LO_DANG%, UTF-8
+    return FileExist(FILE_LO_DANG) ? true : false
+}
+
+;=====================================================================
+;   DỌN SỔ SAU LƯỢT KIỂM DIỆN
+;
+;   Món nào trong sổ mà lượt vừa rồi không gặp = đã bán = xoá.
+;
+;   HAI điều kiện phải đủ cả mới được dọn, và cả hai đều có lý do đắt giá:
+;
+;   1. Lượt phải chạy TRỌN VẸN, không bị Esc giữa chừng. Dừng ở tab 3 thì
+;      tab 4,5,6 chưa ai nhìn tới — món trong đó mà bị coi là đã bán thì
+;      xoá oan cả cuốn.
+;
+;   2. Lượt phải KHÔNG SÓT Ô nào. Đây là bẫy 71: ảnh chụp nói ô có đồ mà
+;      chữ không ra, chương trình cũ chỉ ghi sổ rồi đi tiếp — quét 13 món
+;      ra 10. Lượt như thế mà đem đi dọn là xoá lịch sử của ba món đang
+;      nằm yên trong rương, và người dùng sẽ không biết cho tới lúc cần.
+;=====================================================================
+DonLichSuSauKiemDien(huy)
+{
+    global
+    local ds, ma, i, soQuen, tenQuen, soCon
+
+    soCon := 0
+    for ma, i in g_MaCoMat
+        soCon++
+
+    if (huy != "")
+    {
+        GhiLog("  >> KHÔNG dọn sổ: lượt dừng giữa chừng (" . huy . ")")
+        return "Dừng giữa chừng — không dọn sổ.`n"
+             . "Tab chưa quét tới thì không biết món trong đó còn hay mất."
+    }
+    if (g_TK.sot > 0)
+    {
+        GhiLog("  >> KHÔNG dọn sổ: lượt này sót " . g_TK.sot . " ô")
+        return "Lượt quét sót " . g_TK.sot . " ô — KHÔNG dọn sổ.`n"
+             . "Sót ô mà dọn là xoá nhầm món vẫn đang trong rương.`n"
+             . "Chạy lại một lượt nữa."
+    }
+
+    ; Gom trước rồi mới xoá: xoá ngay trong lúc duyệt là hỏng vòng lặp.
+    ds := []
+    for ma, i in g_LichSu
+        if (!g_MaCoMat.HasKey(ma))
+            ds.Push(ma)
+
+    soQuen  := 0
+    tenQuen := ""
+    i := 1
+    while (i <= ds.Length())
+    {
+        ma := ds[i]
+        ; Lấy tên TRƯỚC khi xoá — xoá rồi thì g_TenMon[ma] rỗng, nhật ký
+        ; chỉ còn cái mã, đọc lại chẳng biết đó là món gì.
+        if (soQuen < 4)
+            tenQuen .= "`n   " . g_TenMon[ma]
+        else if (soQuen = 4)
+            tenQuen .= "`n   …"
+        GhiLog("  >> quên lịch sử: " . g_TenMon[ma] . " (" . ma . ")")
+        g_LichSu.Delete(ma)
+        g_TenMon.Delete(ma)
+        soQuen++
+        i++
+    }
+    if (soQuen)
+        GhiLaiFileLichSu()
+
+    ; Bản đồ ô->món thay hẳn bằng cái vừa dựng: đây cũng là lúc dấu xanh
+    ; về đúng ô sau khi người dùng xếp lại rương cả buổi.
+    g_OMon := g_OMonMoi.Clone()
+    GhiFileViTri()
+    DungLaiDauXanh()
+
+    GhiLog("  >> kiểm diện: " . soCon . " món còn trong rương/túi, quên " . soQuen)
+    return "Kiểm diện xong: " . soCon . " món còn trong rương/túi."
+         . (soQuen ? "`nĐã quên lịch sử " . soQuen . " món đã bán:" . tenQuen
+                   : "`nKhông món nào phải quên.")
+         . "`nDấu xanh đã về đúng ô."
+}
+
+;   Quên lịch sử giá của món con trỏ đang nằm trên.
+;
+;   Đọc THẲNG tooltip chứ không tra bản đồ ô: bản đồ có thể đã cũ (món vừa
+;   kéo sang ô khác), mà quên nhầm món thì không lấy lại được.
+;
+;   Đòi con trỏ phải nằm trong một ô của rương/túi. Không đòi thì bấm nhầm
+;   ở giữa màn hình cũng xoá — mà xoá cái gì thì chịu, vì g_MonCuoi giữ
+;   món cuối cùng game đọc ra, có thể đã từ lâu.
+QuenMonDangRe()
+{
+    global
+    local chuQ, maQ, tenQ, soLan, dsBo, o, ma, i
+
+    if (g_Busy || g_DangQuet || g_DangHoiGia)
+        return
+    g_Busy := true
+    HideMsgNow()
+    GhiNhoODangRe()
+    SetTimer, DocOng, Off
+    VetOng()
+    Loop, 10
+    {
+        if (g_Dem.Length() = 0)
+            break
+        Sleep, 25
+        VetOng()
+    }
+    SetTimer, DocOng, %NHIP_ONG%
+    g_Busy := false
+
+    if (g_ODangRe = "")
+    {
+        ShowMsg("Rê chuột vào món trong rương hoặc túi rồi bấm Shift+F3", "warn")
+        return
+    }
+    if (g_MonCuoi = "")
+    {
+        ShowMsg("Chưa rê chuột lên món nào", "err")
+        return
+    }
+
+    chuQ := LocMonTTS(g_MonCuoi)
+    maQ  := MaMon(chuQ)
+    tenQ := TenMonTu(g_MonCuoi)
+    if (maQ = "" || !g_LichSu.HasKey(maQ))
+    {
+        ShowMsg(tenQ . "`nchưa có lịch sử giá nào", "warn")
+        return
+    }
+
+    soLan := g_LichSu[maQ].Length()
+    QuenLichSuGia(maQ)
+
+    ; Gỡ mọi ô đang trỏ tới món này, không thì dấu xanh còn trơ lại.
+    ; Gom trước rồi mới xoá: xoá ngay trong lúc duyệt là hỏng vòng lặp.
+    dsBo := []
+    for o, ma in g_OMon
+        if (ma = maQ)
+            dsBo.Push(o)
+    i := 1
+    while (i <= dsBo.Length())
+    {
+        g_OMon.Delete(dsBo[i])
+        i++
+    }
+    GhiFileViTri()
+    DungLaiDauXanh()
+
+    ShowMsg("Đã quên " . soLan . " lần đặt giá của`n" . tenQ, "ok")
+}
+
+;=====================================================================
+;   BẢN ĐỒ Ô -> MÓN
+;
+;   Lúc rê chuột ta chỉ biết mình đang ở Ô NÀO, chưa biết ô đó là món gì:
+;   đồng hồ rê chuột cố tình không đọc tooltip, chỉ tra bộ nhớ (nên nó mới
+;   nhẹ, chạy 120ms một nhịp không tốn gì).
+;
+;   Nên phải có bản đồ dựng sẵn: lượt quét ghi lại ô nào là món nào, F3
+;   chạm vào ô nào thì cập nhật ô đó. Ghi xuống đĩa để tắt tool mở lại vẫn
+;   còn dấu xanh — bản V4 giữ trong bộ nhớ nên mở lại là trắng trơn.
+;=====================================================================
+;   Ghi "ô này đang là món kia", và GỠ món đó khỏi mọi ô cũ.
+;
+;   Một món chỉ nằm được một chỗ. Không gỡ ô cũ thì kéo món sang ô khác
+;   rồi bấm F3 là nó mọc thêm dấu xanh thứ hai, ô cũ đã trống vẫn xanh —
+;   mà ô trống có giá thì đúng là thứ gây hiểu nhầm nhất.
+;
+;   Đây cũng là đường "F3 nạp lại" cho món vừa kéo đi: rê vào chỗ mới bấm
+;   F3 một cái là dấu về đúng ô. Kéo cả loạt thì chạy "Dọn lịch sử giá",
+;   nó dựng lại sạch bản đồ.
+DatOChoMon(o, ma)
+{
+    global
+    local dsBo, k, v, i
+
+    if (o = "" || ma = "")
+        return
+    dsBo := []
+    for k, v in g_OMon
+        if (v = ma && k != o)
+            dsBo.Push(k)
+    i := 1
+    while (i <= dsBo.Length())
+    {
+        g_OMon.Delete(dsBo[i])
+        i++
+    }
+    g_OMon[o] := ma
+    GhiFileViTri()
+    DungLaiDauXanh()
+}
+
+DocFileViTri()
+{
+    global
+    local chu, p, o, ma
+
+    g_OMon := {}
+    if (!FileExist(FILE_VI_TRI))
+        return
+    FileRead, chu, *P65001 %FILE_VI_TRI%
+    Loop, Parse, chu, `n, `r
+    {
+        if (Trim(A_LoopField) = "")
+            continue
+        p := InStr(A_LoopField, "=")
+        if (!p)
+            continue
+        o  := Trim(SubStr(A_LoopField, 1, p - 1))
+        ma := Trim(SubStr(A_LoopField, p + 1))
+        if (o != "" && ma != "")
+            g_OMon[o] := ma
+    }
+}
+
+GhiFileViTri()
+{
+    global
+    local chu, o, ma
+
+    chu := ""
+    for o, ma in g_OMon
+        chu .= o . "=" . ma . "`n"
+    FileDelete, %FILE_VI_TRI%
+    if (chu != "")
+        FileAppend, %chu%, %FILE_VI_TRI%, UTF-8-RAW
+}
+
+;   Dựng lại toàn bộ dấu xanh từ bản đồ ô->món và sổ lịch sử.
+;
+;   Ô nào mang món đã có giá thì hiện giá ĐANG TREO. Món đã quên (bán rồi)
+;   thì ô đó không còn dấu — không cần xoá bản đồ, tra không ra giá là đủ.
+DungLaiDauXanh()
+{
+    global
+    local o, ma, gia
+
+    g_DauXanh := {}
+    for o, ma in g_OMon
+    {
+        gia := GiaDangTreo(ma)
+        if (gia != "")
+            g_DauXanh[o] := gia
+    }
+    g_DauTabDang := -1          ; ép vẽ lại
+}
+
+;   Dòng thứ hai của chữ đã chuẩn hoá = "Ancestral Legendary Amulet".
+LoaiTuChu(chuDaLoc)
+{
+    local i
+    i := 0
+    Loop, Parse, chuDaLoc, `n, `r
+    {
+        if (Trim(A_LoopField) = "")
+            continue
+        i++
+        if (i = 2)
+            return Trim(A_LoopField)
+    }
+    return ""
+}
+
 ;   Đơn vị mặc định là tỉ: gõ 300, lưu ra "300b". Ô chỉ hiện con số, chữ b
 ;   không hiện. Đổi đơn vị trong quet.ini, mục [gia] donvi.
-HoiGia(tenMon, giaCu := "")
+HoiGia(tenMon, giaCu := "", ma := "", loai := "")
 {
     global
 
     g_GiaTenMonDang := tenMon
-    ; Món đã có giá thì bỏ chữ đơn vị đi, ô chỉ giữ con số.
-    g_GiaChuO       := RegExReplace(Trim(giaCu), "[A-Za-z]+$", "")
-    ; Giá cũ lưu từ trước lúc có trần thì kéo về trần. Không kéo thì ô hiện
-    ; số vượt trần mà gõ thêm lại không được — nhìn như hỏng bàn phím.
-    if (QuaTranGia(g_GiaChuO))
-        g_GiaChuO := GIA_TOI_DA . ""
+    g_MaDang        := ma
+    g_LoaiDang      := loai
+    ; Chưa biết giá cũ thì hỏi sổ lịch sử. Đây là chỗ món đặt giá từ buổi
+    ; trước lấy lại được giá của nó: file trong queue\ có thể đã dọn, còn
+    ; sổ thì không.
+    ; Sổ là nguồn chính; file trong queue\ chỉ để đỡ cho món đặt giá từ
+    ; trước khi có sổ (V4 không ghi sổ, nên món cũ chỉ còn giá trong file).
+    g_GiaHienTai := GiaDangTreo(ma)
+    if (g_GiaHienTai = "")
+        g_GiaHienTai := Trim(giaCu)
+
+    ; Ô NHẬP ĐỂ TRỐNG, không điền sẵn giá đang treo.
+    ;
+    ; Điền sẵn thì nhìn không ra đó là giá cũ hay giá mình vừa gõ — mà đây
+    ; là ô quyết định món lên sàn bao nhiêu, hiểu nhầm một cái là bán hớ.
+    ; Giá đang treo chuyển xuống thành dòng riêng "Hiện tại: …" màu xanh
+    ; dương, đọc là biết ngay đó là thông tin chứ không phải thứ mình gõ.
+    g_GiaChuO       := ""
     g_GiaChon       := ""
     g_GiaXong       := false
     g_DangHoiGia    := true
@@ -3905,8 +4612,10 @@ VeFormGia()
     y := mg
     fs := Round(11 * A_ScreenDPI / 96)
     Gui, hGia:Font, s%fs% Bold, Segoe UI
+    ; Tên món tô theo ĐỘ HIẾM, như màu game in ra. Cả loạt tên đen giống
+    ; nhau thì phải đọc chữ mới biết món gì; có màu thì liếc là ra.
     Gui, hGia:Add, Text, % "x" . mg . " y" . y . " w" . ew
-                        . " c1A1A1A vGiaTenMon", % g_GiaTenMonDang
+                        . " c" . MauDoHiem(g_LoaiDang) . " vGiaTenMon", % g_GiaTenMonDang
     y += Round(24 * A_ScreenDPI / 96)
 
     ; Ô chỉ để NHÌN. Chữ vào ô bằng đường bắt phím, không phải bằng tiêu
@@ -3915,10 +4624,80 @@ VeFormGia()
     Gui, hGia:Font, s%fs% Bold, Segoe UI
     Gui, hGia:Add, Edit, % "x" . mg . " y" . y . " w" . ew . " h" . eh
                         . " Center ReadOnly -TabStop vGiaChuNhap", % g_GiaChuO
-    h := y + eh + mg
+    y += eh
+
+    ; --- mấy lần đặt giá TRƯỚC ĐÓ ---
+    ;
+    ; Ô nhập ở trên đã là giá đang treo, nên dưới này chỉ liệt kê các lần
+    ; trước — LS_HIEN đếm cả giá đang treo, nên còn LS_HIEN-1 dòng.
+    ;
+    ; Chữ trơn, KHÔNG bấm được: người dùng đã dặn form chỉ một ô nhập,
+    ; "bỏ hết các tính năng khác, + - click các kiểu đi".
+    ;
+    ; Món chưa từng đặt giá thì không thêm dòng nào — form y hệt bản cũ.
+    y += MayDongLichSu(mg, y, ew)
+    h := y + mg
 
     ViTriForm(w, h, px, py)
     Gui, hGia:Show, % "NoActivate x" . px . " y" . py . " w" . w . " h" . h
+}
+
+;   Vẽ mấy dòng "lần trước để giá này" xuống dưới ô nhập.
+;   Trả về CHIỀU CAO đã dùng, để hàm gọi biết form phải cao thêm bao nhiêu.
+MayDongLichSu(mg, yDau, ew)
+{
+    global
+    local ds, n, i, m, y, fs, dh, wGia, dem, coSo
+
+    y    := yDau
+    dh   := Round(19 * A_ScreenDPI / 96)
+    wGia := Round(78 * A_ScreenDPI / 96)
+    coSo := false
+
+    ; --- dòng "Hiện tại" ---
+    ; Đậm và XANH DƯƠNG, khác hẳn mấy dòng cũ màu xám: đây là con số đang
+    ; có hiệu lực, không phải lịch sử.
+    if (g_GiaHienTai != "")
+    {
+        y  += Round(9 * A_ScreenDPI / 96)
+        fs := Round(10 * A_ScreenDPI / 96)
+        Gui, hGia:Font, s%fs% Bold, Segoe UI
+        Gui, hGia:Add, Text, % "x" . mg . " y" . y . " w" . ew
+                            . " c" . MAU_GIA_NAY, % "Hiện tại: " . g_GiaHienTai
+        y += dh
+        coSo := true
+    }
+
+    ; --- mấy lần TRƯỚC ĐÓ ---
+    ; Mục cuối trong sổ chính là giá đang treo, đã in ở trên -> bỏ ra.
+    if (g_MaDang != "" && g_LichSu.HasKey(g_MaDang))
+    {
+        ds := g_LichSu[g_MaDang]
+        n  := ds.Length()
+        if (n > 1)
+        {
+            if (!coSo)
+                y += Round(9 * A_ScreenDPI / 96)
+            fs := Round(9 * A_ScreenDPI / 96)
+            Gui, hGia:Font, s%fs% Norm, Segoe UI
+            dem := 0
+            i := n - 1
+            ; LS_HIEN đếm cả dòng "Hiện tại", nên còn LS_HIEN-1 dòng cũ.
+            while (i >= 1 && dem < LS_HIEN - 1)
+            {
+                m := ds[i]
+                Gui, hGia:Add, Text, % "x" . mg . " y" . y . " w" . wGia
+                                    . " c6A6A6A", % m.gia
+                Gui, hGia:Add, Text, % "x" . (mg + wGia) . " y" . y
+                                    . " w" . (ew - wGia) . " Right c9A9A9A"
+                                    , % TuoiChu(m.luc)
+                y += dh
+                dem++
+                i--
+            }
+        }
+    }
+    return y - yDau
 }
 
 ;   Bật/tắt bộ phím của form. Tắt cho bằng hết là việc bắt buộc: để sót
@@ -4085,7 +4864,26 @@ GhepDonVi(chu, dv)
 ;   định chỉ coi `r`n là hết dòng — gặp một `n trơ là ^ không bám được,
 ;   dòng giá cũ không bị xoá, đọc lại ra rỗng. \R khớp mọi kiểu xuống dòng
 ;   nên không phụ thuộc chuyện đó nữa.
+;   Lưu giá vào file của món, RỒI ghi lại file danh sách ngay.
+;
+;   Ghi lại ngay là chỗ đã sai một lần: bản trước chỉ ghi lo-dang.txt ở
+;   CUỐI LƯỢT QUÉT F2 — mà lúc đó chưa món nào có giá, vì đặt giá là việc
+;   làm SAU, bằng F3. File danh sách chụp đúng lúc còn trắng rồi nằm im,
+;   nên tiện ích đọc ra "0 món, bỏ qua 3 món chưa đặt giá" trong khi giá
+;   nằm ngay trong hàng đợi.
+;
+;   Ghi mỗi lần đặt giá thì file luôn khớp thực tế. Nó nhỏ, ghi lại không
+;   tốn gì.
 LuuGiaVaoFile(f, gia)
+{
+    local noiDung, ok, sm, sb
+    ok := LuuGiaVaoFileThoi(f, gia)
+    if (ok && g_GhiLo)
+        GhiFileLoDang(sm, sb)
+    return ok
+}
+
+LuuGiaVaoFileThoi(f, gia)
 {
     local noiDung
     if (!FileExist(f))
@@ -4098,6 +4896,50 @@ LuuGiaVaoFile(f, gia)
     FileDelete, %f%
     FileAppend, %noiDung%, %f%, UTF-8-RAW
     return FileExist(f) ? true : false
+}
+
+;   Món này đã nằm trong hàng đợi chưa? Trả về đường dẫn file, hoặc "".
+;
+;   VÌ SAO CẦN: đường dùng chính là F2 quét cả rương lấy món, rồi rê từng
+;   món bấm F3 đặt giá. Bản trước F3 luôn tạo file MỚI, nên ba món quét
+;   xong đặt giá thành SÁU file: ba cái trắng của lượt quét, ba cái có giá
+;   của lượt F3. File danh sách gom phải mấy cái trắng, báo "chưa món nào
+;   đặt giá" trong khi giá nằm ngay đó.
+;
+;   So theo NỘI DUNG, bỏ mấy dòng đánh dấu ra ngoài: #D4L-GIA đổi mỗi lần
+;   đặt lại giá, #D4L-EXT đổi theo bản tiện ích. Hai dòng đó mà đem so thì
+;   món nào cũng thành món mới.
+TimFileCuaMon(chu)
+{
+    global
+    local f, noiDung, a, b, iTim
+
+    a := ChuanHoaDeSo(chu)
+    if (Trim(a) = "")
+        return ""
+    for iTim, f in g_Items
+    {
+        if (!FileExist(f))
+            continue
+        FileRead, noiDung, *P65001 %f%
+        if (a = ChuanHoaDeSo(noiDung))
+            return f
+    }
+    return ""
+}
+
+;   Đưa chữ của một món về dạng SO SÁNH ĐƯỢC.
+;
+;   Phải quy CRLF về LF trước mọi chuyện khác: FileAppend đổi LF thành
+;   CRLF lúc ghi, nên chuỗi trong bộ nhớ (LF) không bao giờ bằng chữ đọc
+;   lại từ file (CRLF) — dù nhìn hai bên y hệt nhau. Bẫy này đã ghi trong
+;   nhật ký dự án, và tôi vẫn đi thẳng vào lần nữa.
+ChuanHoaDeSo(chu)
+{
+    local s
+    s := StrReplace(RegExReplace(chu, "^\x{FEFF}"), "`r`n", "`n")
+    s := RegExReplace(s, "(?:\n|^)#D4L-(?:GIA|EXT):[^\n]*", "")
+    return RTrim(s, "`n`r`t ")
 }
 
 ;   Đọc giá đang lưu trong file của món.

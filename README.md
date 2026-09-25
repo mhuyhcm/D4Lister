@@ -1,8 +1,18 @@
-# D4Lister v4
+# D4Lister v5
 
 Đăng item Diablo 4 lên **diablo.trade** nhanh hơn. Chạy trên **một máy**.
 
-> **v4** — AutoHotkey **v4**, tiện ích Chrome **7.3**.
+> **v5** — AutoHotkey **v5.0**, tiện ích Chrome **9.1.3**.
+>
+> Hai thứ mới của v5:
+>
+> - **Lịch sử giá theo từng món.** Hạ giá mấy lần thì mấy lần đều còn, kèm
+>   "12h trước". Giá bám theo MÓN chứ không theo ô — kéo món sang chỗ khác,
+>   hay tắt tool rồi mở lại, giá vẫn đó. Món bán rồi thì tự dọn.
+> - **Đăng hàng loạt.** AHK ghi một file danh sách; trên trình duyệt bấm một
+>   nút là tiện ích tự điền và đăng từng món cho tới hết.
+>
+> Phần dưới đây là những thứ có từ v4, vẫn nguyên.
 >
 > **Bỏ hoàn toàn chụp ảnh và OCR.** Diablo 4 có sẵn chức năng đọc item thành
 > lời cho người khiếm thị; D4Lister cắm vào đó và lấy **thẳng chữ của game**.
@@ -11,7 +21,7 @@
 > - **Không bao giờ đọc nhầm số** — chữ là chữ thật của game, không phải đoán
 >   từ điểm ảnh.
 > - **Dấu ✱ Greater Affix nhận chắc chắn**: dòng nào không in khoảng
->   `[min - max]` thì là ✱. Xem [NHAT-KY-V4.md](NHAT-KY-V4.md).
+>   `[min - max]` thì là ✱. Xem [NHAT-KY.md](NHAT-KY.md).
 > - **Tiện ích tự dựng món** trên trang (loại đồ, độ hiếm, tên, Aspect, sức
 >   mạnh, ổ ngọc) — vì không còn ảnh cho trang quét.
 > - **Không cần Tesseract** (nhẹ đi 164 MB) và **không cần Borderless
@@ -128,7 +138,8 @@ chạy `_he-thong\CAI-TTS.cmd` một lần là xong.
 | Phím | Việc |
 |---|---|
 | **F2** | *(trong game)* quét cả rương và túi đồ một lượt |
-| **F3** | *(trong game)* lấy món đang rê chuột |
+| **F3** | *(trong game)* lấy món đang rê chuột, rồi hỏi giá |
+| **Shift+F3** | *(trong game)* quên lịch sử giá của món đang rê |
 | **F4** | *(trên trình duyệt)* dán món hiện tại |
 | **F5 / F6** | sang món kế / lùi món trước |
 | **F9** | xoá sạch danh sách đang chờ đăng |
@@ -231,7 +242,7 @@ danh sách tên để lọc:
 | giáp | ngay sau dòng `Armor` |
 
 Nhờ vậy Item Power, DPS, Damage per Hit, Attacks per Second, All Resist tự
-rụng. Chi tiết và toàn bộ bẫy đã gỡ: [NHAT-KY-V4.md](NHAT-KY-V4.md).
+rụng. Chi tiết và toàn bộ bẫy đã gỡ: [NHAT-KY.md](NHAT-KY.md).
 
 Con số đi **thẳng từ chữ của game vào ô nhập**, không qua bộ quét ảnh của
 diablo.trade. Đó là chỗ tránh được hết lỗi đọc sai số.
@@ -266,25 +277,37 @@ Ngoài affix, tiện ích còn đặt: **sức mạnh item**, **Unique Power / A
 Bấm vào chip **D4Lister** ở góc dưới bên phải là mở bảng thiết lập. Đổi xong
 dùng ngay, không phải sửa file, không phải nạp lại.
 
+Bảng chia hai tab, vì hai loại người đọc khác nhau.
+
+**General** — những thứ người bán thật sự phải quyết:
+
 | Mục | Mặc định | Nghĩa |
 |---|---|---|
+| *(mục Đăng hàng loạt)* | — | Xem mục riêng bên dưới |
 | Tự đăng | bật | Điền xong, mọi thứ sạch thì tự bấm SUBMIT |
-| Đăng cả khi có cảnh báo | **tắt** | Bật lên là số sai vẫn lên sàn mà bạn không biết |
-| Tự bấm Scan | bật | Chỉ dùng khi bạn tự dán ảnh — V3 không cần |
-| Ghi thẳng vào form | bật | Lấy khoảng hợp lệ từ trang, thêm dòng khỏi gõ chữ |
-| Nhảy vào ô giá | bật | Điền xong đặt con trỏ vào ô giá luôn |
+| Đăng sau | 5 giây | Chờ ngần này rồi mới bấm, để kịp đọc lại |
+
+**Advanced** — cách tiện ích làm việc. Tắt đi phần lớn là **hỏng**, không
+phải chạy kiểu khác:
+
+| Mục | Mặc định | Nghĩa |
+|---|---|---|
+| Tự dựng món | bật | Tự chọn loại đồ, độ hiếm, tên, Aspect |
 | Tự chọn base | bật | Bước chọn hình món đồ |
-| **Tự dựng món** | bật | V3: tự chọn loại đồ, độ hiếm, tên, Aspect |
 | Tự thêm affix thiếu | bật | Dòng nào trang thiếu thì tự thêm |
 | Tự bật dấu sao | bật | Greater Affix — xem mục dưới |
+| Đọc khoảng hợp lệ từ form | bật | Để ghi chú dòng ngoài khoảng (chỉ ghi chú) |
 | Ghi cấu trúc ra Console | **tắt** | Chỉ bật khi cần chẩn đoán |
-| Ghi file dò | **tắt** | Tải file chẩn đoán về máy |
-| Đếm ngược | 5 giây | Thời gian chờ trước khi bấm đăng |
+| Tải file dò về máy | **tắt** | Tải file chẩn đoán về máy |
+| AI fix bug | **tắt** | Chụp DOM từng bước ra `Tải xuống\d4l-hoso\` |
 
 Hai nút ở cuối bảng:
 
 - **Dò lớp phủ** — mở lần lượt các ô chọn rồi ghi cấu trúc ra Console
-- **Chép nhật ký** — chép cả xấp nhật ký vào clipboard, khỏi mở F12 lọc tay
+- **Chép nhật ký** — lưu nhật ký ra file rồi chép đường dẫn
+
+Giá **luôn** được điền từ dòng `#D4L-GIA:` của AHK, không còn công tắc tắt
+được: tắt nhầm là cả lô lên sàn không giá.
 
 Thiết lập lưu trong trình duyệt, mỗi máy một bản riêng.
 
@@ -295,9 +318,69 @@ Thiết lập lưu trong trình duyệt, mỗi máy một bản riêng.
 Điền xong, nếu **mọi thứ sạch** thì đếm ngược rồi tự bấm SUBMIT. Bạn không
 phải bấm gì.
 
-Có cảnh báo (số vượt khoảng, thiếu dòng, tên không khớp) thì **dừng lại** và
-chờ bạn xem. Muốn đăng luôn thì bật *Đăng cả khi có cảnh báo* — nhưng bật rồi
-thì số sai cũng lên sàn mà không ai biết.
+Có cảnh báo (thiếu dòng, tên không khớp, loại đồ sai, giá bị trang đổi) thì
+**dừng lại** và chờ bạn xem.
+
+Riêng *"ngoài khoảng min–max của trang"* **không** chặn: số đã điền vào form
+rồi, mà khoảng của trang thì cũ hơn game — Blizzard đổi chỉ số một lần là món
+thật nằm ngoài khoảng trang tưởng. Nó chỉ hiện ra như một ghi chú xám.
+
+---
+
+## Lịch sử giá  *(v5)*
+
+Bấm `F3` lên món là hiện ô nhập giá. Ô **để trống**; giá đang treo nằm ngay
+dưới, màu xanh dương:
+
+```
+CONTRACURSE WARD OF THE ENCHANTER     ← tô theo độ hiếm
+        ┌─────────────────┐
+        │                 │           ← gõ giá mới vào đây
+        └─────────────────┘
+   Hiện tại: 250b
+   300b          12h trước
+   450b          16h trước
+   500b          18h trước
+```
+
+Năm lần gần nhất, mới nhất trên đầu. Đặt lại đúng giá cũ thì không ghi thêm
+dòng.
+
+Giá khoá theo **món**, không theo ô: kéo món sang chỗ khác rồi bấm `F3` là
+dấu xanh đi theo. Tắt tool mở lại vẫn còn.
+
+**Món bán rồi thì tự dọn.** Trong hộp thoại `F2` có nút **"Dọn lịch sử giá"**:
+nó rà hết tab và túi, **chỉ để xem món nào còn**, không đụng hàng đợi, không
+đụng giá. Món nào không còn thì xoá lịch sử. Lượt quét bị Esc giữa chừng hoặc
+sót ô thì **không dọn gì cả** — sót ô mà dọn là xoá nhầm món vẫn trong rương.
+
+Muốn quên một món ngay thì rê chuột vào nó bấm **Shift+F3**.
+
+---
+
+## Đăng hàng loạt  *(v5)*
+
+**Trong game:** tích ô *"Quét xong ghi file danh sách"* trong hộp thoại `F2`.
+Quét xong, đặt giá cho từng món bằng `F3` — mỗi lần Enter là file
+`lo-dang.txt` tự cập nhật. Món **chưa đặt giá thì không vào danh sách**.
+
+**Trên trình duyệt:** mở trang create/equipment, bảng thiết lập → **General**:
+
+1. **Chọn file…** → trỏ tới `lo-dang.txt`. Làm **một lần**, trình duyệt nhớ.
+2. **Load** để xem nó đọc ra mấy món.
+3. **ĐĂNG HÀNG LOẠT**.
+
+Tiện ích tự điền từng món → Submit → đợi trang xác nhận → Reset → món kế.
+Bảng tiến độ hiện góc dưới trái, có nút **Dừng**; `Esc` cũng dừng.
+
+**Món đầu tiên nó hỏi một câu:** *"đăng thành công chưa?"*. Bạn bấm, nó so
+trang trước và sau cú bấm rồi **tự học** dấu hiệu — từ món thứ hai trở đi
+không hỏi nữa, lần chạy sau cũng vậy. Dấu hiệu hỏng (trang đổi giao diện) thì
+nó hỏi lại rồi học đè lên.
+
+Ba cái chốt: gặp cảnh báo thì **bỏ qua món đó** (đổi được thành dừng cả lô),
+**hỏng liên tiếp 3 món thì dừng hẳn**, và một món quá **45 giây** không xong
+thì bỏ qua chứ không treo cả lô.
 
 Gõ giá xong bấm **Enter** cũng là đăng.
 
@@ -343,9 +426,13 @@ dọn lúc khởi động và báo cho bạn.
 ```
 D4Lister.ahk      ← bấm đúp cái này, hết
 CAI-DAT.bat       ← chỉ dùng một lần trên máy mới
-NHAT-KY-V4.md     ← nhật ký v4 và toàn bộ bẫy đã gỡ
+NHAT-KY.md        ← toàn bộ bẫy đã gỡ, tính từ v3
 extension\        ← Chrome trỏ vào đây
 queue\            ← chữ đã gom
+lo-dang.txt       ← danh sách để đăng hàng loạt (AHK tự ghi)
+lich-su-gia.txt   ← lịch sử giá từng món
+vi-tri-mon.txt    ← ô nào đang là món nào, để dựng lại dấu xanh
+quet.ini          ← lựa chọn quét của riêng máy này
 _he-thong\        ← không cần đụng vào
      CAI-TTS.cmd               mở đường ống TTS (chạy một lần)
      CAI-TTS.ps1               phần việc thật của CAI-TTS.cmd
@@ -362,7 +449,8 @@ Bản tải về khoảng **250 KB**. V2 còn kéo theo Tesseract 164 MB; V3 b�
 ### Đóng gói để dành trên máy
 
 Bấm đúp `_he-thong\DONG-GOI.cmd`. Nó đẻ ra
-`_ban-phat-hanh\D4Lister-v4.zip` — giải nén ra đâu cũng chạy, **không cần
+`_ban-phat-hanh\D4Lister-v5.0.zip` (và một bản sao tên cố định
+`D4Lister-MOI-NHAT.zip`) — giải nén ra đâu cũng chạy, **không cần
 mạng, không cần repo còn sống**. Gói kèm cả bộ cài AutoHotkey nên khoảng
 3,4 MB; máy trắng bung ra là dùng được.
 
