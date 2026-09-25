@@ -1,18 +1,24 @@
 ﻿;=====================================================================
-;   D4Lister v4  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
+;   D4Lister v4.1.2  -  Hỗ trợ đăng item Diablo 4 lên diablo.trade
 ;   AutoHotkey v1  |  File độc lập, không #Include gì, chạy được trên máy khác
 ;
-;   TRONG GAME:
+;   Mỗi phím CHỈ ăn ở đúng cửa sổ của nó — ngoài đó bấm không có tác dụng,
+;   để lỡ tay chạm phím lúc đang làm việc khác thì không sinh chuyện.
+;
+;   CHỈ TRONG GAME:
 ;     F2          Quét hàng loạt cả rương và túi đồ (mở hộp thoại chọn trước)
 ;     F3          Lấy món đang rê chuột  (đọc thẳng chữ của game, KHÔNG chụp)
+;     F10         Chụp & đo các tab — chỉ dùng lúc dò lệch toạ độ
 ;
-;   TRÊN TRÌNH DUYỆT:
+;   CHỈ TRÊN TRÌNH DUYỆT:
 ;     F4          Dán item hiện tại (thay cho Ctrl+V)
 ;     F5          Sang item kế tiếp
 ;     F6          Lùi về item trước đó
 ;
-;   KHÁC:
-;     F9               Xóa sạch danh sách đang chờ đăng
+;   GAME HOẶC TRÌNH DUYỆT:
+;     F9          Xóa sạch danh sách đang chờ đăng
+;
+;   Ở ĐÂU CŨNG ĐƯỢC (tổ hợp ba phím, không chạm nhầm được):
 ;     Ctrl+Shift+F11   Nạp lại script (và kiểm tra bản mới)
 ;     Ctrl+Shift+F12   Thoát script (hoặc chuột phải vào icon khay hệ thống)
 ;=====================================================================
@@ -171,6 +177,7 @@ global O_NGUONG   := 18        ; từ ngần này điểm lệch trở lên = ô
 global O_RE       := 6         ; từ ngần này trở lên thì PHẢI rê vào
 global SO_O_THU_LAI := 6       ; rê thử mấy ô 'trống' để kiểm phép nhìn
 global SOT_KE_TOI_DA := 5      ; báo cáo kể tên tối đa mấy ô sót (sổ vẫn ghi đủ)
+global VET_SOT_VONG  := 3      ; vét lại ô "nhìn thấy có đồ mà không đọc ra" mấy lượt
 
 global CLIENT_W := 1920
 global CLIENT_H := 1027
@@ -198,6 +205,7 @@ global g_Dem     := []      ; bộ đệm câu đang gom cho món hiện tại
 global g_MonCuoi := ""      ; món vừa rê chuột qua gần nhất, chưa bấm F3
 global g_TenCuoi := ""
 global g_MonDaLay := ""     ; món vừa bấm F3 — chặn bấm hai lần ra hai bản
+global g_FileMonDaLay := "" ; file của chính món đó — để bấm F3 lần nữa là đặt lại giá
 global g_DaNoi   := false   ; game đã nối vào đường ống chưa
 global g_LanThuOng := 0     ; lần gần nhất thử dựng đường ống (A_TickCount)
 
@@ -211,6 +219,39 @@ global g_DoLai   := true    ; có dò lại các ô im lặng không
 global g_LechTab := 0       ; chỉnh tay dải tab nếu rê trượt (px)
 global g_HienLuoi := true   ; vẽ sơ đồ lưới ô trong báo cáo cuối lượt
 global g_BoQuaOTrong := false  ; chỉ rê vào ô nhìn thấy có đồ
+global g_HoiGia := true        ; lấy món xong thì hỏi giá luôn
+global DAU_CANH := 10          ; cạnh ô vuông đánh dấu, px
+global DAU_LUI  := 5           ; thụt vào khỏi góc ô cho khỏi đè đường kẻ
+global O_TUI_DO := 8           ; "tab" số 8 nghĩa là túi đồ
+
+global g_DauXanh    := {}      ; "tab|hàng|cột" -> true
+global g_DauTabDang := -1      ; tab đang vẽ; -1 = chưa vẽ gì
+global g_DauHien    := false
+global g_DauHwnd    := 0
+global g_ReGiaHien := false
+global g_ReGiaHwnd := 0
+global g_ReGiaO    := ""       ; ô đang hiện giá, để khỏi vẽ lại mỗi nhịp
+global g_VienHwnd  := 0
+global g_ODangRe   := ""   ; ô con trỏ đang nằm, chốt lúc bấm F3
+global g_TabCuoi   := 0    ; tab đọc được gần nhất lúc dải tab còn thấy rõ
+global VIEN_MAU    := "2BD94B"  ; xanh lá tươi, như viền của D4LF
+global VIEN_DAY    := 3         ; bề dày nét viền, px
+global g_DangHoiGia := false
+global g_GiaXong    := false   ; form đã bấm xong chưa
+global g_GiaHwnd    := 0
+global g_GiaX       := ""    ; chỗ người dùng kéo form tới, nhớ qua quet.ini
+global g_GiaY       := ""
+global g_GiaTenMonDang := ""   ; tên món form đang hỏi giá
+global g_GiaChuO       := ""   ; chữ đang nằm trong ô gõ, giữ qua lần dựng lại
+global g_DonVi         := "b"  ; đơn vị mặc định — gõ 200 nghĩa là 200b
+global g_KyTuTam       := ""   ; ký tự vừa gõ, dùng trong nhãn bắt phím
+global GIA_TOI_DA      := 999  ; trần giá, gõ quá thì không ăn phím
+; Bộ phím form đặt giá bắt lấy. Nuốt luôn, không cho lọt xuống game.
+global PHIM_GIA := "0|1|2|3|4|5|6|7|8|9"
+    . "|Numpad0|Numpad1|Numpad2|Numpad3|Numpad4"
+    . "|Numpad5|Numpad6|Numpad7|Numpad8|Numpad9"
+    . "|.|NumpadDot|BackSpace|Enter|NumpadEnter|Escape"
+global g_GiaChon := ""
 global g_OTrangThai := []   ; trạng thái từng ô của lưới vừa quét
 global g_OCot := 0
 global g_OHang := 0
@@ -246,7 +287,7 @@ global ERROR_BROKEN_PIPE     := 109
 ;   KHỞI ĐỘNG
 ;=====================================================================
 Menu, Tray, Icon, C:\WINDOWS\system32\shell32.dll, 44
-Menu, Tray, Tip, D4Lister v4 - F2 quet ruong / F3 lay mon / F4 dan
+Menu, Tray, Tip, D4Lister v4.1.2`nTrong game: F2 quet ruong / F3 lay mon`nTren trinh duyet: F4 dan / F5 ke / F6 lui
 
 if !FileExist(QUEUE_DIR)
     FileCreateDir, %QUEUE_DIR%
@@ -257,13 +298,44 @@ RefreshQueue(true)
 
 NapCauHinhQuet()
 
+; PHÍM TẮT CHỈ ĂN Ở ĐÚNG CỬA SỔ CỦA NÓ.
+;
+; Trước đây mọi phím đều ăn ở mọi nơi. Đang gõ chữ ở đâu đó mà lỡ chạm F3
+; là tool tưởng bạn lấy món, F4 là nó dán nhầm vào chỗ khác. Nay:
+;
+;   F2 F3 F10  — chỉ trong GAME. Ba phím này rê chuột, chụp màn hình, đọc
+;                tooltip của game; ngoài game thì chẳng có nghĩa gì.
+;   F4 F5 F6   — chỉ trong TRÌNH DUYỆT. Ba phím này dán vào trang.
+;   F9         — game HOẶC trình duyệt. Xoá hàng đợi, chỗ nào cũng hợp lý.
+;   Ctrl+Shift+F11/F12 — ở đâu cũng được. Tổ hợp ba phím, không chạm nhầm
+;                được, mà lúc cần nạp lại/thoát thì đang ở đâu cũng phải gọi
+;                ra được.
+GroupAdd, nhomGame, ahk_exe Diablo IV.exe
+for iTD, exeTD in ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe"
+                 , "opera.exe", "vivaldi.exe", "zen.exe", "arc.exe"]
+{
+    GroupAdd, nhomWeb,  % "ahk_exe " . exeTD
+    GroupAdd, nhomCaHai, % "ahk_exe " . exeTD
+}
+GroupAdd, nhomCaHai, ahk_exe Diablo IV.exe
+
+Hotkey, IfWinActive, ahk_group nhomGame
 Hotkey, %HK_QUET%,    DoQuet
 Hotkey, %HK_KIEMTRA%, DoKiemTra
 Hotkey, %HK_CAPTURE%, DoCapture
+
+Hotkey, IfWinActive, ahk_group nhomWeb
 Hotkey, %HK_PASTE%,   DoPaste
 Hotkey, %HK_NEXT%,    DoNext
 Hotkey, %HK_PREV%,    DoPrev
+
+Hotkey, IfWinActive, ahk_group nhomCaHai
 Hotkey, %HK_CLEAR%,   DoClear
+
+; Bỏ điều kiện đi. PHẢI làm, không thì mọi Hotkey gọi về sau — nhất là
+; ~Esc của báo cáo và bộ phím của ô nhập giá — đều dính điều kiện cuối
+; cùng còn treo ở đây, bật/tắt không đúng cái mình tưởng.
+Hotkey, IfWinActive
 Hotkey, %HK_RELOAD%,  DoReload
 Hotkey, %HK_EXIT%,    DoExit
 
@@ -283,6 +355,14 @@ if (!MoOng())
 }
 SetTimer, DocOng, %NHIP_ONG%
 
+; Hai đồng hồ của phần đặt giá. Chạy NGAY TỪ ĐẦU chứ không đợi có món nào
+; được đánh dấu: chúng còn giữ nhiệm vụ đọc xem rương đang mở tab mấy, mà số
+; đó phải có SẴN vào đúng lúc bấm F3 — lúc ấy tooltip của món che mất dải
+; tab, không đọc kịp nữa. Ngoài lúc chơi thì cả hai thoát ngay ở dòng đầu,
+; gần như không tốn gì.
+SetTimer, TheoDoiTabDau, 400
+SetTimer, TheoDoiReGia, 120
+
 ; Soi cửa sổ game NGAY lúc khởi động, đừng để đến lúc bấm F2 mới biết.
 ; Game chưa bật thì im lặng — đó là chuyện bình thường, bật sau cũng được;
 ; đồng hồ dưới đây sẽ để ý và báo khi cửa sổ sai cỡ.
@@ -297,11 +377,11 @@ else if (loiCuaSo != "")
     ShowMsg("F2 chưa dùng được:`n" . loiCuaSo
           . "`n`nF3 vẫn lấy được từng món bình thường.", "err", 7000)
 else if (g_Items.Length() > 0)
-    ShowMsg("D4Lister v4 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
+    ShowMsg("D4Lister v4.1.2 — " . g_Items.Length() . " món đang chờ đăng" . canhBao, "warn")
 else if (canhBao != "")
-    ShowMsg("D4Lister v4" . canhBao, "err")
+    ShowMsg("D4Lister v4.1.2" . canhBao, "err")
 else
-    ShowMsg("D4Lister v4 sẵn sàng", "ok")
+    ShowMsg("D4Lister v4.1.2 sẵn sàng", "ok")
 
 SetTimer, CanhCuaSo, 4000
 
@@ -317,9 +397,21 @@ return
 ;   không chụp, không chờ đọc chữ.
 ;=====================================================================
 DoCapture:
-    if (g_Busy)
+    ; Form đặt giá đang mở thì đừng lấy món mới đè lên. Nó chờ người dùng
+    ; bấm chứ không tự tắt, nên không chặn là F3 nhấn nhầm sẽ xếp chồng
+    ; nhiều form, món nào ra món nào không biết đường lần.
+    if (g_Busy || g_DangHoiGia)
         return
     g_Busy := true
+
+    ; Ghi nhớ Ô NGAY BÂY GIỜ, lúc con trỏ còn đang nằm trên món.
+    ;
+    ; Đây là chỗ đã sai một lần: dấu xanh được đặt theo vị trí chuột lúc
+    ; LƯU GIÁ, mà lúc ấy người dùng đã rê chuột xuống form để bấm nút mức
+    ; giá rồi — hỏi ra thì chuột đang ở đáy màn, không ô nào cả, nên chẳng
+    ; món nào được đánh dấu. Hồi còn bắt phím 1-5 thì chuột không rời món
+    ; nên không lộ.
+    GhiNhoODangRe()
     ; Quét lại thư mục TRƯỚC khi lấy: nếu vừa bấm F9 xóa sạch thì món tiếp
     ; theo phải là "item 1/1" chứ không đếm tiếp từ con số cũ trong bộ nhớ.
     RefreshForCapture()
@@ -358,7 +450,27 @@ DoCapture:
     }
     if (g_MonCuoi = g_MonDaLay)
     {
+        ; Lấy rồi thì không lấy lần nữa, nhưng ĐẶT LẠI GIÁ thì được —
+        ; quét cả rương bằng F2 xong, rê từng món bấm F3 để đặt giá là
+        ; đường dùng chính.
         g_Busy := false
+        if (g_HoiGia && FileExist(g_FileMonDaLay))
+        {
+            fCu := g_FileMonDaLay
+            giaCu := DocGiaTuFile(fCu)
+            giaMoi := HoiGia(TenMonTu(g_MonCuoi), giaCu)
+            if (giaMoi != "")
+            {
+                LuuGiaVaoFile(fCu, giaMoi)
+                DatClipboardTuFile(fCu)
+                ShowMsg("Đã đặt giá " . giaMoi
+                    . (DanhDauMon(giaMoi) ? "" : "`nkhông đánh dấu được ô — " . ViSaoKhongDau())
+                    , "ok")
+            }
+            else
+                ShowMsg("Món này lấy rồi — chưa đổi giá", "warn")
+            return
+        }
         ShowMsg("Món này lấy rồi — rê sang món khác", "warn")
         return
     }
@@ -393,6 +505,7 @@ DoCapture:
     g_Cur := g_Items.Length()
     g_FreshCapture := true
     g_MonDaLay := g_MonCuoi
+    g_FileMonDaLay := outFile
 
     if (!DatClipboard(chu))
     {
@@ -403,16 +516,25 @@ DoCapture:
 
     g_Busy := false
 
-    ; Nghi công tắc Advanced Tooltip Information đang tắt thì nói ngay, và
-    ; nói TO. Lúc này chữ vẫn lấy được bình thường, chỉ riêng dấu sao là
-    ; không đáng tin — nên tiện ích đã được bảo là đừng đụng vào dấu sao.
-    if (g_NghiTatTooltip >= NGHI_TOI_DA)
+    ; Hỏi giá NGAY, lúc tooltip của món vẫn còn trên màn và bạn vẫn đang
+    ; nhìn nó. Hỏi sau thì phải nhớ lại món nào ra món nào.
+    if (g_HoiGia)
     {
-        ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi
-            . "`n⚠ " . g_NghiTatTooltip . " món liên tiếp không có khoảng [min - max]"
-            . "`nBật Options > Gameplay > Advanced Tooltip Information"
-            . "`nDấu sao đang KHÔNG được đặt — dễ khai sai khi bán", "err")
-        return
+        giaMoi := HoiGia(g_TenCuoi)
+        if (giaMoi != "")
+        {
+            LuuGiaVaoFile(outFile, giaMoi)
+            ; Đặt LẠI clipboard từ file. Clipboard được đặt ở trên kia, TRƯỚC
+            ; lúc hỏi giá, nên chữ trong đó chưa có dòng #D4L-GIA. Ai dán
+            ; bằng Ctrl+V (thay vì F4) là dán phải bản cũ, tiện ích không
+            ; thấy giá đâu mà điền.
+            DatClipboardTuFile(outFile)
+            ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi
+                . "`ngiá " . giaMoi
+                . (DanhDauMon(giaMoi) ? "" : "`nkhông đánh dấu được ô — " . ViSaoKhongDau())
+                , "ok")
+            return
+        }
     }
     ShowMsg(g_Cur . "/" . g_Items.Length() . "  " . g_TenCuoi, "ok")
 return
@@ -523,6 +645,8 @@ DoClear:
     g_FreshCapture := false
     g_BatchStart := 1
     g_MonDaLay := ""      ; xóa sạch rồi thì món đang rê chuột lấy lại được
+    g_FileMonDaLay := ""
+    XoaDauXanh()
     g_DaQuet := {}
 
     if (n = 0)
@@ -984,7 +1108,13 @@ DemNguocTimer:
 return
 
 DongBaoCao:
-    HideMsgNow()
+    ; Cùng một phím Esc, hai việc. Gộp vào MỘT nhãn vì AutoHotkey chỉ giữ
+    ; được một nhãn cho mỗi phím — đăng ký hai nhãn thì cái sau đè cái
+    ; trước, tắt cái này là tắt luôn cái kia.
+    if (g_DangHoiGia)
+        XongHoiGia("")
+    else
+        HideMsgNow()
 return
 
 HideMsgNow()
@@ -1133,7 +1263,7 @@ NhanCau(goi)
         if (InStr(d, "Champions who earn the favor of"))
             continue
         if (TTS_LOG)
-            FileAppend, %d%`n, % QUEUE_DIR . "\_tts.log", UTF-8-RAW
+            GhiTho(d)
         g_Dem.Push(d)
 
         ; Hết một tooltip chưa?
@@ -1245,18 +1375,43 @@ LocMonTTS(mon)
     soCoSo      := 0
     soKhongNgoac := 0
     cauRieng    := ""
+    cauDaiBoQua := ""   ; câu dài không ai nhận — có thể chính là Aspect
     while (i <= ds.Length())
     {
         d := ds[i]
         if (LaMocDung(d))
             break
-        ; Câu dài nằm trong khối chỉ số chính là SỨC MẠNH RIÊNG của đồ
-        ; Unique (hoặc Aspect của đồ Legendary). Nó không phải affix —
-        ; diablo.trade xếp nó ở mục UNIQUE POWER riêng — nhưng vẫn có một
-        ; con số phải điền, nên nhặt ra trước khi vứt dòng.
-        if (cauRieng = "" && SoTu(d) > 12)
-            cauRieng := d
-        d := DonChiSo(d)
+        ; SỨC MẠNH RIÊNG của đồ Unique / Aspect của đồ Legendary. Nó không
+        ; phải affix — diablo.trade xếp nó ở mục UNIQUE POWER riêng — nhưng
+        ; vẫn có một con số phải điền, nên nhặt ra rồi BỎ HẲN DÒNG, đừng để
+        ; nó lọt vào danh sách affix.
+        ;
+        ; Bỏ dòng là phần quan trọng: câu Aspect ngắn như "Your Summons gain
+        ; 43% Attack Speed." mà lọt vào danh sách affix thì tiện ích đem nó
+        ; đi dò tên affix, không ra cái nào, và món kẹt lại không dựng được.
+        dTron := Trim(RegExReplace(RegExReplace(d, "\([^)]*\)", ""), "\s+", " "))
+        if (CoSucManhRieng(loai) && LaCauRieng(dTron))
+        {
+            if (cauRieng = "")
+                cauRieng := CatDuoiGiaoDien(dTron)
+            i++
+            continue
+        }
+        d := DonChiSo(d, viSaoBo)
+        ; Câu dài mà LaCauRieng cũng không nhận thì trước đây RƠI MẤT HẲN:
+        ; một luật bảo "không phải Aspect", luật kia bảo "không phải affix",
+        ; và dòng đi đâu không ai biết. Giữ lại làm dự bị cho Aspect.
+        ; Giữ câu dài CUỐI CÙNG, không phải câu đầu. Tooltip của game xếp
+        ; câu Aspect sau hết mọi affix (chữ thô đọc được 25/09/2026):
+        ;     +151 Willpower
+        ;     +22 Life on Kill +[18 - 22]
+        ;     ...
+        ;     Lucky Hit: Up to a 37.0% [30.0 - 40.0]% chance for your …
+        ;     Requires Level 70.            <- vòng lặp dừng ở đây
+        ; Nên nếu có một affix dài (mấy affix "Lucky Hit: …" dài nhất) cũng
+        ; rơi vào đây, câu Aspect đứng sau vẫn giành lại được chỗ.
+        if (d = "" && viSaoBo = "dai")
+            cauDaiBoQua := dTron
         if (d != "")
         {
             ra .= "`n" . d
@@ -1272,6 +1427,12 @@ LocMonTTS(mon)
         }
         i++
     }
+    ; Món Legendary/Unique nào cũng có đúng MỘT sức mạnh riêng. Không nhặt
+    ; được câu nào mà lại có một câu dài bị bỏ thì câu đó chính là nó —
+    ; không cần biết câu ấy mở đầu bằng chữ gì.
+    if (cauRieng = "" && cauDaiBoQua != "" && CoSucManhRieng(loai))
+        cauRieng := CatDuoiGiaoDien(cauDaiBoQua)
+
     if (soDong = 0)
         return ""
 
@@ -1286,7 +1447,10 @@ LocMonTTS(mon)
         ; Gửi luôn CẢ CÂU. Đồ Legendary bắt chọn Aspect thì trang mới dựng
         ; ra món, mà chữ của game KHÔNG nói tên Aspect — chỉ in mô tả. Tiện
         ; ích phải đem câu này đi dò ngược ra tên trong danh mục của trang.
-        ra .= "`n#D4L-ASPECT:" . RegExReplace(cauRieng, "\s+", " ")
+        ; cauRieng đã bỏ ngoặc tròn từ lúc nhặt: câu của game hay kèm giới
+        ; hạn class "(Barbarian Druid Only)" mà mô tả trong danh mục của
+        ; trang thì không có, để lại là lệch mất mấy từ.
+        ra .= "`n#D4L-ASPECT:" . cauRieng
     }
 
     ; SỐ Ổ NGỌC. Dòng "Empty Socket" chính là một trong các mốc kết thúc khối
@@ -1323,7 +1487,35 @@ LocMonTTS(mon)
     ;   Chỉ xét món có TỪ HAI dòng chỉ số trở lên — món một dòng không nói
     ;   lên điều gì.
     ;=================================================================
-    if (soCoSo >= 2 && soKhongNgoac = soCoSo)
+    ; XÉT NGAY TRÊN CHÍNH MÓN NÀY, không đợi đủ ba món liên tiếp.
+    ;
+    ; Đã dính thật ngày 25/09: người dùng tắt Advanced Tooltip Information,
+    ; mọi dòng mất khoảng [min - max], luật "không khoảng = Greater" đóng dấu
+    ; sao lên CẢ BỐN dòng của một đôi găng chỉ có hai Greater. Đếm tới ba món
+    ; mới chặn thì món đầu tiên đã lên sàn sai rồi.
+    ;
+    ; Đổi lại: món nào mà MỌI dòng đều là Greater thật thì cũng mất dấu sao.
+    ; Chuyện đó hiếm, và sai theo hướng "không đóng dấu" thì sửa tay được,
+    ; còn sai theo hướng "đóng bừa" thì lên sàn khai láo.
+    ; DÙNG CHÍNH CÂU ASPECT LÀM CHỨNG.
+    ;
+    ; Luật "mọi dòng đều không có khoảng = công tắc tắt" siết quá tay: có
+    ; món cả bốn affix đều Greater thật, và Greater thì không in khoảng.
+    ; Dính ngay: ARCHON GAUNTLETS OF FORTUNE ✻✻✻✻ bị bỏ sạch dấu sao.
+    ;
+    ; Phân biệt được, vì câu Aspect KHÔNG bao giờ là Greater — công tắc bật
+    ; thì nó luôn in khoảng:
+    ;     bật:  "You gain 18.5%[x] [15.0 - 20.0]% Lucky Hit Chance…"
+    ;     tắt:  "Your Summons gain 43% Attack Speed."
+    ; Câu Aspect còn khoảng = công tắc đang bật = mấy dòng không khoảng kia
+    ; là Greater thật.
+    ;
+    ; Món không có Aspect (đồ Rare) mà mọi dòng đều không khoảng thì đành
+    ; chịu, không có gì làm chứng — giữ nguyên hướng an toàn là không đóng
+    ; dấu, thà thiếu còn hơn khai láo.
+    coKhoangOAspect := RegExMatch(cauRieng, "\[[0-9.,]+ *- *[0-9.,]+\]") > 0
+    nghiTatNay := (soCoSo >= 2 && soKhongNgoac = soCoSo && !coKhoangOAspect)
+    if (nghiTatNay)
         g_NghiTatTooltip++
     else
         g_NghiTatTooltip := 0
@@ -1332,10 +1524,7 @@ LocMonTTS(mon)
     ; Thiếu cờ này thì tiện ích TẮT NGẦM toàn bộ việc bật/tắt dấu sao — nó
     ; thà không đụng còn hơn xoá nhầm dấu sao trang đã nhận đúng. Bản V2 phát
     ; cờ từ hàm đo pixel; V3 bỏ hàm đó nên phải phát ở đây.
-    ;
-    ; ĐANG NGHI công tắc tắt thì KHÔNG phát cờ. Tiện ích sẽ để nguyên dấu sao
-    ; thay vì đóng bừa lên mọi dòng — đúng công dụng cờ này sinh ra để làm.
-    if (g_NghiTatTooltip < NGHI_TOI_DA)
+    if (!nghiTatNay)
         ra .= "`n#D4L-SAO-OK"
 
     ; Gửi kèm số hiệu bản tiện ích ĐANG NẰM TRÊN ĐĨA. Chrome không tự nạp
@@ -1408,6 +1597,70 @@ LaMocDung(d)
 }
 
 ;   Đếm số từ của một dòng.
+;   Dòng này có phải CÂU sức mạnh riêng không?
+;
+;   Dấu hiệu chắc hơn hẳn phép đếm từ: affix của D4 luôn mở đầu bằng "+",
+;   "x" hoặc một con số. Câu Aspect mở đầu bằng CHỮ.
+;
+;       affix   "+2,162 Maximum Life"   "x35% Vulnerable Damage Multiplier"
+;       aspect  "Your Summons gain 43% Attack Speed."
+;               "You gain 185% of your Attack Speed as increased damage…"
+;
+;   Phép đếm từ cũ bỏ sót hai câu trên — câu đầu chỉ 6 từ. Bỏ sót thì món
+;   không dựng được: trang bắt chọn Aspect mới cho dựng đồ Legendary.
+;
+;   Ngoại lệ DUY NHẤT đã biết: affix "Lucky Hit: Up to a X% chance to…"
+;   cũng mở đầu bằng chữ. Chừa nó ra.
+;
+;   Lấy câu ĐẦU TIÊN chứ không phải cuối: đồ Unique có thêm đoạn văn kể
+;   chuyện in nghiêng nằm SAU câu Aspect, mà đoạn đó cũng mở đầu bằng chữ.
+;   Cắt phần chữ của GIAO DIỆN dính vào đuôi câu Aspect.
+;
+;   Lúc Advanced Tooltip Information tắt, đường ống gộp hai dòng làm một:
+;       "You gain 185% … but no longer attack faster.. Current Bonus: 0.00%"
+;   Cái đuôi đó làm câu lệch hẳn so với mô tả trong danh mục của trang —
+;   điểm khớp tụt còn 88%, dưới ngưỡng, và món kẹt lại không dựng được.
+CatDuoiGiaoDien(d)
+{
+    d := RegExReplace(d, "i)\s*\.?\s*(Current Bonus|Requires Level|Sell Value"
+                       . "|Durability|Tempers|Unique Equipped|Lord of Hatred)\b.*$", "")
+    d := RegExReplace(d, "\.{2,}$", ".")
+    return Trim(d)
+}
+
+LaCauRieng(d)
+{
+    d := Trim(d)
+    if (d = "")
+        return false
+    ; Affix LUÔN mở đầu bằng "+", "x" hoặc một con số:
+    ;     "+2,162 Maximum Life"   "x35% Vulnerable Damage Multiplier"
+    ;     "173 All Resist"        "+2 to Demonology Skills"
+    ;
+    ; Chữ "x" ở đây là DẤU NHÂN, không phải chữ cái. Bản đầu của hàm này
+    ; chỉ hỏi "có mở đầu bằng chữ cái không" nên nhận nhầm mọi dòng x…%
+    ; thành câu Aspect — và thế là câu Aspect thật bị đè mất.
+    if (RegExMatch(d, "^[+x]?\s*\d"))
+        return false
+    if (RegExMatch(Format("{:L}", d), "^lucky hit"))
+        return false
+    ; "Unlocks new Aspect in the Codex of Power and look on salvage" — ghi
+    ; chú của game. Nó mở đầu bằng chữ cái nên lọt vào đây, và món nào
+    ; KHÔNG đọc ra được câu Aspect thật thì nó chiếm luôn chỗ.
+    if (RegExMatch(Format("{:L}", d), "^unlocks\s"))
+        return false
+    return true
+}
+
+;   Loại đồ này có "sức mạnh riêng" (Aspect / Unique power) không.
+;   Rare, Magic, Common thì KHÔNG BAO GIỜ có.
+CoSucManhRieng(loai)
+{
+    local l
+    l := Format("{:L}", loai)
+    return InStr(l, "legendary") || InStr(l, "unique") || InStr(l, "mythic")
+}
+
 SoTu(d)
 {
     n := 0
@@ -1430,30 +1683,59 @@ SucManhRieng(d)
 {
     if RegExMatch(d, "([0-9]+\.?[0-9]*)[^0-9]+\[([0-9]+\.?[0-9]*) - ([0-9]+\.?[0-9]*)\]", m)
         return m1 . "|" . m2 . "|" . m3
+    ; Không có khoảng [min - max] — nhiều Aspect của đồ Legendary là vậy:
+    ;   "Your Summons gain 43% Attack Speed."
+    ;   "You gain 185% of your Attack Speed as increased damage…"
+    ; Lấy CON SỐ ĐẦU làm giá trị. Tiện ích nhận được số mà không có trần thì
+    ; chỉ điền số, không đụng tới công tắc "kịch trần".
+    if RegExMatch(d, "([0-9]+\.?[0-9]*)", m)
+        return m1
     return ""
 }
 
 ;   Dọn một dòng chỉ số. Trả về "" nếu dòng đó không phải chỉ số.
-DonChiSo(d)
+;   viSao (ByRef) nói vì sao dòng bị bỏ: "ngan" | "unlocks" | "dai" | "".
+;   Người gọi cần biết để không đánh rơi câu Aspect — xem bẫy 69.
+DonChiSo(d, ByRef viSao := "")
 {
+    viSao := ""
     ; Bỏ phần trong ngoặc tròn: so sánh với đồ đang mặc "(+8)", giới hạn
     ; class "(Druid Warlock Only)". diablo.trade không có ô cho mấy thứ này.
     d := Trim(RegExReplace(RegExReplace(d, "\([^)]*\)", ""), "\s+", " "))
     if (d = "")
+    {
+        viSao := "ngan"
         return ""
+    }
     if (StrLen(RegExReplace(d, "[^A-Za-z]", "")) < 3)
+    {
+        viSao := "ngan"
         return ""
+    }
 
     ; "Unlocks new look on salvage" / "Unlocks new Aspect in the Codex of
     ; Power and look on salvage" — ghi chú của game, không phải chỉ số.
     ; Câu thứ hai dài đúng 12 từ nên lọt qua được phép cắt câu dài.
     if (RegExMatch(Format("{:L}", d), "^unlocks\s"))
+    {
+        viSao := "unlocks"
         return ""
+    }
 
     ; Sức mạnh riêng của đồ Unique và lời văn kể chuyện là những CÂU dài.
     ; diablo.trade xếp chúng ở mục UNIQUE POWER riêng, không phải ô affix.
-    if (SoTu(d) > 12)
+    ;
+    ; Đếm từ thì BỎ khoảng "[min - max]" ra ngoài. Khoảng đó chỉ hiện khi
+    ; công tắc Advanced Tooltip Information bật, và nó ngốn tận ba "từ"
+    ; ("[8.0", "-", "12.0]%") — không trừ đi thì cùng một dòng affix lúc
+    ; bật công tắc dài hơn lúc tắt ba từ, đủ để nhảy qua mốc 12 và bị bỏ.
+    ; Nuốt luôn dấu "%" dính đuôi khoảng ("[8.0 - 12.0]%"), không thì bỏ
+    ; ngoặc xong còn lại một chữ "%" đứng trơ, vẫn tính là một từ.
+    if (SoTu(RegExReplace(d, "\[[^\]]*\]%?", "")) > 12)
+    {
+        viSao := "dai"
         return ""
+    }
 
     coSo    := RegExMatch(d, "\d")
     coNgoac := InStr(d, "[")
@@ -1995,6 +2277,8 @@ HoiMotO(x, y, ByRef huy, choMs, ByRef msCho)
     msCho   := 0
     batDau  := A_TickCount
     het     := batDau + choMs
+    if (TTS_LOG)
+        GhiTho("===== RÊ TỚI (" . x . "," . y . ") · chờ tối đa " . choMs . "ms")
     Loop
     {
         if (GetKeyState("Escape", "P"))
@@ -2012,7 +2296,14 @@ HoiMotO(x, y, ByRef huy, choMs, ByRef msCho)
         if (g_MonCuoi != "")
             break
         if (A_TickCount > het)
+        {
+            ; Ghi rõ ô này IM. Không ghi thì trong file thô nó y hệt một ô
+            ; trống thật — mà hai chuyện đó khác nhau một trời một vực.
+            if (TTS_LOG)
+                GhiTho("===== IM LẶNG hết " . choMs . "ms, coi như ô trống"
+                     . (g_Dem.Length() ? "  (đệm còn " . g_Dem.Length() . " câu dở)" : ""))
             return ""       ; ô trống
+        }
         Sleep, 15
     }
     msCho := A_TickCount - batDau
@@ -2037,6 +2328,22 @@ GhiLog(chu)
 {
     global
     FileAppend, %chu%`n, %FILE_LOG_QUET%, UTF-8-RAW
+}
+
+;   Ghi chữ THÔ do bộ đọc màn hình gửi về, kèm mốc thời gian.
+;
+;   Không có mốc thời gian thì file này không trả lời được câu hỏi quan
+;   trọng nhất: rê chuột xong bao lâu thì câu đầu về, và một tooltip mất
+;   bao lâu mới về hết. Bản trước chỉ ghi trơ mỗi câu chữ.
+;
+;   Mốc phụ là A_TickCount: giờ đồng hồ chỉ tới giây, mà khoảng cần đo ở
+;   đây tính bằng chục mili-giây.
+GhiTho(chu)
+{
+    global
+    FileAppend, % A_Hour . ":" . A_Min . ":" . A_Sec . "." . A_MSec
+              . "  +" . A_TickCount . "  " . chu . "`n"
+              , % QUEUE_DIR . "\_tts.log", UTF-8-RAW
 }
 
 TenO(r, c)
@@ -2251,7 +2558,90 @@ QuetLuoi(gx, gy, x0, y0, ow, oh, soCot, soHang, ten, ByRef huy)
         }
     }
 
+    ; LƯỢT VÉT SÓT — chạy TRƯỚC phép đối chiếu.
+    ;
+    ; Khác hẳn "dò lại ô im lặng" ở trên. Chỗ kia mới là NGỜ: ô im lặng có
+    ; thể trống thật. Chỗ này đã có BẰNG CHỨNG — ảnh chụp nói ô đó có đồ mà
+    ; chữ thì không ra.
+    ;
+    ; Trước đây phép đối chiếu chỉ GHI SỔ rồi thôi: chương trình biết chắc
+    ; nó vừa đánh rơi ba món và vẫn đi tiếp, im ru. Người dùng quét túi đồ
+    ; 13 món năm lượt ra 10 / 13 / 13 / 10 / 12 — đúng vì chuyện này.
+    ;
+    ; Chạy bất kể công tắc "dò lại": công tắc đó để đánh đổi nhanh/chắc khi
+    ; còn NGỜ, còn đây là đã biết mình thiếu.
+    if (huy = "")
+        VetOSot(gx, gy, x0, y0, ow, oh, soCot, soHang, ten
+              , nhinThay, daDoc, huy, xTrong)
+
     DoiChieuNhinVaDoc(nhinThay, daDoc, soNhin, soCot, soHang, ten)
+}
+
+;=====================================================================
+;   VÉT LẠI NHỮNG Ô "NHÌN THẤY CÓ ĐỒ MÀ KHÔNG ĐỌC RA"
+;
+;   Nới ngưỡng chờ dần theo lượt (gấp ba, gấp sáu, gấp chín): tooltip về
+;   muộn là lý do hay gặp nhất, mà nới cho MỌI ô thì cả lượt quét chậm đi
+;   hẳn — chỉ nới cho mấy ô thật sự cần.
+;
+;   Dừng sớm khi một lượt không cứu thêm được món nào: ô đó im vì lý do
+;   khác, quay lại mấy lần nữa cũng thế.
+;=====================================================================
+VetOSot(gx, gy, x0, y0, ow, oh, soCot, soHang, ten
+      , nhinThay, daDoc, ByRef huy, xTrong)
+{
+    global
+    local vong, con, i, o, r, c, tx, ty, mon, ms, cuu, tongCuu, cho, k
+
+    tongCuu := 0
+    vong    := 0
+    while (vong < VET_SOT_VONG && huy = "")
+    {
+        con := []
+        k := 0
+        while (k < soCot * soHang)
+        {
+            if (nhinThay[k] >= O_NGUONG && !daDoc[k])
+                con.Push(k)
+            k++
+        }
+        if (con.Length() = 0)
+            break
+
+        vong++
+        cho := CHO_O_MS * 3 * vong
+        ShowMsg(ten . " — vét " . con.Length() . " ô còn sót"
+            . "`nlượt " . vong . "/" . VET_SOT_VONG . "   ·   Esc để dừng", "warn")
+        GhiLog("  -- vét sót lượt " . vong . ": còn " . con.Length()
+             . " ô, chờ mỗi ô " . cho . "ms")
+
+        cuu := 0
+        for i, o in con
+        {
+            r  := o // soCot
+            c  := Mod(o, soCot)
+            tx := gx + Round(x0 + ow * (c + 0.5))
+            ty := gy + Round(y0 + oh * (r + 0.5))
+            mon := QuetMotO(tx, ty, huy, cho, ms, xTrong)
+            if (huy != "")
+                break
+            if (mon = "")
+            {
+                GhiLog("  " . TenO(r, c) . "  vẫn im sau " . cho . "ms")
+                continue
+            }
+            daDoc[o] := true
+            cuu++
+            g_TK.cuuDuoc++
+            XuLyMon(mon, ten, r, c, ms, true)
+        }
+        tongCuu += cuu
+        GhiLog("  -- vét sót lượt " . vong . ": cứu được " . cuu . " món")
+        if (cuu = 0)
+            break
+    }
+    if (tongCuu > 0)
+        GhiLog("  >> vét sót cứu tổng cộng " . tongCuu . " món")
 }
 
 
@@ -2504,6 +2894,10 @@ DoQuet:
     if (g_Busy || g_DangQuet)
         return
     HideMsgNow()
+    ; Ẩn dấu xanh đi đã: nó nằm ĐÈ LÊN rương, mà cả F2 lẫn F10 đều đọc
+    ; rương bằng ảnh chụp màn hình — để nguyên là ô trống nào có dấu
+    ; cũng bị đọc thành ô có đồ. Đồng hồ TheoDoiTabDau vẽ lại sau.
+    AnDauXanh()
 
     if (g_Pipe = 0 || g_Pipe = INVALID_HANDLE_VALUE)
     {
@@ -2813,6 +3207,24 @@ NapCauHinhQuet()
     g_HienLuoi := (v != 0)
     IniRead, v, %FILE_CAU_HINH%, quet, boqua, 0
     g_BoQuaOTrong := (v != 0)
+    IniRead, v, %FILE_CAU_HINH%, quet, hoigia, 1
+    g_HoiGia := (v != 0)
+    ; Ghi nguyên văn từng dòng game đọc ra, vào queue\_tts.log. Chỉ bật lúc
+    ; đi tìm lỗi đọc item — file này lớn dần mãi, không tự dọn.
+    IniRead, v, %FILE_CAU_HINH%, quet, ttslog, 0
+    TTS_LOG := (v != 0)
+    ; Ghi sẵn mục [gia] ra file lần đầu. IniRead có giá trị mặc định nhưng
+    ; không tạo khoá, mà không thấy trong file thì không ai biết là sửa được.
+    IniRead, v, %FILE_CAU_HINH%, gia, donvi, %A_Space%
+    if (Trim(v) = "")
+        IniWrite, b, %FILE_CAU_HINH%, gia, donvi
+    IniRead, v, %FILE_CAU_HINH%, gia, x, %A_Space%
+    g_GiaX := (Trim(v) = "" || Trim(v) = "ERROR") ? "" : v + 0
+    IniRead, v, %FILE_CAU_HINH%, gia, y, %A_Space%
+    g_GiaY := (Trim(v) = "" || Trim(v) = "ERROR") ? "" : v + 0
+    IniRead, v, %FILE_CAU_HINH%, gia, donvi, b
+    v := Format("{:L}", Trim(v))
+    g_DonVi := RegExMatch(v, "^[a-z]{1,2}$") ? v : "b"
     IniRead, dsTab, %FILE_CAU_HINH%, quet, tab, 1
     g_Tab := []
     Loop, 7
@@ -2839,6 +3251,7 @@ LuuCauHinhQuet()
     IniWrite, % g_GiayCho, %FILE_CAU_HINH%, quet, giaycho
     IniWrite, % (g_HienLuoi ? 1 : 0), %FILE_CAU_HINH%, quet, luoi
     IniWrite, % (g_BoQuaOTrong ? 1 : 0), %FILE_CAU_HINH%, quet, boqua
+    IniWrite, % (g_HoiGia ? 1 : 0), %FILE_CAU_HINH%, quet, hoigia
 }
 
 ;=====================================================================
@@ -2946,19 +3359,23 @@ HoiQuetGi()
                                 . (g_HienLuoi ? " Checked" : "")
                               , Vẽ sơ đồ lưới ô trong báo cáo
 
-    Gui, hQuet:Add, Text, x20 y470 w132 h22 +0x200, Chỉnh lệch vị trí tab:
-    Gui, hQuet:Add, Edit, voLech x154 y469 w56 h22 Center
+    Gui, hQuet:Add, Checkbox, % "voHoiGia x20 y470 w414 h22"
+                                . (g_HoiGia ? " Checked" : "")
+                              , Lấy món xong thì hỏi giá luôn (F3)
+
+    Gui, hQuet:Add, Text, x20 y500 w132 h22 +0x200, Chỉnh lệch vị trí tab:
+    Gui, hQuet:Add, Edit, voLech x154 y499 w56 h22 Center
     Gui, hQuet:Add, UpDown, Range-60-60, % g_LechTab
-    Gui, hQuet:Add, Text, x216 y474 w40 h18, px
-    Gui, hQuet:Add, Button, x272 y468 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
+    Gui, hQuet:Add, Text, x216 y504 w40 h18, px
+    Gui, hQuet:Add, Button, x272 y498 w162 h26 gChinhCuaSo, Chỉnh cỡ cửa sổ game
 
     ; --- thanh nút ---
-    Gui, hQuet:Add, Progress, x0 y502 w452 h58 BackgroundE6E4E1 Disabled
-    Gui, hQuet:Add, Button, x188 y516 w136 h32 +Default gBatDauQuet, Scan
-    Gui, hQuet:Add, Button, x332 y516 w102 h32 gHuyQuet,             Đóng
+    Gui, hQuet:Add, Progress, x0 y532 w452 h58 BackgroundE6E4E1 Disabled
+    Gui, hQuet:Add, Button, x188 y546 w136 h32 +Default gBatDauQuet, Scan
+    Gui, hQuet:Add, Button, x332 y546 w102 h32 gHuyQuet,             Đóng
 
     OnMessage(0x200, "ReChuotHopQuet")          ; WM_MOUSEMOVE
-    Gui, hQuet:Show, w452 h560 Center
+    Gui, hQuet:Show, w452 h590 Center
 
     ; Chờ người dùng bấm. Các nút chạy ở luồng riêng nên vòng chờ này
     ; không chặn gì — đồng hồ đọc đường ống vẫn tiếp tục vét như thường.
@@ -2980,6 +3397,7 @@ HoiQuetGi()
     g_GiayCho := (oChoUD + 0 >= 1 && oChoUD + 0 <= 30) ? oChoUD + 0 : 5
     g_HienLuoi := (oHienLuoi != 0)
     g_BoQuaOTrong := (oBoQua != 0)
+    g_HoiGia  := (oHoiGia != 0)
     g_LechTab := (oLech + 0 >= -60 && oLech + 0 <= 60) ? oLech + 0 : 0
     g_Tab     := []
     Loop, 7
@@ -3027,6 +3445,19 @@ DatGoiY()
         . "`nTab trống: bỏ qua cả lưới."
         . "`n`nĐã đo trên 415 ô thật, không sai ô nào. Trước khi bỏ qua nó"
         . "`ncòn đo lại vị trí lưới; lệch quá 6 px thì tự rê đủ mọi ô."
+    g_GoiY["oHoiGia"] := "Bấm F3 lấy món xong, một ô nhập giá hiện ra."
+        . "`nGõ số rồi Enter là xong. Esc thì bỏ qua."
+        . "`n`n   gõ 300  ->  lưu là 300b"
+        . "`n`nÔ này KHÔNG giành bàn phím: game vẫn là cửa sổ đang hoạt"
+        . "`nđộng nên tooltip của món còn nguyên trên màn, vừa nhìn chỉ"
+        . "`nsố vừa gõ giá được. Chuột cũng không phải rời món."
+        . "`nĐổi lại, lúc ô đang mở thì phím 0-9 bị giữ lại, không lọt"
+        . "`nxuống game — đóng ô là trả lại ngay."
+        . "`n`nKéo ô đi đâu tuỳ ý, lần sau nó mở lại đúng chỗ đó."
+        . "`n`nMón đã đặt giá được đánh dấu xanh trong rương; rê chuột vào"
+        . "`nthì món đó hiện viền xanh kèm con số giá."
+        . "`n`nBấm F3 lần nữa lên chính món vừa lấy = đặt lại giá."
+        . "`nĐổi đơn vị tiền trong quet.ini, mục [gia] donvi."
     g_GoiY["oHienLuoi"] := "Vẽ đúng hình cái rương trong báo cáo cuối lượt:"
         . "`n   xám  = ô trống"
         . "`n   xanh = đọc được"
@@ -3315,6 +3746,10 @@ DoKiemTra:
     if (g_Busy || g_DangQuet)
         return
     HideMsgNow()
+    ; Ẩn dấu xanh đi đã: nó nằm ĐÈ LÊN rương, mà cả F2 lẫn F10 đều đọc
+    ; rương bằng ảnh chụp màn hình — để nguyên là ô trống nào có dấu
+    ; cũng bị đọc thành ô có đồ. Đồng hồ TheoDoiTabDau vẽ lại sau.
+    AnDauXanh()
     loiKT := KiemCuaSoGame(gxK, gyK, cwK, chK)
     if (loiKT != "")
     {
@@ -3382,6 +3817,713 @@ ChupManHinh(f)
     RunWait, %lenh%, , Hide
 }
 
+
+;=====================================================================
+;   HỎI GIÁ SAU KHI LẤY MÓN
+;
+;   Lấy món xong thì hỏi luôn giá, lưu thẳng vào file của món. Sau đó trên
+;   trình duyệt không còn việc gì cần tay người: tiện ích điền cả giá rồi
+;   tự đăng. Gõ giá chính là thứ DUY NHẤT còn phá vỡ tự động hoá.
+;
+;   FORM BẤM CHUỘT, KHÔNG PHẢI BẮT PHÍM. Bản đầu bắt phím 1-5 để game khỏi
+;   mất tiêu điểm; người dùng thấy không hợp lý, muốn thấy các mức giá và
+;   bấm thẳng vào. Giữ được cả hai: form hiện ra ở chế độ NoActivate nên
+;   bấm nút vẫn ăn mà game vẫn là cửa sổ hoạt động, tooltip còn nguyên.
+;
+;   Biến của phần này nằm ở khối hằng số trên đầu file. Đặt "global X := …"
+;   ở dưới đây thì phép gán KHÔNG BAO GIỜ chạy — chỗ này nằm sau cái return
+;   của khối tự chạy — mà AutoHotkey vẫn nhận cái tên, nên biến rỗng một
+;   cách lặng lẽ.
+;=====================================================================
+
+;   Hiện ô nhập giá rồi chờ. Trả về chuỗi giá, hoặc "" nếu bỏ qua.
+;
+;   CHỖ NÀY ĐÃ SAI MỘT LẦN, và đây là lý do nó làm theo kiểu lạ.
+;
+;   Bản trước cho ô nhập giành bàn phím để con trỏ nằm sẵn trong đó. Chạy
+;   thì lộ ra: Diablo chỉ vẽ tooltip của món khi CỬA SỔ GAME đang hoạt
+;   động. Ô nhập giành bàn phím = game thôi hoạt động = tooltip tắt ngay,
+;   mà đó đúng là thứ đang cần nhìn để định giá.
+;
+;   Nên form này KHÔNG bao giờ giành bàn phím. Thay vào đó nó BẮT THẲNG
+;   PHÍM SỐ: 0-9, dấu chấm, Backspace, Enter, Esc. Người dùng vẫn gõ số
+;   rồi Enter y như gõ vào một ô bình thường, còn game thì vẫn là cửa sổ
+;   đang hoạt động suốt — tooltip đứng nguyên.
+;
+;   Nuốt luôn phím, không cho lọt xuống game: 0-9 trong game là ô kỹ năng.
+;   Đổi lại phải tắt cho bằng hết lúc đóng form.
+;
+;   Đơn vị mặc định là tỉ: gõ 300, lưu ra "300b". Ô chỉ hiện con số, chữ b
+;   không hiện. Đổi đơn vị trong quet.ini, mục [gia] donvi.
+HoiGia(tenMon, giaCu := "")
+{
+    global
+
+    g_GiaTenMonDang := tenMon
+    ; Món đã có giá thì bỏ chữ đơn vị đi, ô chỉ giữ con số.
+    g_GiaChuO       := RegExReplace(Trim(giaCu), "[A-Za-z]+$", "")
+    ; Giá cũ lưu từ trước lúc có trần thì kéo về trần. Không kéo thì ô hiện
+    ; số vượt trần mà gõ thêm lại không được — nhìn như hỏng bàn phím.
+    if (QuaTranGia(g_GiaChuO))
+        g_GiaChuO := GIA_TOI_DA . ""
+    g_GiaChon       := ""
+    g_GiaXong       := false
+    g_DangHoiGia    := true
+
+    VeFormGia()
+    BatPhimGia(true)
+    ; Kéo form: không có thanh tiêu đề nên bắt cú bấm rồi bảo Windows "coi
+    ; như vừa bấm vào thanh tiêu đề".
+    OnMessage(0x201, "KeoFormGia")          ; WM_LBUTTONDOWN
+
+    while (!g_GiaXong)
+        Sleep, 30
+
+    OnMessage(0x201, "")
+    BatPhimGia(false)
+    NhoChoForm()
+    Gui, hGia:Destroy
+    g_DangHoiGia := false
+    return g_GiaChon
+}
+
+VeFormGia()
+{
+    global
+    local mg, ew, eh, y, w, h, fs, px, py
+
+    mg := Round(14 * A_ScreenDPI / 96)
+    ew := Round(216 * A_ScreenDPI / 96)
+    eh := Round(36 * A_ScreenDPI / 96)
+    w  := mg * 2 + ew
+
+    Gui, hGia:Destroy
+    Gui, hGia:New, +Hwndg_GiaHwnd +AlwaysOnTop -Caption +Border +ToolWindow +E0x08000000 -DPIScale
+    Gui, hGia:Color, %COL_BG%
+    Gui, hGia:Margin, 0, 0
+
+    y := mg
+    fs := Round(11 * A_ScreenDPI / 96)
+    Gui, hGia:Font, s%fs% Bold, Segoe UI
+    Gui, hGia:Add, Text, % "x" . mg . " y" . y . " w" . ew
+                        . " c1A1A1A vGiaTenMon", % g_GiaTenMonDang
+    y += Round(24 * A_ScreenDPI / 96)
+
+    ; Ô chỉ để NHÌN. Chữ vào ô bằng đường bắt phím, không phải bằng tiêu
+    ; điểm — ReadOnly cho rõ ý, và để bấm vào cũng không đòi bàn phím.
+    fs := Round(14 * A_ScreenDPI / 96)
+    Gui, hGia:Font, s%fs% Bold, Segoe UI
+    Gui, hGia:Add, Edit, % "x" . mg . " y" . y . " w" . ew . " h" . eh
+                        . " Center ReadOnly -TabStop vGiaChuNhap", % g_GiaChuO
+    h := y + eh + mg
+
+    ViTriForm(w, h, px, py)
+    Gui, hGia:Show, % "NoActivate x" . px . " y" . py . " w" . w . " h" . h
+}
+
+;   Bật/tắt bộ phím của form. Tắt cho bằng hết là việc bắt buộc: để sót
+;   một phím số là trong game bấm kỹ năng đó không ăn nữa, mà lỗi kiểu đó
+;   rất khó đoán ra là do đâu.
+BatPhimGia(bat)
+{
+    global
+    local k, tt
+    tt := bat ? "On" : "Off"
+    Loop, Parse, PHIM_GIA, |
+    {
+        k := A_LoopField
+        Hotkey, %k%, GiaPhim, %tt% UseErrorLevel
+    }
+}
+
+;   Chuỗi đang gõ có vượt trần giá không?
+;
+;   Chuỗi giữa chừng chưa phải số hợp lệ: "." (vừa gõ dấu chấm đầu tiên),
+;   "12." (chấm ở cuối). Đắp cho thành số rồi mới so — so thẳng thì AHK
+;   đem chuỗi đi so theo bảng chữ cái, "1000" lại nhỏ hơn "999".
+QuaTranGia(chu)
+{
+    global GIA_TOI_DA
+    so := RegExReplace(chu, "^\.", "0.")        ; ".5"  -> "0.5"
+    so := RegExReplace(so,  "\.$", ".0")        ; "12." -> "12.0"
+    if (!RegExMatch(so, "^\d+(\.\d+)?$"))       ; không ra số thì đừng chặn
+        return false
+    return ((so + 0) > GIA_TOI_DA)
+}
+
+;   Đổi tên phím thành ký tự. Trả về "" nếu phím đó không phải chữ số.
+KyTuTuPhim(k)
+{
+    k := RegExReplace(k, "^(~|\*|\$)+", "")
+    if (k = "NumpadDot" || k = ".")
+        return "."
+    k := RegExReplace(k, "^Numpad", "")
+    return RegExMatch(k, "^\d$") ? k : ""
+}
+
+GiaPhim:
+    if (A_ThisHotkey = "Escape")
+    {
+        XongHoiGia("")
+        return
+    }
+    if (A_ThisHotkey = "Enter" || A_ThisHotkey = "NumpadEnter")
+    {
+        XongHoiGia(GhepDonVi(g_GiaChuO, g_DonVi))
+        return
+    }
+    if (A_ThisHotkey = "BackSpace")
+        g_GiaChuO := SubStr(g_GiaChuO, 1, StrLen(g_GiaChuO) - 1)
+    else
+    {
+        g_KyTuTam := KyTuTuPhim(A_ThisHotkey)
+        ; Một dấu chấm là đủ, và đừng cho gõ dài vô tận.
+        if (g_KyTuTam = "." && InStr(g_GiaChuO, "."))
+            g_KyTuTam := ""
+        ; Dấu chấm mà đằng sau không còn nhét nổi con số nào (đang là 999)
+        ; thì đừng nhận: ô sẽ đứng ở "999." — chấm cụt, gõ tiếp không ăn,
+        ; mà ghép đơn vị lại ra "999.b".
+        if (g_KyTuTam = "." && QuaTranGia(g_GiaChuO . ".1"))
+            g_KyTuTam := ""
+        ; Trần 999. Gõ quá thì BỎ CÚ GÕ, không cắt bớt chữ đã có — cắt thì
+        ; người gõ không nhìn ra mình vừa mất con số nào.
+        if (g_KyTuTam != "" && StrLen(g_GiaChuO) < 12
+            && QuaTranGia(g_GiaChuO . g_KyTuTam) = false)
+            g_GiaChuO .= g_KyTuTam
+    }
+    GuiControl, hGia:, GiaChuNhap, % g_GiaChuO
+return
+
+;   Kéo form: cửa sổ không có thanh tiêu đề, nên lừa Windows rằng cú bấm
+;   vừa rồi rơi vào thanh tiêu đề (HTCAPTION = 2).
+KeoFormGia()
+{
+    global
+    if (A_Gui != "hGia")
+        return
+    PostMessage, 0xA1, 2, , , % "ahk_id " . g_GiaHwnd    ; WM_NCLBUTTONDOWN
+}
+
+;   Ghi lại chỗ người dùng vừa kéo form tới, để lần sau mở đúng chỗ đó.
+NhoChoForm()
+{
+    global
+    local fx, fy
+    WinGetPos, fx, fy, , , % "ahk_id " . g_GiaHwnd
+    if (fx = "")
+        return
+    g_GiaX := fx
+    g_GiaY := fy
+    IniWrite, %fx%, %FILE_CAU_HINH%, gia, x
+    IniWrite, %fy%, %FILE_CAU_HINH%, gia, y
+}
+
+;   Chỗ đứng của form: chỗ lần trước người dùng kéo tới. Chưa kéo lần nào
+;   thì đáy cửa sổ game, căn giữa ngang.
+ViTriForm(w, h, ByRef px, ByRef py)
+{
+    global
+    local gx, gy, cw, ch, vx, vy, vw, vh
+
+    SysGet, vx, 76
+    SysGet, vy, 77
+    SysGet, vw, 78
+    SysGet, vh, 79
+    if (g_GiaX != "" && g_GiaY != "")
+    {
+        px := g_GiaX + 0
+        py := g_GiaY + 0
+    }
+    else if (KiemCuaSoGame(gx, gy, cw, ch) = "")
+    {
+        px := gx + (cw - w) // 2
+        py := gy + ch - h - Round(70 * A_ScreenDPI / 96)
+    }
+    else
+    {
+        px := vx + (vw - w) // 2
+        py := vy + vh - h - Round(70 * A_ScreenDPI / 96)
+    }
+    if (px + w > vx + vw)
+        px := vx + vw - w - 4
+    if (py + h > vy + vh)
+        py := vy + vh - h - 4
+    if (px < vx)
+        px := vx + 4
+    if (py < vy)
+        py := vy + 4
+}
+
+XongHoiGia(gia)
+{
+    global
+    g_GiaChon := gia
+    g_GiaXong := true
+}
+
+;   Ghép đơn vị tiền vào con số.
+;
+;   "300"             ->  "300b"
+;   "300b"            ->  giữ nguyên, không thành "300bb"
+;   rỗng              ->  rỗng, tức là bỏ qua
+GhepDonVi(chu, dv)
+{
+    chu := Trim(chu)
+    if (chu = "" || dv = "")
+        return chu
+    if RegExMatch(chu, "i)[a-z]$")               ; đã có chữ đơn vị ở cuối
+        return chu
+    if !RegExMatch(chu, "^[\d]+([.,][\d]+)?$")   ; không phải số thuần
+        return chu
+    return chu . dv
+}
+
+;   Ghi giá vào file của món. Thay dòng cũ nếu đã có.
+;
+;   KHÔNG dùng "m)^...$" ở đây. File món có thể lẫn hai kiểu xuống dòng
+;   (FileAppend lúc dịch `n thành `r`n lúc không), mà PCRE trong AHK mặc
+;   định chỉ coi `r`n là hết dòng — gặp một `n trơ là ^ không bám được,
+;   dòng giá cũ không bị xoá, đọc lại ra rỗng. \R khớp mọi kiểu xuống dòng
+;   nên không phụ thuộc chuyện đó nữa.
+LuuGiaVaoFile(f, gia)
+{
+    local noiDung
+    if (!FileExist(f))
+        return false
+    FileRead, noiDung, *P65001 %f%
+    noiDung := RegExReplace(noiDung, "(?:\R|^)#D4L-GIA:[^\r\n]*", "")
+    noiDung := RTrim(noiDung, "`r`n")
+    if (gia != "")
+        noiDung .= "`r`n#D4L-GIA:" . gia
+    FileDelete, %f%
+    FileAppend, %noiDung%, %f%, UTF-8-RAW
+    return FileExist(f) ? true : false
+}
+
+;   Đọc giá đang lưu trong file của món.
+DocGiaTuFile(f)
+{
+    local noiDung, m
+    if (!FileExist(f))
+        return ""
+    FileRead, noiDung, *P65001 %f%
+    ;   Dạng "O)" trả về ĐỐI TƯỢNG. Dạng thường ghi ra m1, m2… mà trong hàm
+    ;   có khai báo local thì m1 lại rơi ra biến toàn cục, còn chữ m1 viết
+    ;   trong hàm lại đọc biến cục bộ — khớp được mà vẫn ra rỗng.
+    if (RegExMatch(noiDung, "O)(?:\R|^)#D4L-GIA:([^\r\n]*)", m))
+        return Trim(m.Value(1))
+    return ""
+}
+
+
+;=====================================================================
+;   DẤU XANH — món nào đã đặt giá rồi
+;
+;   Nỗi lo chính khi tự đặt giá: không nhớ món nào đã đặt, đặt lại lần nữa
+;   là mất công. Nên đặt xong thì dán một ô vuông xanh lên đúng ô đó trong
+;   rương, liếc một cái là biết.
+;
+;   Không vẽ được vào trong game, nên treo một cửa sổ trong suốt đè lên.
+;   Cửa sổ đó KHÔNG ăn chuột (E0x20) và KHÔNG giành tiêu điểm (E0x08000000)
+;   — thiếu một trong hai là game mất chuột, không chơi được.
+;
+;   Dấu chỉ nằm trong bộ nhớ. Món bán xong là xoá hàng đợi, dấu đi theo.
+;=====================================================================
+; Các biến của phần này nằm ở khối hằng số trên đầu file — đặt "global X
+; := ..." ở dưới này thì phép gán không bao giờ chạy, g_DauXanh sẽ là chuỗi
+; rỗng chứ không phải object, và .Count() trên chuỗi rỗng giết luôn luồng.
+
+;   Tab rương đang mở. Trả về 0 nếu không đọc ra.
+;
+;   Ô tab đang mở sáng hơn hẳn: đo trên ba ảnh chụp thật, tab mở có điểm
+;   sáng nhất 74-77 còn tab đóng chỉ 12-14. Cách nhau năm lần nên lấy 40
+;   làm mốc là rộng rãi.
+TabDangMo(gx, gy)
+{
+    global
+    local anh, i, tx, s, x, y, nhat, tot, iTot
+
+    anh := ChupVung(gx + 60, gy + TAB_Y - 14, 540, 28)
+    if (!anh)
+        return 0
+
+    tot := 0, iTot := 0
+    i := 1
+    while (i <= g_SoTab)
+    {
+        tx := TamTab(i, g_SoTab)
+        if (tx < 0)
+        {
+            i++
+            continue
+        }
+        nhat := 0
+        x := gx + tx - 14
+        while (x <= gx + tx + 14)
+        {
+            y := gy + TAB_Y - 10
+            while (y <= gy + TAB_Y + 10)
+            {
+                s := DocSangTaiDiem(anh, x, y)
+                if (s > nhat)
+                    nhat := s
+                y += 4
+            }
+            x += 4
+        }
+        if (nhat > tot)
+            tot := nhat, iTot := i
+        i++
+    }
+    XoaAnh(anh)
+    return (tot >= 40) ? iTot : 0
+}
+
+;   Con trỏ đang nằm ở ô nào. Trả về false nếu không nằm trong lưới nào.
+;
+;   tabBiet: đã biết sẵn tab nào đang mở thì truyền vào, khỏi phải chụp lại
+;   dải tab. Cái đồng hồ rê chuột gọi hàm này mấy lần một giây, chụp mỗi lần
+;   là phí.
+TimOCuaChuot(gx, gy, ByRef tab, ByRef hang, ByRef cot, tabBiet := -1)
+{
+    global
+    local mx, my, c, h
+
+    MouseGetPos, mx, my
+    mx -= gx
+    my -= gy
+
+    c := Floor((mx - RUONG_X) / RUONG_OW)
+    h := Floor((my - RUONG_Y) / RUONG_OH)
+    if (c >= 0 && c < RUONG_COT && h >= 0 && h < RUONG_HANG)
+    {
+        tab := (tabBiet >= 1) ? tabBiet : TabDangMo(gx, gy)
+        if (tab < 1)
+            return false
+        hang := h, cot := c
+        return true
+    }
+
+    c := Floor((mx - TUI_X) / TUI_OW)
+    h := Floor((my - TUI_Y) / TUI_OH)
+    if (c >= 0 && c < TUI_COT && h >= 0 && h < TUI_HANG)
+    {
+        tab := O_TUI_DO, hang := h, cot := c
+        return true
+    }
+    return false
+}
+
+;   Chốt lại ô mà con trỏ đang nằm. Gọi lúc BẤM F3, không phải lúc lưu giá:
+;   giữa hai thời điểm đó người dùng đã rê chuột xuống form để bấm nút.
+GhiNhoODangRe()
+{
+    global
+    local gx, gy, cw, ch, tab, hang, cot
+
+    g_ODangRe := ""
+    if (!g_HoiGia)
+        return
+    if (KiemCuaSoGame(gx, gy, cw, ch) != "")
+        return
+    ; Truyền g_TabCuoi vào để hàm khỏi đi đọc dải tab: ngay lúc này tooltip
+    ; của món đang che nó.
+    if (!TimOCuaChuot(gx, gy, tab, hang, cot, g_TabCuoi))
+        return
+    g_ODangRe := tab . "|" . hang . "|" . cot
+}
+
+;   Vì sao không đánh dấu được. Nói thẳng ra thay vì im lặng — dấu không
+;   hiện mà không biết vì sao thì chỉ còn nước đoán.
+ViSaoKhongDau()
+{
+    global
+    local gx, gy, cw, ch, loi
+
+    loi := KiemCuaSoGame(gx, gy, cw, ch)
+    if (loi != "")
+        return "cửa sổ game không đạt"
+    if (g_ODangRe = "")
+        return "lúc bấm F3 con trỏ không nằm trong ô nào của rương/túi"
+    return "chưa rõ"
+}
+
+;   Đánh dấu cái ô đã chốt lúc bấm F3.
+;
+;   Lưu luôn GIÁ vào bản đồ chứ không chỉ đánh dấu có/không: rê chuột vào ô
+;   đó lần sau thì hiện ra ngay đã để bao nhiêu, khỏi phải nhớ.
+DanhDauMon(gia)
+{
+    global
+    local gx, gy, cw, ch
+
+    if (gia = "" || g_ODangRe = "")
+        return false
+    if (KiemCuaSoGame(gx, gy, cw, ch) != "")
+        return false
+
+    g_DauXanh[g_ODangRe] := gia
+    g_DauTabDang := -1              ; ép vẽ lại
+    VeDauXanh(gx, gy)
+    return true
+}
+
+XoaDauXanh()
+{
+    global
+    g_DauXanh := {}
+    g_DauTabDang := -1
+    AnDauXanh()
+    AnGiaRe()
+}
+
+AnDauXanh()
+{
+    global
+    if (!g_DauHien)
+        return
+    Gui, hDau:Hide
+    g_DauHien := false
+    AnGiaRe()
+}
+
+;   Vẽ lại toàn bộ dấu cho tab đang mở.
+VeDauXanh(gx, gy)
+{
+    global
+    local tab, k, v, p, x, y, so
+
+    tab := g_TabCuoi
+    g_DauTabDang := tab
+
+    Gui, hDau:Destroy
+    Gui, hDau:New, +Hwndg_DauHwnd +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x08000000
+    Gui, hDau:Color, 010101
+    Gui, hDau:Margin, 0, 0
+
+    so := 0
+    for k, v in g_DauXanh
+    {
+        StringSplit, p, k, |
+        ; Dấu của rương chỉ hiện khi đúng tab đó đang mở. Dấu túi đồ luôn
+        ; hiện, vì túi đồ nằm cạnh rương suốt.
+        if (p1 + 0 != O_TUI_DO && p1 + 0 != tab)
+            continue
+        ; Dán ở góc DƯỚI TRÁI của ô.
+        ;
+        ; Phải chừa dải mà RuongDangMo đọc để biết rương có đang mở: nó soi
+        ; các điểm x = 36 và 41-43. Dấu ở cột 1 bắt đầu tại x = 42 + 5 = 47,
+        ; qua khỏi chỗ đó rồi. Đừng hạ DAU_LUI xuống dưới 3.
+        if (p1 + 0 = O_TUI_DO)
+        {
+            x := Round(TUI_X + TUI_OW * p3 + DAU_LUI)
+            y := Round(TUI_Y + TUI_OH * (p2 + 1) - DAU_CANH - DAU_LUI)
+        }
+        else
+        {
+            x := Round(RUONG_X + RUONG_OW * p3 + DAU_LUI)
+            y := Round(RUONG_Y + RUONG_OH * (p2 + 1) - DAU_CANH - DAU_LUI)
+        }
+        Gui, hDau:Add, Progress, % "x" . x . " y" . y
+                                 . " w" . DAU_CANH . " h" . DAU_CANH
+                                 . " Background2E9E4F Disabled"
+        so++
+    }
+
+    if (so = 0)
+    {
+        AnDauXanh()
+        return
+    }
+
+    Gui, hDau:Show, % "NoActivate x" . gx . " y" . gy
+                    . " w" . CLIENT_W . " h" . CLIENT_H
+    WinSet, TransColor, 010101, % "ahk_id " . g_DauHwnd
+    g_DauHien := true
+}
+
+;   Người dùng tự bấm sang tab khác thì không có sự kiện nào báo — phải
+;   ngó chừng. Một lần ngó tốn một cú chụp dải tab hẹp, không đáng kể.
+;   Con trỏ có đang nằm trong vùng lưới rương không. Lúc nó nằm trong đó là
+;   game đang vẽ tooltip của món, mà tooltip ấy CHE MẤT dải tab — đọc tab
+;   lúc đó thì đọc phải chữ của tooltip.
+ChuotTrenLuoiRuong(gx, gy)
+{
+    global
+    local mx, my
+    MouseGetPos, mx, my
+    mx -= gx
+    my -= gy
+    return (mx >= RUONG_X - 30 && mx <= RUONG_X + RUONG_OW * RUONG_COT + 30
+         && my >= RUONG_Y - 30 && my <= RUONG_Y + RUONG_OH * RUONG_HANG + 30)
+}
+
+TheoDoiTabDau:
+    if (g_Busy || g_DangQuet || g_DangHoiGia)
+        return
+    ; KHÔNG đòi game phải là cửa sổ đang hoạt động. Bỏ theo yêu cầu người
+    ; dùng. Vẫn không có chuyện dấu xanh nổi lên đè màn hình khi đang làm
+    ; việc khác: RuongDangMo() ở dưới đọc điểm ảnh chỗ mép rương, cửa sổ
+    ; khác che mất là nó thấy ngay và cất dấu đi.
+    if (KiemCuaSoGame(gxD, gyD, cwD, chD) != "")
+    {
+        AnDauXanh()
+        g_DauTabDang := -1
+        return
+    }
+    if (!RuongDangMo(gxD, gyD))
+    {
+        AnDauXanh()
+        g_DauTabDang := -1
+        return
+    }
+    ; Chỉ đọc dải tab lúc con trỏ ở ngoài lưới. Người dùng bấm sang tab khác
+    ; thì lúc bấm con trỏ đang ở trên dải tab, đọc được ngay — chẳng lần nào
+    ; lỡ. Còn lúc con trỏ nằm trong lưới thì cứ giữ số đọc được lần trước.
+    if (!ChuotTrenLuoiRuong(gxD, gyD))
+    {
+        tabD := TabDangMo(gxD, gyD)
+        if (tabD >= 1)
+            g_TabCuoi := tabD
+    }
+    if (g_DauXanh.Count() = 0)
+    {
+        AnDauXanh()
+        return
+    }
+    if (g_TabCuoi != g_DauTabDang || !g_DauHien)
+        VeDauXanh(gxD, gyD)
+return
+
+;=====================================================================
+;   RÊ CHUỘT VÀO MÓN ĐÃ ĐẶT GIÁ  —  VIỀN XANH + NHÃN GIÁ
+;
+;   Làm theo đúng kiểu D4LF: rê vào món nó nhận ra thì món đó được đóng
+;   khung màu, kèm một nhãn chữ nhỏ nói món đó là gì. Ở đây nhãn nói GIÁ.
+;
+;   Khác D4LF một chỗ: họ đóng khung quanh cái TOOLTIP, muốn vậy phải đi
+;   dò xem tooltip đang vẽ ở đâu trên màn. Mình đóng khung quanh Ô — toạ độ
+;   ô thì đã đo sẵn và tin được, khỏi phải đoán.
+;
+;   Hai cửa sổ nhỏ, cùng không ăn chuột và không giành tiêu điểm:
+;     hVien   — bốn thanh mảnh ghép thành cái khung
+;     hReGia  — con số giá, nền tối cho dễ đọc trên nền gì cũng được
+;=====================================================================
+; Các biến g_ReGia* / g_VienHwnd nằm ở khối hằng số trên đầu file — xem bẫy 30/37.
+
+AnGiaRe()
+{
+    global
+    if (!g_ReGiaHien)
+        return
+    Gui, hVien:Hide
+    Gui, hReGia:Hide
+    g_ReGiaHien := false
+    g_ReGiaO := ""
+}
+
+;   Khung viền quanh ô. Không vẽ được hình rỗng ruột bằng một control, nên
+;   ghép bốn thanh: trên, dưới, trái, phải.
+VeVienO(x, y, w, h)
+{
+    global
+    local d
+
+    d := Round(VIEN_DAY * A_ScreenDPI / 96)
+    Gui, hVien:Destroy
+    Gui, hVien:New, +Hwndg_VienHwnd +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x08000000 -DPIScale
+    Gui, hVien:Color, 010101
+    Gui, hVien:Margin, 0, 0
+    Gui, hVien:Add, Progress, % "x0 y0 w" . w . " h" . d . " Background" . VIEN_MAU . " Disabled"
+    Gui, hVien:Add, Progress, % "x0 y" . (h - d) . " w" . w . " h" . d . " Background" . VIEN_MAU . " Disabled"
+    Gui, hVien:Add, Progress, % "x0 y0 w" . d . " h" . h . " Background" . VIEN_MAU . " Disabled"
+    Gui, hVien:Add, Progress, % "x" . (w - d) . " y0 w" . d . " h" . h . " Background" . VIEN_MAU . " Disabled"
+    Gui, hVien:Show, % "NA x" . x . " y" . y . " w" . w . " h" . h
+    WinSet, TransColor, 010101, % "ahk_id " . g_VienHwnd
+}
+
+;   Hiện viền + nhãn giá cho ô đang rê chuột.
+HienGiaRe(gia, gx, gy, tab, hang, cot)
+{
+    global
+    local x, y, w, h, ow, oh, lw, lh, fs, vx, vy, vw, vh
+
+    if (tab = O_TUI_DO)
+    {
+        ow := TUI_OW , oh := TUI_OH
+        x := gx + Round(TUI_X + TUI_OW * cot)
+        y := gy + Round(TUI_Y + TUI_OH * hang)
+    }
+    else
+    {
+        ow := RUONG_OW , oh := RUONG_OH
+        x := gx + Round(RUONG_X + RUONG_OW * cot)
+        y := gy + Round(RUONG_Y + RUONG_OH * hang)
+    }
+    w := Round(ow)
+    h := Round(oh)
+
+    VeVienO(x, y, w, h)
+
+    ; --- nhãn giá: góc dưới phải cái khung, y như D4LF dán chữ ---
+    Gui, hReGia:Destroy
+    Gui, hReGia:New, +Hwndg_ReGiaHwnd +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x08000000 -DPIScale
+    Gui, hReGia:Color, 0E2A16
+    fs := Round(10 * A_ScreenDPI / 96)
+    Gui, hReGia:Margin, % Round(7 * A_ScreenDPI / 96), % Round(3 * A_ScreenDPI / 96)
+    Gui, hReGia:Font, s%fs% Bold, Segoe UI
+    Gui, hReGia:Add, Text, % "c" . VIEN_MAU . " BackgroundTrans vReGiaChu", % gia
+    Gui, hReGia:Show, NA AutoSize x-32000 y-32000
+    WinGetPos, , , lw, lh, % "ahk_id " . g_ReGiaHwnd
+
+    SysGet, vx, 76
+    SysGet, vy, 77
+    SysGet, vw, 78
+    SysGet, vh, 79
+    ; Nhãn nằm đè lên mép dưới khung, thò sang phải một chút.
+    x := x + w - lw + Round(4 * A_ScreenDPI / 96)
+    y := y + h - Round(2 * A_ScreenDPI / 96)
+    if (x + lw > vx + vw)
+        x := vx + vw - lw - 2
+    if (y + lh > vy + vh)
+        y := vy + vh - lh - 2
+    if (x < vx)
+        x := vx + 2
+    Gui, hReGia:Show, % "NA x" . x . " y" . y
+
+    g_ReGiaHien := true
+}
+
+;   Đồng hồ rê chuột. Chỉ tra bản đồ trong bộ nhớ, KHÔNG chụp màn hình —
+;   số tab thì lấy cái mà TheoDoiTabDau đã đọc sẵn.
+TheoDoiReGia:
+    if (g_Busy || g_DangQuet || g_DangHoiGia || !g_DauHien)
+    {
+        AnGiaRe()
+        return
+    }
+    if (KiemCuaSoGame(gxR, gyR, cwR, chR) != "")
+    {
+        AnGiaRe()
+        return
+    }
+    if (!TimOCuaChuot(gxR, gyR, tabR, hangR, cotR, g_TabCuoi))
+    {
+        AnGiaRe()
+        return
+    }
+    khoaR := tabR . "|" . hangR . "|" . cotR
+    if (!g_DauXanh.HasKey(khoaR))
+    {
+        AnGiaRe()
+        return
+    }
+    if (khoaR != g_ReGiaO)
+    {
+        g_ReGiaO := khoaR
+        HienGiaRe(g_DauXanh[khoaR], gxR, gyR, tabR, hangR, cotR)
+    }
+return
 
 ;=====================================================================
 ;   DỌN DẸP LÚC THOÁT

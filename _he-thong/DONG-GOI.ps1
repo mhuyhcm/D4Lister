@@ -50,6 +50,26 @@ if ($mj.Groups[1].Value -ne $BanExt) {
     Loi "So ban lech: manifest.json = $BanExt nhung d4lister.js = $($mj.Groups[1].Value)"
 }
 
+# Bay 30. "global X := 5" dat SAU cai return cua khoi tu chay thi phep gan
+# khong bao gio chay, nhung AHK van nhan ten bien - no rong mot cach lang
+# le, khong loi, khong bao. Da dinh hai lan: mot lan moi o quet thanh "o
+# nao cung co do", mot lan bang dat gia hien len roi tat ngay.
+$ahk = (Get-Content 'D4Lister.ahk' -Raw -Encoding UTF8) -replace "`r`n", "`n"
+$dong = $ahk -split "`n"
+$viTriReturn = -1
+for ($i = 0; $i -lt $dong.Count; $i++) {
+    if ($dong[$i].TrimEnd() -eq 'return') { $viTriReturn = $i; break }
+}
+if ($viTriReturn -lt 0) { Loi 'Khong thay return cua khoi tu chay trong D4Lister.ahk' }
+$xau = @()
+for ($i = $viTriReturn + 1; $i -lt $dong.Count; $i++) {
+    $m = [regex]::Match($dong[$i], '^global\s+([A-Za-z_]\w*)\s*:=')
+    if ($m.Success) { $xau += "dong $($i + 1): $($m.Groups[1].Value)" }
+}
+if ($xau.Count) {
+    Loi ("Bien gan sau return cua khoi tu chay (se rong luc chay): " + ($xau -join '; '))
+}
+
 Write-Host "    D4Lister $Ban  -  tien ich $BanExt"
 Write-Host ''
 
@@ -148,9 +168,41 @@ if ($lot) { Loi "Goi co thu khong duoc dong: $($lot -join ', ')" }
 
 Remove-Item $Tam -Recurse -Force
 
+# --- Ban sao mang ten CO DINH ---------------------------------------
+# So hieu ban khong xep theo thu tu chu duoc: v4.1.2 dung TRUOC v4.2,
+# v4.3, v4.4. Mo thu muc lay file duoi cung la cam phai ban CU. Da dinh
+# that (25/09/2026): goi moi co tien ich 9.5 nam dau danh sach, con
+# D4Lister-v4.4.zip voi tien ich 7.9 nam cuoi, nhin nhu moi nhat.
+#
+# Nen luon de mot ban sao ten co dinh. Can ban nao thi lay dung ban do,
+# khong phai doan qua ten.
+$ZipMoi = Join-Path $Ra 'D4Lister-MOI-NHAT.zip'
+Copy-Item $Zip -Destination $ZipMoi -Force
+Set-Content -Path (Join-Path $Ra 'MOI-NHAT.txt') -Encoding UTF8 -Value @(
+    "Ban moi nhat: D4Lister-$Ban   (tien ich $BanExt)"
+    "Dong luc    : $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+    ''
+    'D4Lister-MOI-NHAT.zip la ban sao cua chinh no.'
+    'Dung lay file duoi cung trong thu muc: so hieu ban KHONG xep theo'
+    'thu tu chu (v4.1.2 dung truoc v4.2), nen file duoi cung thuong la'
+    'ban CU nhat chu khong phai moi nhat.'
+)
+
 $mb = [math]::Round((Get-Item $Zip).Length / 1MB, 2)
 Write-Host ''
 Xong "Xong: _ban-phat-hanh\D4Lister-$Ban.zip   ($mb MB, $soFile file)"
+Xong "      va ban sao  D4Lister-MOI-NHAT.zip"
+
+# Canh bao neu con zip nao XEP SAU ban vua dong — de khoi cam nham.
+$xepSau = Get-ChildItem $Ra -Filter 'D4Lister-v*.zip' -File |
+    Where-Object { $_.Name -gt "D4Lister-$Ban.zip" } |
+    ForEach-Object { $_.Name }
+if ($xepSau) {
+    Write-Host ''
+    Write-Host '    [ LUU Y ] Mo thu muc ra, may zip nay nam DUOI ban vua dong' -ForegroundColor Yellow
+    Write-Host "             nhung deu CU hon: $($xepSau -join ', ')" -ForegroundColor Yellow
+    Write-Host '             Lay D4Lister-MOI-NHAT.zip cho chac.' -ForegroundColor Yellow
+}
 if ($coBoCai) {
     Write-Host ''
     Write-Host '    Trong do 3,3 MB la bo cai AutoHotkey di kem. Doi lai: bung'
